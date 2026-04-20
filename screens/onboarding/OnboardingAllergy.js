@@ -6,6 +6,7 @@ import {
   TouchableOpacity
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CommonActions } from '@react-navigation/native'; // ✅ Thêm dòng này
 
 const OnboardingAllergy = ({ navigation }) => {
   return (
@@ -16,16 +17,18 @@ const OnboardingAllergy = ({ navigation }) => {
           Vui lòng cho biết những thực phẩm bạn bị dị ứng hoặc kiêng để chúng tôi loại bỏ khỏi gợi ý.
         </Text>
       </View>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.continueButton}
         onPress={async () => {
-          // Lưu flag onboarding đã hoàn tất
           await AsyncStorage.setItem('onboarding_done', 'true');
-          // Dùng getParent() để navigate lên root Stack
-          navigation.getParent()?.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          });
+
+          // ✅ Dùng CommonActions.reset thay vì getParent()?.reset()
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: 'Main' }],
+            })
+          );
         }}
       >
         <Text style={styles.continueButtonText}>Hoàn tất</Text>
@@ -34,6 +37,7 @@ const OnboardingAllergy = ({ navigation }) => {
   );
 };
 
+// ... styles giữ nguyên
 const styles = StyleSheet.create({
   container: {
     flex: 1,

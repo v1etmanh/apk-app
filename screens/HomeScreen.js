@@ -199,14 +199,17 @@ const HomeScreen = ({ navigation }) => {
       });
     }
   }, []));
-
-  const getUserLocation = async () => {
+const getUserLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return null;
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
       return { lat: loc.coords.latitude, lon: loc.coords.longitude };
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 
   const buildGridKey = (lat, lon) =>
@@ -265,16 +268,18 @@ const HomeScreen = ({ navigation }) => {
       }
     } catch (e) { console.error('persistSession:', e); }
   };
-
-  const loadRecommendation = async () => {
-    // Guard: nếu đang load rồi thì bỏ qua hoàn toàn
+const loadRecommendation = async () => {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
-    setIsLoading(true);       // → hiện LoadingOverlay, block mọi touch
+
+    // ✅ Xin quyền & lấy GPS TRƯỚC khi hiện overlay
+    const gps = await getUserLocation();
+
+    // Sau đó mới hiện loading
+    setIsLoading(true);
     setVisibleCount(10);
 
     try {
-      const gps = await getUserLocation();
       const currentLocation = gps || location || { lat: 16.047, lon: 108.206, province: 'Đà Nẵng' };
       setLocation(currentLocation);
       if (gps) {
@@ -283,6 +288,8 @@ const HomeScreen = ({ navigation }) => {
       }
 
       const weather = await fetchWeather(currentLocation.lat, currentLocation.lon);
+
+      // ... phần còn lại giữ nguyên
 
       const personal = {
         age: profile?.age || 25,
