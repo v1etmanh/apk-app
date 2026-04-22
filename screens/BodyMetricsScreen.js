@@ -1,27 +1,141 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * BodyMetricsScreen — Redesigned
+ * Phong cách: Studio Ghibli × Handdrawn Game Notebook
+ *
+ * Deps:  yarn add react-native-svg lottie-react-native
+ * Assets:
+ *   assets/textures/paper_cream.png
+ *   assets/textures/wood_light.png
+ *   assets/textures/sky_watercolor.png
+ *   assets/animations/meo_ma.json   ← cat ghost mascot
+ */
+
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, StatusBar, Alert,
+  TextInput, StatusBar, Alert, ImageBackground,
+  Dimensions, Platform,
 } from 'react-native';
+import Svg, { Path, Rect, Line, Circle } from 'react-native-svg';
+import LottieView from 'lottie-react-native';
+
 import { loadAllMetrics, saveBodyMetrics } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
-import { C, R, F, shadow } from '../theme';
 
-const BMI_INFO = (bmi) => {
-  if (!bmi) return { label:'N/A', color:'#9CA3AF', bg:'#F9FAFB', emoji:'⚖️' };
-  const b = parseFloat(bmi);
-  if (b < 18.5) return { label:'Thiếu cân',  color:'#0EA5E9', bg:'#E0F2FE', emoji:'🌱' };
-  if (b < 25)   return { label:'Bình thường', color:'#4ADE80', bg:'#DCFCE7', emoji:'✅' };
-  if (b < 30)   return { label:'Thừa cân',    color:'#FBBF24', bg:'#FEF9C3', emoji:'⚠️' };
-  return             { label:'Béo phì',      color:'#F87171', bg:'#FEE2E2', emoji:'🚨' };
+const { width: SW } = Dimensions.get('window');
+
+// ─── Palette ──────────────────────────────────────────────────────────────────
+const C = {
+  ink:      '#3B2A1A',
+  inkLight: '#6B4F35',
+  paper:    '#FAF3E0',
+  cream:    '#F5E6C8',
+  border:   '#C4A882',
+  stamp:    '#C8956A',
+  white:    '#FFFEF8',
+  green:    '#5A9E6F',
+  greenBg:  '#D4EAD8',
+  blue:     '#7BAFD4',
+  yellow:   '#E4B84A',
+  red:      '#D4615A',
 };
 
+// ─── BMI helpers ──────────────────────────────────────────────────────────────
+const BMI_INFO = (bmi) => {
+  if (!bmi) return { label: 'Chưa có', color: C.stamp,  bg: C.cream,    emoji: '⚖️' };
+  const b = parseFloat(bmi);
+  if (b < 18.5) return { label: 'Thiếu cân',   color: C.blue,   bg: '#DBEAFE', emoji: '🌱' };
+  if (b < 25)   return { label: 'Bình thường', color: C.green,  bg: C.greenBg, emoji: '✅' };
+  if (b < 30)   return { label: 'Thừa cân',    color: C.yellow, bg: '#FEF9C3', emoji: '⚠️' };
+  return             { label: 'Béo phì',      color: C.red,    bg: '#FEE2E2', emoji: '🚨' };
+};
+
+const calcBMI = (h, w) => {
+  if (!h || !w) return null;
+  return (parseFloat(w) / ((parseFloat(h) / 100) ** 2)).toFixed(1);
+};
+
+// ─── Wobbly SVG border ────────────────────────────────────────────────────────
+const WobblyFrame = ({ width, height, color = C.border, sw = 2.2 }) => {
+  if (!width || !height) return null;
+  const p = 5, r = 16;
+  const w = width - p * 2, h = height - p * 2;
+  const d = `
+    M ${p+r},${p-1}
+    Q ${p+w/3},${p+3} ${p+w-r},${p+1}
+    Q ${p+w+2},${p} ${p+w+1},${p+r}
+    Q ${p+w+3},${p+h*0.5} ${p+w+1},${p+h-r}
+    Q ${p+w},${p+h+2} ${p+w-r-1},${p+h+1}
+    Q ${p+w/2},${p+h-3} ${p+r},${p+h}
+    Q ${p-2},${p+h+1} ${p},${p+h-r}
+    Q ${p-3},${p+h*0.5} ${p+1},${p+r}
+    Q ${p},${p-2} ${p+r},${p-1} Z`;
+  return (
+    <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Path d={d} stroke={color} strokeWidth={sw} fill="none"
+        strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+};
+
+// ─── Diamond section label ────────────────────────────────────────────────────
+const SLabel = ({ icon, text }) => (
+  <View style={st.sLabel}>
+    <Text style={st.sLabelIcon}>{icon}</Text>
+    <Text style={st.sLabelText}>{text}</Text>
+  </View>
+);
+
+// ─── Parchment card ───────────────────────────────────────────────────────────
+const Card = ({ children, style, tint }) => {
+  const [sz, setSz] = useState({ w: 0, h: 0 });
+  return (
+    <View style={[st.card, style]}
+      onLayout={e => setSz({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+      <ImageBackground
+        source={require('../assets/textures/paper_cream.png')}
+        style={StyleSheet.absoluteFill}
+        imageStyle={{ borderRadius: 14, opacity: tint ? 0.6 : 0.75 }}
+        resizeMode="cover"
+      />
+      {tint && <View style={[StyleSheet.absoluteFill, { backgroundColor: tint, borderRadius: 14 }]} />}
+      {sz.w > 0 && <WobblyFrame width={sz.w} height={sz.h} />}
+      <View style={{ position: 'relative', zIndex: 1 }}>{children}</View>
+    </View>
+  );
+};
+
+// ─── Wood stat mini card ──────────────────────────────────────────────────────
+const StatCard = ({ emoji, value, unit, label, accentColor }) => {
+  const [sz, setSz] = useState({ w: 0, h: 0 });
+  return (
+    <View style={st.statCard}
+      onLayout={e => setSz({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+      <ImageBackground
+        source={require('../assets/textures/wood_light.png')}
+        style={StyleSheet.absoluteFill}
+        imageStyle={{ borderRadius: 12, opacity: 0.45 }}
+        resizeMode="cover"
+      />
+      {sz.w > 0 && <WobblyFrame width={sz.w} height={sz.h} color={C.stamp} sw={1.8} />}
+      <View style={{ position: 'relative', zIndex: 1, alignItems: 'center', padding: 10 }}>
+        <Text style={st.statEmoji}>{emoji}</Text>
+        <Text style={[st.statNum, { color: accentColor }]}>{value ?? '–'}</Text>
+        <Text style={st.statUnit}>{unit}</Text>
+        <Text style={st.statLabel}>{label}</Text>
+      </View>
+    </View>
+  );
+};
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 const BodyMetricsScreen = ({ navigation }) => {
-  const [metrics, setMetrics] = useState([]);
-  const [height, setHeight]   = useState('');
-  const [weight, setWeight]   = useState('');
-  const [note, setNote]       = useState('');
+  const [metrics, setMetrics]   = useState([]);
+  const [height, setHeight]     = useState('');
+  const [weight, setWeight]     = useState('');
+  const [note, setNote]         = useState('');
   const { latestMetrics, setLatestMetrics } = useAppStore();
+  const lottieRef = useRef(null);
 
   useEffect(() => { loadMetrics(); }, []);
 
@@ -37,196 +151,313 @@ const BodyMetricsScreen = ({ navigation }) => {
     } catch (e) { console.error(e); }
   };
 
-  const calcBMI = (h, w) => {
-    if (!h || !w) return null;
-    return (parseFloat(w) / ((parseFloat(h)/100)**2)).toFixed(1);
-  };
-
   const handleSave = async () => {
     const h = parseFloat(height), w = parseFloat(weight);
     if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
-      Alert.alert('Oops! 😅', 'Chiều cao và cân nặng phải là số dương nhé!'); return;
+      Alert.alert('Ối! 😅', 'Chiều cao và cân nặng phải là số dương nhé!'); return;
     }
     try {
-      await saveBodyMetrics({ height_cm:h, weight_kg:w, measured_at:new Date().toISOString(), note:note||'' });
+      await saveBodyMetrics({ height_cm: h, weight_kg: w, measured_at: new Date().toISOString(), note: note || '' });
       setNote('');
       await loadMetrics();
+      lottieRef.current?.play();
       Alert.alert('Đã lưu! 🎉', 'Chỉ số cơ thể đã được cập nhật.');
-    } catch (e) { Alert.alert('Oops! 😅', 'Không thể lưu dữ liệu'); }
+    } catch (e) { Alert.alert('Ối! 😅', 'Không thể lưu dữ liệu'); }
   };
 
-  const bmi = calcBMI(latestMetrics?.height_cm, latestMetrics?.weight_kg);
+  const bmi     = calcBMI(latestMetrics?.height_cm, latestMetrics?.weight_kg);
   const bmiInfo = BMI_INFO(bmi);
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <View style={s.nav}>
-        <TouchableOpacity style={s.back} onPress={() => navigation.goBack()}>
-          <Text style={s.backArrow}>←</Text>
+    <View style={st.root}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+
+      {/* Background */}
+      <ImageBackground
+        source={require('../assets/textures/sky_watercolor.png')}
+        style={StyleSheet.absoluteFill} resizeMode="cover" />
+      <View style={st.bgOverlay} />
+
+      {/* ── Header ── */}
+      <View style={st.header}>
+        <TouchableOpacity style={st.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <View style={st.backBtnInner}>
+            <Text style={st.backArrow}>‹</Text>
+          </View>
         </TouchableOpacity>
-        <Text style={s.navTitle}>📏 Chỉ số cơ thể</Text>
-        <View style={{ width:40 }} />
+        <View style={st.titleWrap}>
+          <Text style={st.navTitle}>Chỉ số cơ thể</Text>
+          <View style={st.titleLine} />
+        </View>
+        <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        {/* BMI Hero Card */}
-        <View style={[s.bmiCard, { backgroundColor:bmiInfo.bg, borderColor:bmiInfo.color }]}>
-          <View style={s.bmiLeft}>
-            <Text style={s.bmiEmoji}>{bmiInfo.emoji}</Text>
-            <Text style={[s.bmiNum, { color:bmiInfo.color }]}>{bmi ?? '–'}</Text>
-            <Text style={s.bmiLabel}>BMI</Text>
-          </View>
-          <View style={s.bmiRight}>
-            <View style={[s.bmiStatusPill, { backgroundColor:bmiInfo.color }]}>
-              <Text style={s.bmiStatusText}>{bmiInfo.label}</Text>
-            </View>
-            <Text style={s.bmiSub}>
-              {latestMetrics?.weight_kg ? `⚖️ ${latestMetrics.weight_kg} kg` : '–'}
-            </Text>
-            <Text style={s.bmiSub}>
-              {latestMetrics?.height_cm ? `📐 ${latestMetrics.height_cm} cm` : '–'}
-            </Text>
-          </View>
-        </View>
+      <ScrollView contentContainerStyle={st.scroll}
+        showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-        {/* Stats row */}
-        <View style={s.statsRow}>
-          {[
-            { label:'Cân nặng', val:latestMetrics?.weight_kg, unit:'kg', color:'#60A5FA', emoji:'⚖️' },
-            { label:'Chiều cao', val:latestMetrics?.height_cm, unit:'cm', color:'#4ADE80', emoji:'📐' },
-            { label:'Lần đo', val:metrics.length, unit:'lần', color:'#FBBF24', emoji:'📊' },
-          ].map(({ label, val, unit, color, emoji }) => (
-            <View key={label} style={[s.statCard, { borderTopColor:color }]}>
-              <Text style={s.statEmoji}>{emoji}</Text>
-              <Text style={[s.statNum, { color }]}>{val ?? '–'}</Text>
-              <Text style={s.statUnit}>{unit}</Text>
-              <Text style={s.statLabel}>{label}</Text>
-            </View>
-          ))}
-        </View>
+        {/* ── BMI Hero Card ── */}
+        <Card style={st.bmiCard} tint={`${bmiInfo.color}22`}>
+          <View style={st.bmiInner}>
 
-        {/* Form */}
-        <View style={s.formCard}>
-          <Text style={s.formTitle}>✏️ Cập nhật chỉ số</Text>
-          <View style={s.inputRow}>
-            {[
-              { label:'Chiều cao', val:height, set:setHeight, unit:'cm' },
-              { label:'Cân nặng',  val:weight, set:setWeight, unit:'kg' },
-            ].map(({ label, val, set, unit }) => (
-              <View key={label} style={s.inputGroup}>
-                <Text style={s.inputLabel}>{label}</Text>
-                <View style={s.inputWrap}>
-                  <TextInput style={s.input} value={val} onChangeText={set}
-                    keyboardType="decimal-pad" placeholder={unit}
-                    placeholderTextColor="#9CA3AF" />
-                  <Text style={s.inputUnit}>{unit}</Text>
-                </View>
+            {/* Left — BMI number */}
+            <View style={st.bmiLeft}>
+              <Text style={[st.bmiNum, { color: bmiInfo.color }]}>{bmi ?? '–'}</Text>
+              <Text style={st.bmiSmallLabel}>BMI</Text>
+              <View style={{ height: 8 }} />
+              <Text style={st.bmiStat}>⚖️  {latestMetrics?.weight_kg ?? '–'} kg</Text>
+              <Text style={st.bmiStat}>📐  {latestMetrics?.height_cm ?? '–'} cm</Text>
+            </View>
+
+            {/* Center — status badge */}
+            <View style={st.bmiCenter}>
+              <View style={[st.bmiPill, { backgroundColor: bmiInfo.color }]}>
+                <Text style={st.bmiPillText}>{bmiInfo.label}</Text>
               </View>
-            ))}
+              <Text style={st.bmiEmoji}>{bmiInfo.emoji}</Text>
+            </View>
+
+            {/* Right — mascot */}
+            <View style={st.bmiRight}>
+              <LottieView
+                ref={lottieRef}
+                source={require('../assets/animations/cat_gosh.json')}
+                autoPlay loop
+                style={st.mascot}
+              />
+            </View>
+
           </View>
-          <View style={s.noteWrap}>
-            <TextInput style={s.noteInput} value={note} onChangeText={setNote}
-              placeholder="📝 Ghi chú (tuỳ chọn)" placeholderTextColor="#9CA3AF"
-              multiline maxLength={120} />
-          </View>
-          <TouchableOpacity style={s.saveBtn} onPress={handleSave} activeOpacity={0.85}>
-            <Text style={s.saveBtnText}>Lưu chỉ số 🎯</Text>
-          </TouchableOpacity>
+        </Card>
+
+        {/* ── Stats Row ── */}
+        <View style={st.statsRow}>
+          <StatCard emoji="⚖️" value={latestMetrics?.weight_kg} unit="kg"  label="Cân nặng"  accentColor={C.blue}   />
+          <StatCard emoji="📐" value={latestMetrics?.height_cm} unit="cm"  label="Chiều cao" accentColor={C.green}  />
+          <StatCard emoji="📊" value={metrics.length}           unit="lần" label="Lần đo"    accentColor={C.yellow} />
         </View>
 
-        {/* History */}
-        {metrics.length > 0 && (
-          <View style={s.historyCard}>
-            <Text style={s.formTitle}>📅 Lịch sử đo</Text>
-            {metrics.slice(0, 6).map((m, i) => {
-              const d = new Date(m.measured_at);
-              const b = calcBMI(m.height_cm, m.weight_kg);
-              const bi = BMI_INFO(b);
-              return (
-                <View key={i} style={[s.histRow, i < Math.min(metrics.length,6)-1 && s.histDivider]}>
-                  <View>
-                    <Text style={s.histDate}>{d.getDate()}/{d.getMonth()+1}/{d.getFullYear()}</Text>
-                    {m.note ? <Text style={s.histNote}>{m.note}</Text> : null}
+        {/* ── Form Card ── */}
+        <Card style={st.formCard}>
+          <View style={st.cardPad}>
+            <SLabel icon="✏️" text="Cập nhật chỉ số" />
+
+            <View style={st.inputRow}>
+              {[
+                { label: 'Chiều cao', val: height, set: setHeight, unit: 'cm' },
+                { label: 'Cân nặng',  val: weight, set: setWeight, unit: 'kg' },
+              ].map(({ label, val, set, unit }) => (
+                <View key={label} style={st.inputGroup}>
+                  <Text style={st.inputLabel}>{label}</Text>
+                  <View style={st.inputBox}>
+                    <TextInput
+                      style={st.inputText}
+                      value={val}
+                      onChangeText={set}
+                      keyboardType="decimal-pad"
+                      placeholder={unit}
+                      placeholderTextColor="#B8A898"
+                    />
+                    <Text style={st.inputUnit}>{unit}</Text>
                   </View>
-                  <View style={s.histRight}>
-                    <Text style={s.histWeight}>{m.weight_kg} kg</Text>
-                    <View style={[s.histBmiPill, { backgroundColor:bi.bg }]}>
-                      <Text style={[s.histBmiText, { color:bi.color }]}>{bi.emoji} BMI {b}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Note */}
+            <View style={st.noteBox}>
+              <Text style={st.noteIcon}>📝</Text>
+              <TextInput
+                style={st.noteText}
+                value={note}
+                onChangeText={setNote}
+                placeholder="Ghi chú (tuỳ chọn)"
+                placeholderTextColor="#B8A898"
+                multiline
+                maxLength={120}
+              />
+            </View>
+
+            {/* Save button — wood texture */}
+            <TouchableOpacity onPress={handleSave} activeOpacity={0.82} style={st.saveBtnWrap}>
+              <ImageBackground
+                source={require('../assets/textures/wood_light.png')}
+                style={st.saveBtn}
+                imageStyle={{ borderRadius: 16, opacity: 0.85 }}
+                resizeMode="cover"
+              >
+                <View style={st.saveBtnOverlay}>
+                  {/* decorative scroll ends */}
+                  <View style={st.scrollEnd} />
+                  <Text style={st.saveBtnText}>✓  Lưu chỉ số  🎯</Text>
+                  <View style={st.scrollEnd} />
+                </View>
+              </ImageBackground>
+            </TouchableOpacity>
+
+          </View>
+        </Card>
+
+        {/* ── History ── */}
+        {metrics.length > 0 && (
+          <Card style={st.histCard}>
+            <View style={st.cardPad}>
+              <SLabel icon="📅" text="Lịch sử đo" />
+              {metrics.slice(0, 6).map((m, i) => {
+                const d  = new Date(m.measured_at);
+                const b  = calcBMI(m.height_cm, m.weight_kg);
+                const bi = BMI_INFO(b);
+                const isLast = i === Math.min(metrics.length, 6) - 1;
+                return (
+                  <View key={i} style={[st.histRow, !isLast && st.histDivider]}>
+                    <View>
+                      <Text style={st.histDate}>
+                        {d.getDate()}/{d.getMonth() + 1}/{d.getFullYear()}
+                      </Text>
+                      {m.note ? <Text style={st.histNote}>{m.note}</Text> : null}
+                    </View>
+                    <View style={st.histRight}>
+                      <Text style={st.histWeight}>{m.weight_kg} kg</Text>
+                      <View style={[st.histPill, { backgroundColor: bi.bg }]}>
+                        <Text style={[st.histPillText, { color: bi.color }]}>
+                          {bi.emoji} BMI {b}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+          </Card>
         )}
-        <View style={{ height:40 }} />
+
+        <View style={{ height: 48 }} />
       </ScrollView>
     </View>
   );
 };
 
-const s = StyleSheet.create({
-  root:          { flex:1, backgroundColor:'#FFFFF0' },
-  nav:           { flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                   paddingHorizontal:16, paddingVertical:14, backgroundColor:'#FFFFFF',
-                   borderBottomWidth:2, borderBottomColor:'#E5E7EB', borderStyle:'dashed' },
-  back:          { width:44, height:44, justifyContent:'center' },
-  backArrow:     { fontSize:22, color:'#60A5FA', fontWeight:'600' },
-  navTitle:      { fontSize:20, fontFamily:'Patrick Hand', color:'#1E1E1E' },
-  scroll:        { padding:16 },
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const CARD_SHADOW = Platform.select({
+  ios:     { shadowColor: C.ink, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.12, shadowRadius: 8 },
+  android: { elevation: 3 },
+});
 
-  bmiCard:       { borderRadius:24, borderWidth:2, padding:20, flexDirection:'row',
-                   alignItems:'center', marginBottom:14,
-                   shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.06, shadowRadius:3, elevation:2 },
-  bmiLeft:       { alignItems:'center', marginRight:20 },
-  bmiEmoji:      { fontSize:32, marginBottom:4 },
-  bmiNum:        { fontSize:44, fontFamily:'Patrick Hand', lineHeight:48 },
-  bmiLabel:      { fontSize:14, fontFamily:'Nunito', color:'#9CA3AF', fontWeight:'600', letterSpacing:1 },
-  bmiRight:      { flex:1, gap:6 },
-  bmiStatusPill: { alignSelf:'flex-start', borderRadius:9999, paddingHorizontal:14, paddingVertical:6 },
-  bmiStatusText: { fontSize:16, fontFamily:'Nunito', fontWeight:'700', color:'#fff' },
-  bmiSub:        { fontSize:16, fontFamily:'Nunito', color:'#6B7280' },
+const st = StyleSheet.create({
+  root:       { flex: 1, backgroundColor: C.paper },
+  bgOverlay:  { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(250,243,224,0.5)' },
 
-  statsRow:      { flexDirection:'row', gap:10, marginBottom:14 },
-  statCard:      { flex:1, backgroundColor:'#FFFFFF', borderRadius:16, padding:12,
-                   alignItems:'center', borderTopWidth:3,
-                   borderWidth:2, borderColor:'#E5E7EB', borderStyle:'dashed',
-                   shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.06, shadowRadius:3, elevation:2 },
-  statEmoji:     { fontSize:20, marginBottom:4 },
-  statNum:       { fontSize:22, fontFamily:'Patrick Hand' },
-  statUnit:      { fontSize:13, fontFamily:'Nunito', color:'#9CA3AF', marginTop:1 },
-  statLabel:     { fontSize:13, fontFamily:'Nunito', color:'#9CA3AF', marginTop:4 },
+  // Header
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingTop: Platform.OS === 'android' ? 44 : 56,
+    paddingHorizontal: 16, paddingBottom: 10,
+  },
+  backBtn:      { marginRight: 8 },
+  backBtnInner: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: C.white, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: C.border,
+    shadowColor: C.ink, shadowOffset: { width: 1, height: 2 },
+    shadowOpacity: 0.12, shadowRadius: 4, elevation: 3,
+  },
+  backArrow:   { fontSize: 28, color: C.inkLight, fontWeight: '300', lineHeight: 32, marginTop: -2 },
+  titleWrap:   { flex: 1, alignItems: 'center' },
+  navTitle:    { fontSize: 22, fontFamily: 'Patrick Hand', color: C.ink, letterSpacing: 0.3 },
+  titleLine:   { width: 56, height: 2, borderRadius: 1, backgroundColor: C.stamp, marginTop: 3, opacity: 0.55 },
 
-  formCard:      { backgroundColor:'#FFFFFF', borderRadius:24, padding:20, marginBottom:14,
-                   borderWidth:2, borderColor:'#E5E7EB', borderStyle:'dashed',
-                   shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.06, shadowRadius:3, elevation:2 },
-  formTitle:     { fontSize:20, fontFamily:'Patrick Hand', color:'#1E1E1E', marginBottom:16 },
-  inputRow:      { flexDirection:'row', gap:12, marginBottom:14 },
-  inputGroup:    { flex:1 },
-  inputLabel:    { fontSize:16, fontFamily:'Nunito', color:'#6B7280', fontWeight:'600', marginBottom:6 },
-  inputWrap:     { flexDirection:'row', alignItems:'center', backgroundColor:'#FFFFF0',
-                   borderRadius:16, borderWidth:2, borderColor:'#E5E7EB', paddingHorizontal:12 },
-  input:         { flex:1, fontSize:24, fontFamily:'Patrick Hand', color:'#1E1E1E', paddingVertical:10 },
-  inputUnit:     { fontSize:14, fontFamily:'Nunito', color:'#9CA3AF', fontWeight:'600' },
-  noteWrap:      { backgroundColor:'#FFFFF0', borderRadius:16, borderWidth:2,
-                   borderColor:'#E5E7EB', paddingHorizontal:12, marginBottom:16 },
-  noteInput:     { fontSize:16, fontFamily:'Nunito', color:'#1E1E1E', paddingVertical:10, minHeight:44 },
-  saveBtn:       { backgroundColor:'#60A5FA', borderRadius:16, paddingVertical:15, alignItems:'center',
-                   shadowColor:'#60A5FA', shadowOffset:{width:0,height:3}, shadowOpacity:0.3, shadowRadius:10, elevation:4 },
-  saveBtnText:   { fontSize:18, fontFamily:'Nunito', fontWeight:'700', color:'#fff' },
+  scroll: { paddingHorizontal: 16, paddingTop: 8 },
 
-  historyCard:   { backgroundColor:'#FFFFFF', borderRadius:24, padding:20,
-                   borderWidth:2, borderColor:'#E5E7EB', borderStyle:'dashed',
-                   shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.06, shadowRadius:3, elevation:2 },
-  histRow:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:12 },
-  histDivider:   { borderBottomWidth:1, borderBottomColor:'#F3F4F6', borderStyle:'dashed' },
-  histDate:      { fontSize:16, fontFamily:'Nunito', fontWeight:'600', color:'#1E1E1E' },
-  histNote:      { fontSize:14, fontFamily:'Nunito', color:'#9CA3AF', marginTop:2 },
-  histRight:     { alignItems:'flex-end', gap:4 },
-  histWeight:    { fontSize:18, fontFamily:'Patrick Hand', color:'#1E1E1E' },
-  histBmiPill:   { borderRadius:9999, paddingHorizontal:10, paddingVertical:3 },
-  histBmiText:   { fontSize:13, fontFamily:'Nunito', fontWeight:'700' },
+  // Card base
+  card: {
+    borderRadius: 14, backgroundColor: C.white, overflow: 'hidden', ...CARD_SHADOW,
+  },
+  cardPad: { padding: 16 },
+
+  // BMI hero
+  bmiCard:   { marginBottom: 14 },
+  bmiInner:  { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 8 },
+  bmiLeft:   { flex: 1.1 },
+  bmiNum:    { fontSize: 48, fontFamily: 'Patrick Hand', lineHeight: 52 },
+  bmiSmallLabel: { fontSize: 13, fontFamily: 'Nunito', fontWeight: '700', color: C.inkLight, letterSpacing: 1.5 },
+  bmiStat:   { fontSize: 15, fontFamily: 'Nunito', color: C.inkLight, fontWeight: '600', marginTop: 3 },
+  bmiCenter: { flex: 1.2, alignItems: 'center', gap: 8 },
+  bmiPill:   {
+    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
+  },
+  bmiPillText: { fontSize: 15, fontFamily: 'Nunito', fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
+  bmiEmoji:    { fontSize: 26 },
+  bmiRight:    { flex: 1.2, alignItems: 'center', justifyContent: 'center' },
+  mascot:      { width: 100, height: 100 },
+
+  // Stats row
+  statsRow:  { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  statCard:  { flex: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: C.white, ...CARD_SHADOW },
+  statEmoji: { fontSize: 22, marginBottom: 4 },
+  statNum:   { fontSize: 24, fontFamily: 'Patrick Hand', lineHeight: 28 },
+  statUnit:  { fontSize: 12, fontFamily: 'Nunito', color: C.inkLight, marginTop: 1 },
+  statLabel: { fontSize: 12, fontFamily: 'Nunito', color: C.inkLight, marginTop: 4 },
+
+  // Form
+  formCard:  { marginBottom: 14 },
+  sLabel:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
+  sLabelIcon:{ fontSize: 18 },
+  sLabelText:{ fontSize: 18, fontFamily: 'Patrick Hand', color: C.ink, letterSpacing: 0.2 },
+
+  inputRow:   { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  inputGroup: { flex: 1 },
+  inputLabel: { fontSize: 14, fontFamily: 'Nunito', fontWeight: '700', color: C.inkLight, marginBottom: 6 },
+  inputBox:   {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.cream, borderRadius: 12,
+    borderWidth: 1.5, borderColor: C.border,
+    paddingHorizontal: 10,
+  },
+  inputText:  { flex: 1, fontSize: 26, fontFamily: 'Patrick Hand', color: C.ink, paddingVertical: 8 },
+  inputUnit:  { fontSize: 13, fontFamily: 'Nunito', fontWeight: '700', color: C.stamp },
+
+  noteBox:    {
+    flexDirection: 'row', alignItems: 'flex-start',
+    backgroundColor: C.cream, borderRadius: 12,
+    borderWidth: 1.5, borderColor: C.border,
+    paddingHorizontal: 10, marginBottom: 14, minHeight: 48,
+  },
+  noteIcon:   { fontSize: 16, marginTop: 10, marginRight: 6 },
+  noteText:   { flex: 1, fontSize: 15, fontFamily: 'Nunito', color: C.ink, paddingVertical: 8 },
+
+  saveBtnWrap: {
+    shadowColor: C.ink, shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.18, shadowRadius: 8, elevation: 5,
+  },
+  saveBtn:        { height: 54, borderRadius: 16, overflow: 'hidden', justifyContent: 'center' },
+  saveBtnOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(90,55,20,0.14)', borderRadius: 16, gap: 8,
+  },
+  scrollEnd:    {
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: 'rgba(90,55,20,0.25)',
+  },
+  saveBtnText:  {
+    fontSize: 19, fontFamily: 'Patrick Hand', color: C.ink,
+    letterSpacing: 0.6,
+    textShadowColor: 'rgba(255,255,255,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+
+  // History
+  histCard:    { marginBottom: 14 },
+  histRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  histDivider: { borderBottomWidth: 1, borderBottomColor: C.border, borderStyle: 'dashed' },
+  histDate:    { fontSize: 15, fontFamily: 'Nunito', fontWeight: '700', color: C.ink },
+  histNote:    { fontSize: 13, fontFamily: 'Nunito', color: C.inkLight, marginTop: 2 },
+  histRight:   { alignItems: 'flex-end', gap: 4 },
+  histWeight:  { fontSize: 18, fontFamily: 'Patrick Hand', color: C.ink },
+  histPill:    { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+  histPillText:{ fontSize: 12, fontFamily: 'Nunito', fontWeight: '700' },
 });
 
 export default BodyMetricsScreen;

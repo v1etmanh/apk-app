@@ -23,6 +23,7 @@ import OnboardingWelcome from './screens/onboarding/OnboardingWelcome';
 import OnboardingPersonal from './screens/onboarding/OnboardingPersonal';
 import OnboardingAllergy from './screens/onboarding/OnboardingAllergy';
 import OnboardingProfileScreen from './screens/onboarding/OnBoardTast';
+import RecommendScreen from './screens/RecommendScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -43,6 +44,17 @@ const MainTabs = () => {
           tabBarLabel: 'Trang chủ',
           tabBarIcon: ({ focused }) => (
             <Text style={{ fontSize: 16, color: focused ? '#007AFF' : '#666' }}>🏠</Text>
+          )
+        }}
+      />
+      <Tab.Screen 
+        name="recommend" 
+        component={RecommendScreen} 
+        options={{ 
+          tabBarLabel: 'Đề xuất',
+          tabBarIcon: ({ focused }) => (
+            <Text style={{ fontSize: 16, color: focused ? '#007AFF' : '#666' }}>💡</Text>
+          
           )
         }}
       />
@@ -76,6 +88,7 @@ const MainTabs = () => {
           )
         }}
       />
+      
     </Tab.Navigator>
   );
 };
@@ -146,6 +159,7 @@ const App = () => {
               <Stack.Screen name="Allergy" component={AllergyScreen} />
               <Stack.Screen name="CookingChallenge" component={CookingChallengeScreen} />
               <Stack.Screen name="TasteProfile" component={TasteProfileScreen} />
+               <Stack.Screen name="Recommend" component={RecommendScreen} />
             </>
           )}
         </Stack.Navigator>

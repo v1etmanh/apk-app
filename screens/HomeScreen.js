@@ -1,191 +1,201 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, Image, Alert, ActivityIndicator, Modal,
+  RefreshControl, ActivityIndicator, StatusBar, ImageBackground,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { LinearGradient } from 'expo-linear-gradient';
-import LottieView from 'lottie-react-native';
 import { api } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
-import { C, R, F, shadow } from '../theme';
 import {
-  saveSession, saveDishesToSession, saveFeedback,
+  saveSession, saveDishesToSession,
   loadSessions, loadDishesBySession,
   getWeatherCache, setWeatherCache, setSetting,
-  getRecentDishIds,
-  saveRecentDishesCache, loadRecentDishesCache,
+  getRecentDishIds, saveRecentDishesCache, loadRecentDishesCache,
 } from '../utils/database';
+import {
+  useFonts,
+  Nunito_400Regular,
+  Nunito_600SemiBold,
+  Nunito_700Bold,
+} from '@expo-google-fonts/nunito';
+import {
+  Caveat_400Regular,
+  Caveat_700Bold,
+} from '@expo-google-fonts/caveat';
 
-// ── DoodlePad tokens ────────────────────────────────────────────────────────
-const DP = {
-  primary:    '#60A5FA',
-  primaryDk:  '#3B82F6',
-  secondary:  '#4ADE80',
-  tertiary:   '#FBBF24',
-  error:      '#F87171',
-  base:       '#FFFFF0',
-  surface:    '#FFFFFF',
-  textPri:    '#1E1E1E',
-  textSec:    '#6B7280',
-  border:     '#E5E7EB',
-  radiusMd:   16,
-  radiusLg:   24,
-  radiusFull: 9999,
+// ── Assets ────────────────────────────────────────────────────────────────────
+// Đặt các file texture vào thư mục assets/textures/ trong project của bạn
+const ASSETS = {
+  sky:   require('../assets/textures/sky_watercolor.png'),
+  wood:  require('../assets/textures/wood_light.png'),
+  paper: require('../assets/textures/paper_cream.png'),
 };
-const dpSm = { shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.06, shadowRadius:3, elevation:1 };
-const dpMd = { shadowColor:'#000', shadowOffset:{width:0,height:3}, shadowOpacity:0.08, shadowRadius:8, elevation:3 };
 
-// ── Loading messages — đổi ngẫu nhiên mỗi lần ──────────────────────────────
-const LOADING_MSGS = [
-  'Đang tìm món ngon cho bạn...',
-  'Phân tích thời tiết hôm nay...',
-  'Chọn món phù hợp khẩu vị...',
-  'Sắp có gợi ý rồi nhé! 🍜',
-];
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const T = {
+  // Browns & warms — Ghibli storybook palette
+  brown:       '#5C3A1E',
+  brownMid:    '#7A4E2D',
+  brownLight:  '#A0784A',
+  brownSoft:   'rgba(92,58,30,0.12)',
+  brownBorder: 'rgba(92,58,30,0.18)',
+  brownBorder2:'rgba(92,58,30,0.28)',
 
-// ── Lottie Loading Overlay ──────────────────────────────────────────────────
-const LoadingOverlay = ({ visible }) => {
-  const [msgIdx, setMsgIdx] = useState(0);
+  // Cream & paper
+  cream:       '#F5EDD8',
+  creamDark:   '#EDE0C4',
+  creamLight:  '#FAF6EE',
 
-  useEffect(() => {
-    if (!visible) return;
-    setMsgIdx(Math.floor(Math.random() * LOADING_MSGS.length));
-    const timer = setInterval(() => {
-      setMsgIdx(i => (i + 1) % LOADING_MSGS.length);
-    }, 1800);
-    return () => clearInterval(timer);
-  }, [visible]);
+  // Wood
+  wood:        '#D4B878',
+  woodDark:    '#C09850',
 
+  // Accents
+  gold:        '#C8860A',
+  goldSoft:    'rgba(200,134,10,0.15)',
+  goldBorder:  'rgba(200,134,10,0.35)',
+  green:       '#4A7C59',
+  greenSoft:   'rgba(74,124,89,0.15)',
+  orange:      '#C8601A',
+  red:         '#B84040',
+  sky:         '#7AABCA',
+
+  // Text on paper
+  textPrimary:   '#3D2410',
+  textSecondary: '#7A5A3A',
+  textMuted:     'rgba(92,58,30,0.45)',
+
+  // White overlays
+  white:    '#FFFFFF',
+  white80:  'rgba(255,255,255,0.80)',
+  white60:  'rgba(255,255,255,0.60)',
+  white40:  'rgba(255,255,255,0.40)',
+  white20:  'rgba(255,255,255,0.20)',
+
+  // Shadow
+  shadow:   'rgba(92,58,30,0.22)',
+};
+
+// ── AQI label ─────────────────────────────────────────────────────────────────
+const aqiInfo = (aqi) => {
+  if (aqi <= 50)  return { label: 'Tốt',        color: T.green };
+  if (aqi <= 100) return { label: 'Trung bình',  color: T.gold };
+  if (aqi <= 150) return { label: 'Không tốt',   color: T.orange };
+  return               { label: 'Nguy hiểm',    color: T.red };
+};
+
+const uvInfo = (uv) => {
+  if (uv <= 2)  return { label: 'Thấp',       color: T.green };
+  if (uv <= 5)  return { label: 'Vừa phải',   color: T.gold };
+  if (uv <= 7)  return { label: 'Cao',         color: T.orange };
+  if (uv <= 10) return { label: 'Rất cao',     color: '#C06010' };
+  return               { label: 'Cực kỳ cao',  color: T.red };
+};
+
+const weatherIcon = (cond = '', temp = 30) => {
+  const c = cond.toLowerCase();
+  if (c.includes('rain') || c.includes('mưa'))  return '🌧️';
+  if (c.includes('storm') || c.includes('bão')) return '⛈️';
+  if (c.includes('cloud') || c.includes('mây')) return '⛅';
+  if (c.includes('fog')  || c.includes('sương'))return '🌫️';
+  if (temp > 33) return '☀️';
+  if (temp > 28) return '🌤️';
+  return '🌥️';
+};
+
+// ── UV dots bar ───────────────────────────────────────────────────────────────
+const UVBar = ({ value }) => {
+  const filled = Math.round(Math.min(value, 11) / 11 * 10);
+  const { color } = uvInfo(value);
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      // hardwareAccelerated giúp animation mượt hơn trên Android
-      hardwareAccelerated>
-      {/* Backdrop — chặn mọi touch phía sau */}
-      <View style={ovSt.backdrop} pointerEvents="box-only">
-        <View style={ovSt.card}>
-          <LottieView
-            source={require('../assets/animations/food around the city.json')}
-            autoPlay
-            loop
-            speed={2.0} 
-            style={ovSt.lottie}
-            resizeMode="contain"
-          />
-          <Text style={ovSt.msg}>{LOADING_MSGS[msgIdx]}</Text>
-          {/* Subtle dot indicator */}
-          <View style={ovSt.dots}>
-            {LOADING_MSGS.map((_, i) => (
-              <View
-                key={i}
-                style={[ovSt.dot, i === msgIdx && ovSt.dotActive]}
-              />
-            ))}
-          </View>
-        </View>
-      </View>
-    </Modal>
+    <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+      {Array.from({ length: 10 }, (_, i) => (
+        <View key={i} style={{
+          width: 18, height: 6, borderRadius: 3,
+          backgroundColor: i < filled ? color : T.brownSoft,
+          borderWidth: i < filled ? 0 : 0.5,
+          borderColor: T.brownBorder,
+        }} />
+      ))}
+    </View>
   );
 };
 
-const ovSt = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  card: {
-    backgroundColor: '#FFFFF0',
-    borderRadius: 28,
-    paddingHorizontal: 32,
-    paddingVertical: 28,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderStyle: 'dashed',
-    width: 280,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  lottie: {
-    width: 180,
-    height: 180,
-  },
-  msg: {
-    marginTop: 8,
-    fontSize: 15,
-    fontFamily: 'Nunito',
-    fontWeight: '700',
-    color: '#1E1E1E',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  dots: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 14,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#E5E7EB',
-  },
-  dotActive: {
-    backgroundColor: '#60A5FA',
-    width: 18,
-  },
-});
+// ── AQI progress bar ──────────────────────────────────────────────────────────
+const AQIBar = ({ value }) => {
+  const pct = Math.min(value / 300, 1);
+  const { color } = aqiInfo(value);
+  return (
+    <View style={{ flex: 1, height: 6, backgroundColor: T.brownSoft, borderRadius: 3, borderWidth: 0.5, borderColor: T.brownBorder }}>
+      <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: color, borderRadius: 3 }} />
+    </View>
+  );
+};
 
-// ── HomeScreen ──────────────────────────────────────────────────────────────
+// ── Wood metric cell ──────────────────────────────────────────────────────────
+const WoodMetricCell = ({ icon, value, unit, label }) => (
+  <ImageBackground source={ASSETS.wood} style={s.woodCell} imageStyle={s.woodCellImg} resizeMode="cover">
+    <View style={s.woodCellOverlay}>
+      <Text style={s.woodIcon}>{icon}</Text>
+      <Text style={s.woodVal}>
+        {value}<Text style={s.woodUnit}>{unit}</Text>
+      </Text>
+      <Text style={s.woodLabel}>{label}</Text>
+    </View>
+  </ImageBackground>
+);
+
+// ── Paper card wrapper ────────────────────────────────────────────────────────
+const PaperCard = ({ children, style, borderColor }) => (
+  <ImageBackground
+    source={ASSETS.paper}
+    style={[s.paperCard, style, borderColor && { borderColor }]}
+    imageStyle={s.paperCardImg}
+    resizeMode="cover"
+  >
+    <View style={s.paperCardInner}>{children}</View>
+  </ImageBackground>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 const HomeScreen = ({ navigation }) => {
-  const isLoadingRef           = React.useRef(false);
-  const rankedDishesLengthRef  = React.useRef(0);
-  const prevBasketCountRef     = React.useRef(-1);
+  const isLoadingRef       = React.useRef(false);
+  const prevBasketCountRef = React.useRef(-1);
 
-  const [isLoading, setIsLoading]           = useState(false);
-  const [weatherData, setWeatherData]       = useState(null);
-  const [cuisineScope, setCuisineScope]     = useState('vietnam');
-  const [dishTypeFilter, setDishTypeFilter] = useState('all');
-  const [refreshing, setRefreshing]         = useState(false);
-  const [basketBadge, setBasketBadge]       = useState(0);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [weatherData, setWeatherData]   = useState(null);
+  const [cuisineScope, setCuisineScope] = useState('vietnam');
+  const [dishFilter, setDishFilter]     = useState('all');
+  const [isDirty, setIsDirty]           = useState(false);
+  const [basketBadge, setBasketBadge]   = useState(0);
   const [challengeTitle, setChallengeTitle] = useState('');
-  const [visibleCount, setVisibleCount]     = useState(10);
-  const [isDirty, setIsDirty]               = useState(false);
   const isFirstRender = React.useRef(true);
+
+  const [fontsLoaded] = useFonts({
+    Nunito_400Regular,
+    Nunito_600SemiBold,
+    Nunito_700Bold,
+    Caveat_400Regular,
+    Caveat_700Bold,
+  });
 
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     setIsDirty(true);
-  }, [cuisineScope, dishTypeFilter]);
+  }, [cuisineScope, dishFilter]);
 
   const {
-    profile, latestMetrics, rankedDishes, setRankedDishes,
-    location, setLocation, allergies, currentSessionId,
-    setCurrentSessionId, marketBasket, maxPrepTime, costPreference,
+    profile, latestMetrics, setRankedDishes,
+    location, setLocation, allergies, setCurrentSessionId,
+    marketBasket, maxPrepTime, costPreference,
   } = useAppStore();
-
-  useEffect(() => {
-    rankedDishesLengthRef.current = rankedDishes.length;
-  }, [rankedDishes.length]);
 
   useEffect(() => {
     const count = marketBasket?.selectedIngredients?.length ?? 0;
     setBasketBadge(count);
-    if (prevBasketCountRef.current !== -1 && prevBasketCountRef.current !== count) {
-      loadRecommendation();
-    }
     prevBasketCountRef.current = count;
-  }, [marketBasket?.selectedIngredients?.length, marketBasket?.isSkipped]);
+  }, [marketBasket?.selectedIngredients?.length]);
 
   useFocusEffect(useCallback(() => {
     const lat = location?.lat || 16.047;
@@ -193,544 +203,527 @@ const HomeScreen = ({ navigation }) => {
     api.get(`/api/v1/challenge?lat=${lat}&lon=${lon}`)
       .then(r => setChallengeTitle(r.data?.challenge_dish?.title || ''))
       .catch(() => {});
-    if (rankedDishesLengthRef.current === 0) {
-      loadRecentDishesCache().then(cached => {
-        if (cached.length > 0) setRankedDishes(cached);
-      });
-    }
+    loadRecentDishesCache().then(cached => {
+      if (cached.length > 0) setRankedDishes(cached);
+    });
+    const loc = location || { lat: 16.047, lon: 108.206 };
+    fetchWeather(loc.lat, loc.lon);
   }, []));
-const getUserLocation = async () => {
+
+  const getUserLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return null;
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       return { lat: loc.coords.latitude, lon: loc.coords.longitude };
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   };
 
-  const buildGridKey = (lat, lon) =>
-    `${Math.round(lat * 10) / 10}:${Math.round(lon * 10) / 10}`;
+  const gridKey = (lat, lon) => `${Math.round(lat * 10) / 10}:${Math.round(lon * 10) / 10}`;
 
   const fetchWeather = async (lat, lon) => {
-    const gridKey = buildGridKey(lat, lon);
-    const cached  = await getWeatherCache(gridKey);
-    if (cached) {
-      if (cached.temperature != null) setWeatherData(cached);
-      return cached.weather_vector ?? cached;
-    }
+    const key = gridKey(lat, lon);
+    const cached = await getWeatherCache(key);
+    if (cached?.temperature != null) { setWeatherData(cached); return cached; }
     try {
       const res = await api.get(`/api/weather?lat=${lat}&lon=${lon}`);
-      const hour = new Date().getHours();
-      await setWeatherCache(gridKey, res.data, hour >= 6 && hour < 22 ? 30 : 60);
+      const hr = new Date().getHours();
+      await setWeatherCache(key, res.data, hr >= 6 && hr < 22 ? 30 : 60);
       setWeatherData(res.data);
       return res.data;
     } catch {
-      const fallback = {
-        temperature: 30, condition: 'Không rõ (offline)',
-        humidity: 70, wind_speed: 10, aqi: 85,
-      };
-      setWeatherData(fallback);
-      return fallback;
+      const fb = { temperature: 30, condition: 'Không rõ (offline)', humidity: 70, wind_speed: 10, aqi: 85, uv_index: 5, pressure: 1010, season: 'summer' };
+      setWeatherData(fb);
+      return fb;
     }
   };
 
-  const loadFallbackDishes = async () => {
-    try {
-      const sessions = await loadSessions(1);
-      if (!sessions.length) return [];
-      return await loadDishesBySession(sessions[0].id);
-    } catch { return []; }
-  };
-
-  const persistSession = async (result, params) => {
-    try {
-      const sid = await saveSession({
-        created_at: new Date().toISOString(),
-        lat: params.lat, lon: params.lon,
-        province: params.province || '',
-        food_region: params.food_region || '',
-        cuisine_scope: params.cuisineScope,
-        basket_skipped: params.marketBasket.isSkipped ? 1 : 0,
-      });
-      setCurrentSessionId(sid);
-      if (result.ranked_dishes?.length) {
-        await saveDishesToSession(sid, result.ranked_dishes.map(d => ({
-          dish_id: d.dish_id, rank: d.rank, final_score: d.final_score,
-          ingredient_boost: d.ingredient_boost || 0, title: d.title,
-          nation: d.nation || '', cook_time_min: d.cook_time_min || 0,
-          explanation: d.explanation || [], image_url: d.image_url || '',
-          url: d.url || '', score_breakdown: d.score_breakdown || {},
-        })));
-      }
-    } catch (e) { console.error('persistSession:', e); }
-  };
-const loadRecommendation = async () => {
+  const goSearch = async () => {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
-
-    // ✅ Xin quyền & lấy GPS TRƯỚC khi hiện overlay
     const gps = await getUserLocation();
-
-    // Sau đó mới hiện loading
-    setIsLoading(true);
-    setVisibleCount(10);
-
-    try {
-      const currentLocation = gps || location || { lat: 16.047, lon: 108.206, province: 'Đà Nẵng' };
-      setLocation(currentLocation);
-      if (gps) {
-        await setSetting('last_known_lat', String(gps.lat));
-        await setSetting('last_known_lon', String(gps.lon));
-      }
-
-      const weather = await fetchWeather(currentLocation.lat, currentLocation.lon);
-
-      // ... phần còn lại giữ nguyên
-
-      const personal = {
-        age: profile?.age || 25,
-        gender: profile?.gender || 'female',
-        height: latestMetrics?.height_cm || 160,
-        weight: latestMetrics?.weight_kg || 55,
-        diet_type: profile?.diet_type || 'omnivore',
-        dietary_goal: profile?.dietary_goal || 'maintenance',
-        activity_level: profile?.activity_level || 'moderately_active',
-        health_condition: profile?.health_condition || [],
-        taste_preference: profile?.taste_preference || [],
-        allergies: allergies || [],
-        max_prep_time: maxPrepTime ?? 60,
-      };
-
-      const basket = marketBasket.isSkipped
-        ? { is_skipped: true, selected_ingredient_ids: [], boost_strategy: 'none' }
-        : {
-            is_skipped: false,
-            selected_ingredient_ids: marketBasket.selectedIngredients,
-            boost_strategy: marketBasket.boostStrategy,
-          };
-
-      try {
-        const recentDishIds = await getRecentDishIds(3);
-        const res = await api.post('/api/v1/recommend', {
-          lat: currentLocation.lat,
-          lon: currentLocation.lon,
-          weather,
-          personal,
-          cuisine_scope: cuisineScope,
-          selected_nation: null,
-          dish_type_filter: dishTypeFilter,
-          cost_preference: costPreference,   // fix: gửi ở root thay vì trong personal
-          market_basket: basket,
-          recent_dish_ids: recentDishIds,
-        });
-
-        setRankedDishes(res.data.ranked_dishes || []);
-        setIsDirty(false);
-        await saveRecentDishesCache(res.data.ranked_dishes || []);
-        await persistSession(res.data, { ...currentLocation, cuisineScope, marketBasket });
-      } catch (apiErr) {
-        console.error('recommend API:', apiErr);
-        const fallback = await loadFallbackDishes();
-        if (fallback.length) {
-          setRankedDishes(fallback);
-          Alert.alert('Offline', 'Đang hiển thị gợi ý cũ.');
-        } else {
-          Alert.alert('Lỗi kết nối', 'Kiểm tra IP server.');
-        }
-      }
-    } catch (e) {
-      console.error('loadRecommendation:', e);
-    } finally {
-      // Luôn reset dù thành công hay lỗi
-      isLoadingRef.current = false;
-      setIsLoading(false);   // → ẩn LoadingOverlay
+    const currentLocation = gps || location || { lat: 16.047, lon: 108.206, province: 'Đà Nẵng' };
+    setLocation(currentLocation);
+    if (gps) {
+      await setSetting('last_known_lat', String(gps.lat));
+      await setSetting('last_known_lon', String(gps.lon));
     }
+    const weather = await fetchWeather(currentLocation.lat, currentLocation.lon);
+    const personal = {
+      age: profile?.age || 25,
+      gender: profile?.gender || 'female',
+      height: latestMetrics?.height_cm || 160,
+      weight: latestMetrics?.weight_kg || 55,
+      diet_type: profile?.diet_type || 'omnivore',
+      dietary_goal: profile?.dietary_goal || 'maintenance',
+      activity_level: profile?.activity_level || 'moderately_active',
+      health_condition: profile?.health_condition || [],
+      taste_preference: profile?.taste_preference || [],
+      allergies: allergies || [],
+      max_prep_time: maxPrepTime ?? 60,
+    };
+    const basket = marketBasket.isSkipped
+      ? { is_skipped: true, selected_ingredient_ids: [], boost_strategy: 'none' }
+      : { is_skipped: false, selected_ingredient_ids: marketBasket.selectedIngredients, boost_strategy: marketBasket.boostStrategy };
+    navigation.navigate('Recommend', {
+      searchParams: {
+        lat: currentLocation.lat, lon: currentLocation.lon,
+        weather, personal,
+        cuisine_scope: cuisineScope,
+        dish_type_filter: dishFilter,
+        cost_preference: costPreference,
+        market_basket: basket,
+        location: currentLocation,
+      },
+    });
+    setIsDirty(false);
+    isLoadingRef.current = false;
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadRecommendation();
+    const gps = await getUserLocation();
+    const loc = gps || location || { lat: 16.047, lon: 108.206 };
+    if (gps) setLocation(gps);
+    await fetchWeather(loc.lat, loc.lon);
     setRefreshing(false);
   };
 
-  const handleQuickFeedback = async (dishId, action) => {
-    try {
-      if (!currentSessionId) return;
-      await saveFeedback({
-        session_id: currentSessionId, dish_id: dishId,
-        action_type: action, feedback_at: new Date().toISOString(),
-      });
-    } catch (e) { console.error('handleQuickFeedback:', e); }
-  };
+  const icon = weatherIcon(weatherData?.condition, weatherData?.temperature);
+  const aqi  = aqiInfo(weatherData?.aqi ?? 0);
+  const uv   = uvInfo(weatherData?.uv_index ?? 0);
 
-  const getWeatherGradient = (temperature, condition) => {
-    if (!temperature) return ['#1E3A5F', '#2E86C1'];
-    const cond = condition?.toLowerCase() || '';
-    if (cond.includes('rain') || cond.includes('mưa')) return ['#1F3A4C', '#2C5364'];
-    if (temperature < 20)  return ['#1E3A5F', '#2E86C1'];
-    if (temperature <= 28) return ['#1A5276', '#117A65'];
-    if (temperature <= 33) return ['#784212', '#E67E22'];
-    return ['#7B241C', '#E74C3C'];
-  };
-
-  // ── Dish Card (horizontal top-3) ─────────────────────────────────────────
-  const renderDishCardH = (item) => (
-    <TouchableOpacity key={item.dish_id || item.rank} style={styles.dishCard}
-      onPress={() => navigation.navigate('DishDetail', { dish: item })} activeOpacity={0.85}>
-      <View style={styles.cardImageWrap}>
-        {item.image_url
-          ? <Image source={{ uri: item.image_url }} style={styles.cardImage} resizeMode="cover" />
-          : <View style={styles.imagePlaceholder}><Text style={styles.dishEmoji}>🍜</Text></View>}
-        <View style={styles.rankBadge}>
-          <Text style={styles.rankText}>#{item.rank}</Text>
-        </View>
-        {item.ingredient_boost > 0 && (
-          <View style={styles.boostBadge}>
-            <Text style={styles.boostText}>🛒 {Math.round(item.ingredient_boost * 100)}%</Text>
-          </View>
-        )}
-      </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.dishTitle} numberOfLines={2}>{item.title}</Text>
-        <View style={styles.cardMeta}>
-          <Text style={styles.metaChip}>⏱ {item.cook_time_min}p</Text>
-          <Text style={styles.metaChip}>★ {(item.final_score * 100).toFixed(0)}%</Text>
-        </View>
-        {item.explanation?.length > 0 && (
-          <Text style={styles.cardHint} numberOfLines={2}>{item.explanation[0]}</Text>
-        )}
-        <View style={styles.quickFeedback}>
-          <TouchableOpacity style={[styles.fbBtn, styles.eatBtn]}
-            onPress={() => handleQuickFeedback(item.dish_id, 'eaten')}>
-            <Text style={styles.fbText}>😋 Ăn</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.fbBtn, styles.skipBtn]}
-            onPress={() => handleQuickFeedback(item.dish_id, 'skipped')}>
-            <Text style={styles.fbText}>✕ Bỏ</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  // ── List Row (rank 4+) ────────────────────────────────────────────────────
-  const renderListRow = (item) => (
-    <TouchableOpacity key={item.dish_id || item.rank} style={styles.listItem}
-      onPress={() => navigation.navigate('DishDetail', { dish: item })} activeOpacity={0.85}>
-      <View style={styles.listImageWrap}>
-        {item.image_url
-          ? <Image source={{ uri: item.image_url }} style={styles.listImage} resizeMode="cover" />
-          : <View style={styles.listImageFallback}><Text style={{ fontSize: 22 }}>🍜</Text></View>}
-      </View>
-      <View style={styles.listContent}>
-        <Text style={styles.listTitle} numberOfLines={1}>{item.title}</Text>
-        <View style={styles.listMetaRow}>
-          <Text style={styles.listMeta}>⏱ {item.cook_time_min}p</Text>
-          <Text style={styles.listMeta}>★ {(item.final_score * 100).toFixed(0)}%</Text>
-          <Text style={styles.listMeta}>{item.nation || 'Việt Nam'}</Text>
-        </View>
-        {item.explanation?.[0] && (
-          <Text style={styles.listHint} numberOfLines={1}>{item.explanation[0]}</Text>
-        )}
-      </View>
-      <View style={styles.listActions}>
-        <TouchableOpacity style={[styles.miniFb, styles.eatBtn]}
-          onPress={() => handleQuickFeedback(item.dish_id, 'eaten')}>
-          <Text style={{ fontSize: 14 }}>😋</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.miniFb, styles.skipBtn]}
-          onPress={() => handleQuickFeedback(item.dish_id, 'skipped')}>
-          <Text style={{ color: 'white', fontWeight: '600', fontSize: 12 }}>✕</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-
-  // ── JSX ──────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <View style={{ flex: 1 }}>
-      {/* Lottie overlay — phủ toàn màn hình, block mọi touch khi isLoading */}
-      <LoadingOverlay visible={isLoading} />
+    <ImageBackground source={ASSETS.sky} style={{ flex: 1 }} resizeMode="cover">
+      {/* Overlay nhạt để text đọc được */}
+      <View style={s.skyOverlay} />
+      <StatusBar barStyle="dark-content" />
 
       <ScrollView
-        style={styles.container}
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={DP.primary}
-          />
-        }>
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.brownMid} />
+        }
+      >
 
         {/* ── Header ── */}
-        <View style={styles.header}>
+        <View style={s.header}>
           <View>
-            <Text style={styles.province}>{location?.province || 'Đang xác định...'}</Text>
-            <Text style={styles.date}>
-              Hôm nay, {new Date().toLocaleDateString('vi-VN')}
+            <Text style={s.locationLabel}>📍 {location?.province || 'Đang xác định...'}</Text>
+            <Text style={s.dateLabel}>
+              {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })}
             </Text>
           </View>
+          <TouchableOpacity style={s.profileBtn} onPress={() => navigation.navigate('Profile')}>
+            <Text style={{ fontSize: 18 }}>👤</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* ── Weather Card ── */}
-        <LinearGradient
-          colors={getWeatherGradient(weatherData?.temperature, weatherData?.condition)}
-          style={styles.weatherCard}>
-          <Text style={styles.weatherCity}>{location?.province || 'Vị trí'}</Text>
-          {weatherData ? (
-            <>
-              <Text style={styles.weatherTemp}>{weatherData.temperature}°C</Text>
-              <Text style={styles.weatherCond}>{weatherData.condition}</Text>
-              <View style={styles.weatherDetails}>
-                <Text style={styles.weatherDetail}>💧 {weatherData.humidity}%</Text>
-                <Text style={styles.weatherDetail}>💨 {weatherData.wind_speed} km/h</Text>
-                <Text style={styles.weatherDetail}>🌫️ AQI {Math.round(weatherData.aqi)}</Text>
-              </View>
-            </>
-          ) : (
-            <ActivityIndicator color="white" style={{ marginVertical: 20 }} />
+        {/* ── Main Temperature ── */}
+        <View style={s.tempSection}>
+          <Text style={s.tempIcon}>{icon}</Text>
+          <View style={s.tempRow}>
+            <Text style={s.tempNum}>{weatherData?.temperature ?? '--'}</Text>
+            <Text style={s.tempDeg}>°C</Text>
+          </View>
+          <Text style={s.condText}>{weatherData?.condition || 'Đang tải...'}</Text>
+          {weatherData?.temperature && (
+            <Text style={s.feelsLike}>
+              Cảm giác như {Math.round(weatherData.temperature + (weatherData.humidity > 70 ? 4 : 1))}°C
+            </Text>
           )}
-        </LinearGradient>
-
-        {/* ── Cuisine Scope Toggle ── */}
-        <View style={styles.scopeRow}>
-          {[{ key: 'vietnam', label: '🇻🇳 Việt Nam' }, { key: 'global', label: '🌍 Toàn cầu' }].map(({ key, label }) => (
-            <TouchableOpacity key={key}
-              style={[styles.scopeBtn, cuisineScope === key && styles.scopeBtnActive]}
-              onPress={() => setCuisineScope(key)}>
-              <Text style={[styles.scopeText, cuisineScope === key && styles.scopeTextActive]}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          ))}
         </View>
 
-        {/* ── Dish Type Filter ── */}
-        <View style={styles.dishTypeRow}>
-          {[
-            { key: 'all',       label: '🍽️ Tất cả' },
-            { key: 'soup',      label: '🥣 Canh' },
-            { key: 'main_dish', label: '🍖 Món mặn' },
-          ].map(({ key, label }) => (
-            <TouchableOpacity key={key}
-              style={[styles.dishTypeBtn, dishTypeFilter === key && styles.dishTypeBtnActive]}
-              onPress={() => setDishTypeFilter(key)}>
-              <Text style={[styles.dishTypeText, dishTypeFilter === key && styles.dishTypeTextActive]}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {/* ── 3-col Wood Metric Cards ── */}
+        {weatherData ? (
+          <View style={s.woodRow}>
+            <WoodMetricCell icon="💧" value={weatherData.humidity}   unit="%" label="Độ ẩm" />
+            <WoodMetricCell icon="💨" value={weatherData.wind_speed} unit=" km/h" label="Sức gió" />
+            <WoodMetricCell icon="🌡️" value={weatherData.pressure}   unit=" hPa" label="Áp suất" />
+          </View>
+        ) : (
+          <View style={[s.woodRow, { justifyContent: 'center', paddingVertical: 24 }]}>
+            <ActivityIndicator color={T.brownMid} />
+          </View>
+        )}
 
-        {/* ── Search Button ── */}
-        <TouchableOpacity
-          style={[
-            styles.searchBtn,
-            isDirty && styles.searchBtnDirty,
-            isLoading && styles.searchBtnDisabled,
-          ]}
-          onPress={loadRecommendation}
-          disabled={isLoading}
-          activeOpacity={0.82}>
-          <Text style={styles.searchBtnIcon}>{isDirty ? '✨' : '🔍'}</Text>
-          <Text style={styles.searchBtnText}>
-            {isDirty ? 'Tìm lại với bộ lọc mới' : 'Tìm món cho tôi'}
-          </Text>
-        </TouchableOpacity>
+        {/* ── AQI Card ── */}
+        {weatherData && (
+          <PaperCard style={s.cardSpacing}>
+            <View style={s.cardRow}>
+              <Text style={s.cardLabel}>🌫️  Chất lượng không khí</Text>
+              <Text style={[s.cardBadge, { color: aqi.color }]}>{aqi.label}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
+              <AQIBar value={weatherData.aqi} />
+              <Text style={[s.cardBadge, { color: aqi.color, minWidth: 60, textAlign: 'right' }]}>
+                AQI {Math.round(weatherData.aqi)}
+              </Text>
+            </View>
+          </PaperCard>
+        )}
+
+        {/* ── UV Card ── */}
+        {weatherData && (
+          <PaperCard style={s.cardSpacing}>
+            <View style={s.cardRow}>
+              <Text style={s.cardLabel}>☀️  Chỉ số UV</Text>
+              <Text style={[s.cardBadge, { color: uv.color }]}>
+                {weatherData.uv_index?.toFixed(1)} · {uv.label}
+              </Text>
+            </View>
+            <View style={{ marginTop: 8 }}>
+              <UVBar value={weatherData.uv_index ?? 0} />
+            </View>
+          </PaperCard>
+        )}
+
+        {/* ── Season chip ── */}
+        {weatherData?.season && (
+          <View style={s.seasonChip}>
+            <Text style={s.seasonText}>
+              {weatherData.season === 'summer' ? '🌞 Mùa hè' :
+               weatherData.season === 'winter' ? '❄️ Mùa đông' :
+               weatherData.season === 'spring' ? '🌸 Mùa xuân' : '🍂 Mùa thu'}
+            </Text>
+          </View>
+        )}
+
+        {/* ── Divider ── */}
+        <View style={s.divider} />
 
         {/* ── Challenge Banner ── */}
         {challengeTitle !== '' && (
-          <TouchableOpacity style={styles.challengeBanner}
-            onPress={() => navigation.navigate('CookingChallenge')} activeOpacity={0.85}>
-            <Text style={styles.challengeIcon}>🏆</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.challengeLabel}>Thử thách hôm nay</Text>
-              <Text style={styles.challengeTitle} numberOfLines={1}>{challengeTitle}</Text>
-            </View>
-            <Text style={styles.challengeArrow}>›</Text>
+          <TouchableOpacity activeOpacity={0.82} onPress={() => navigation.navigate('CookingChallenge')}>
+            <PaperCard style={[s.cardSpacing, s.challengeBorder]}>
+              <View style={s.rowCenter}>
+                <Text style={{ fontSize: 20 }}>🏆</Text>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={s.challengeEyebrow}>THỬ THÁCH HÔM NAY</Text>
+                  <Text style={s.challengeTitle} numberOfLines={1}>{challengeTitle}</Text>
+                </View>
+                <Text style={[s.chevron, { color: T.gold }]}>›</Text>
+              </View>
+            </PaperCard>
           </TouchableOpacity>
         )}
 
-        {/* ── Market Basket CTA ── */}
-        <TouchableOpacity style={styles.basketCTA}
-          onPress={() => navigation.navigate('MarketBasket')} activeOpacity={0.85}>
-          <Text style={styles.basketIcon}>🛒</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.basketTitle}>
-              {basketBadge > 0 ? `Đã chọn ${basketBadge} nguyên liệu` : 'Bạn đã mua gì hôm nay?'}
-            </Text>
-            <Text style={styles.basketSub}>Tap để cập nhật giỏ hàng</Text>
-          </View>
-          {basketBadge > 0 && (
-            <View style={styles.basketBadge}>
-              <Text style={styles.basketBadgeText}>{basketBadge}</Text>
+        {/* ── Basket CTA ── */}
+        <TouchableOpacity activeOpacity={0.82} onPress={() => navigation.navigate('MarketBasket')}>
+          <PaperCard style={s.cardSpacing}>
+            <View style={s.rowCenter}>
+              <Text style={{ fontSize: 20 }}>🛒</Text>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={s.basketTitle}>
+                  {basketBadge > 0 ? `Đã chọn ${basketBadge} nguyên liệu` : 'Bạn đã mua gì hôm nay?'}
+                </Text>
+                <Text style={s.basketSub}>Tap để cập nhật giỏ hàng</Text>
+              </View>
+              {basketBadge > 0 && (
+                <View style={s.badge}>
+                  <Text style={s.badgeText}>{basketBadge}</Text>
+                </View>
+              )}
+              <Text style={s.chevron}>›</Text>
             </View>
-          )}
-          <Text style={styles.basketArrow}>›</Text>
+          </PaperCard>
         </TouchableOpacity>
 
-        {/* ── Horizontal Cards top-3 ── */}
-        {rankedDishes.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>✨ Gợi ý cho bạn hôm nay</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.hListContent}>
-              {rankedDishes.slice(0, 3).map(renderDishCardH)}
-            </ScrollView>
-          </>
-        )}
+        {/* ── Cuisine Toggle ── */}
+        <View style={s.toggleRow}>
+          {[{ k: 'vietnam', l: '🇻🇳 Việt Nam' }, { k: 'global', l: '🌍 Toàn cầu' }].map(({ k, l }) => (
+            <TouchableOpacity
+              key={k}
+              onPress={() => setCuisineScope(k)}
+              activeOpacity={0.78}
+            >
+              {cuisineScope === k ? (
+                <ImageBackground source={ASSETS.wood} style={s.toggleBtnActive} imageStyle={s.toggleBtnImg} resizeMode="cover">
+                  <View style={s.toggleBtnOverlay}>
+                    <Text style={s.toggleTextActive}>{l}</Text>
+                  </View>
+                </ImageBackground>
+              ) : (
+                <ImageBackground source={ASSETS.paper} style={s.toggleBtn} imageStyle={s.toggleBtnImg} resizeMode="cover">
+                  <View style={s.toggleBtnOverlayInactive}>
+                    <Text style={s.toggleText}>{l}</Text>
+                  </View>
+                </ImageBackground>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
 
-        {/* ── Vertical List rank 4+ ── */}
-        {rankedDishes.length > 3 && (
-          <View style={{ marginBottom: 24 }}>
-            <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Gợi ý khác</Text>
-            {rankedDishes.slice(3, visibleCount).map(renderListRow)}
-            {visibleCount < rankedDishes.length && (
-              <TouchableOpacity style={styles.loadMoreBtn}
-                onPress={() => setVisibleCount(rankedDishes.length)} activeOpacity={0.8}>
-                <Text style={styles.loadMoreText}>Xem thêm gợi ý ↓</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+        {/* ── Dish Type Toggle ── */}
+        <View style={s.toggleRow}>
+          {[
+            { k: 'all',       l: '🍽️ Tất cả' },
+            { k: 'soup',      l: '🥣 Canh' },
+            { k: 'main_dish', l: '🍖 Món mặn' },
+          ].map(({ k, l }) => (
+            <TouchableOpacity
+              key={k}
+              onPress={() => setDishFilter(k)}
+              activeOpacity={0.78}
+            >
+              {dishFilter === k ? (
+                <ImageBackground source={ASSETS.wood} style={s.toggleBtnActive} imageStyle={s.toggleBtnImg} resizeMode="cover">
+                  <View style={s.toggleBtnOverlay}>
+                    <Text style={s.toggleTextActive}>{l}</Text>
+                  </View>
+                </ImageBackground>
+              ) : (
+                <ImageBackground source={ASSETS.paper} style={s.toggleBtn} imageStyle={s.toggleBtnImg} resizeMode="cover">
+                  <View style={s.toggleBtnOverlayInactive}>
+                    <Text style={s.toggleText}>{l}</Text>
+                  </View>
+                </ImageBackground>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
 
-        {/* ── Empty state ── */}
-        {!isLoading && rankedDishes.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🍽️</Text>
-            <Text style={styles.emptyTitle}>Chưa có gợi ý nào</Text>
-            <Text style={styles.emptySub}>Kéo xuống để tải gợi ý</Text>
-          </View>
-        )}
+        {/* ── Search CTA ── */}
+        <TouchableOpacity style={[s.searchBtn, isDirty && s.searchBtnDirty]} onPress={goSearch} activeOpacity={0.84}>
+          <ImageBackground
+            source={ASSETS.wood}
+            style={s.searchBtnInner}
+            imageStyle={{ borderRadius: 22, opacity: isDirty ? 0 : 0.55 }}
+            resizeMode="cover"
+          >
+            <View style={[s.searchBtnContent, isDirty && { backgroundColor: 'rgba(110,60,180,0.88)' }]}>
+              <Text style={s.searchBtnText}>
+                {isDirty ? '✨ Tìm lại với bộ lọc mới' : '🔍 Tìm món cho tôi'}
+              </Text>
+              <Text style={{ color: T.white80, fontSize: 18, marginLeft: 6 }}>→</Text>
+            </View>
+          </ImageBackground>
+        </TouchableOpacity>
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: 48 }} />
       </ScrollView>
-    </View>
+    </ImageBackground>
   );
 };
 
-// ── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  container:         { flex: 1, backgroundColor: DP.base },
+// ── Styles ────────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  skyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+  },
 
-  header:            { flexDirection:'row', justifyContent:'space-between', alignItems:'center',
-                       paddingHorizontal:16, paddingVertical:14, backgroundColor: DP.surface,
-                       borderBottomWidth:2, borderBottomColor: DP.border, borderStyle:'dashed' },
-  province:          { fontSize:20, fontWeight:'700', color: DP.textPri, fontFamily:'Patrick Hand' },
-  date:              { fontSize:14, color: DP.textSec, marginTop:2 },
+  // ── Header
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    paddingHorizontal: 22, paddingTop: 58, paddingBottom: 8,
+  },
+  locationLabel: {
+    fontFamily: 'Caveat_400Regular', fontSize: 15,
+    color: T.brownMid, letterSpacing: 0.3,
+  },
+  dateLabel: {
+    fontFamily: 'Nunito_600SemiBold', fontSize: 16,
+    color: T.textPrimary, marginTop: 2,
+  },
+  profileBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: T.white60,
+    borderWidth: 1, borderColor: T.brownBorder,
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: T.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1, shadowRadius: 6, elevation: 3,
+  },
 
-  weatherCard:       { marginHorizontal:16, marginTop:12, padding:20,
-                       borderRadius: DP.radiusLg, ...dpMd },
-  weatherCity:       { color:'rgba(255,255,255,0.85)', fontSize:14, fontWeight:'600' },
-  weatherTemp:       { fontSize:52, fontWeight:'700', color:'white', marginTop:4 },
-  weatherCond:       { fontSize:16, color:'rgba(255,255,255,0.9)', marginTop:-4 },
-  weatherDetails:    { flexDirection:'row', justifyContent:'space-around', marginTop:16 },
-  weatherDetail:     { color:'rgba(255,255,255,0.85)', fontSize:13 },
+  // ── Temperature
+  tempSection: { alignItems: 'center', paddingTop: 6, paddingBottom: 10 },
+  tempIcon:  { fontSize: 56, marginBottom: -4 },
+  tempRow:   { flexDirection: 'row', alignItems: 'flex-start' },
+  tempNum: {
+    fontFamily: 'Nunito_700Bold', fontSize: 92,
+    color: T.textPrimary, letterSpacing: -3, lineHeight: 100,
+  },
+  tempDeg: {
+    fontFamily: 'Nunito_400Regular', fontSize: 34,
+    color: T.brownMid, marginTop: 18,
+  },
+  condText: {
+    fontFamily: 'Caveat_700Bold', fontSize: 22,
+    color: T.textSecondary, marginTop: -4,
+  },
+  feelsLike: {
+    fontFamily: 'Caveat_400Regular', fontSize: 15,
+    color: T.textMuted, marginTop: 4,
+  },
 
-  scopeRow:          { flexDirection:'row', marginHorizontal:16, marginTop:12,
-                       backgroundColor: DP.surface, borderRadius: DP.radiusFull, padding:4,
-                       borderWidth:2, borderColor: DP.border, borderStyle:'dashed', ...dpSm },
-  scopeBtn:          { flex:1, paddingVertical:10, alignItems:'center', borderRadius: DP.radiusFull },
-  scopeBtnActive:    { backgroundColor: DP.primary },
-  scopeText:         { fontSize:14, fontWeight:'600', color: DP.textSec },
-  scopeTextActive:   { color:'white' },
+  // ── Wood metric row
+  woodRow: {
+    flexDirection: 'row', gap: 8,
+    marginHorizontal: 16, marginTop: 8,
+  },
+  woodCell: {
+    flex: 1, borderRadius: 16, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(160,120,74,0.35)',
+    shadowColor: T.shadow, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1, shadowRadius: 8, elevation: 4,
+  },
+  woodCellImg: { borderRadius: 16, opacity: 0.92 },
+  woodCellOverlay: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center', paddingVertical: 14, paddingHorizontal: 6,
+  },
+  woodIcon:  { fontSize: 20, marginBottom: 5 },
+  woodVal: {
+    fontFamily: 'Nunito_700Bold', fontSize: 18,
+    color: T.brown, lineHeight: 22,
+  },
+  woodUnit: {
+    fontFamily: 'Nunito_400Regular', fontSize: 11,
+    color: T.brownLight,
+  },
+  woodLabel: {
+    fontFamily: 'Caveat_400Regular', fontSize: 13,
+    color: T.brownMid, marginTop: 3,
+  },
 
-  dishTypeRow:       { flexDirection:'row', marginHorizontal:16, marginTop:8,
-                       backgroundColor: DP.surface, borderRadius: DP.radiusFull, padding:4,
-                       borderWidth:2, borderColor: DP.border, borderStyle:'dashed', ...dpSm },
-  dishTypeBtn:       { flex:1, paddingVertical:9, alignItems:'center', borderRadius: DP.radiusFull },
-  dishTypeBtnActive: { backgroundColor: DP.tertiary },
-  dishTypeText:      { fontSize:12, fontWeight:'600', color: DP.textSec },
-  dishTypeTextActive:{ color:'white', fontWeight:'700' },
+  // ── Paper card
+  paperCard: {
+    marginHorizontal: 16,
+    borderRadius: 18, overflow: 'hidden',
+    borderWidth: 1, borderColor: T.brownBorder,
+    shadowColor: T.shadow, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1, shadowRadius: 10, elevation: 4,
+  },
+  paperCardImg:   { borderRadius: 18, opacity: 0.88 },
+  paperCardInner: { backgroundColor: 'rgba(255,255,255,0.22)', padding: 14 },
+  cardSpacing:    { marginTop: 8 },
 
-  searchBtn:         { flexDirection:'row', alignItems:'center', justifyContent:'center',
-                       marginHorizontal:16, marginTop:10, paddingVertical:14,
-                       backgroundColor: DP.primary, borderRadius: DP.radiusLg,
-                       gap:8, ...dpMd },
-  searchBtnDirty:    { backgroundColor: DP.tertiary },
-  searchBtnDisabled: { opacity:0.6 },
-  searchBtnIcon:     { fontSize:18 },
-  searchBtnText:     { color:'white', fontSize:15, fontWeight:'700', fontFamily:'Patrick Hand' },
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardLabel: {
+    fontFamily: 'Caveat_400Regular', fontSize: 15,
+    color: T.textSecondary,
+  },
+  cardBadge: {
+    fontFamily: 'Nunito_700Bold', fontSize: 13,
+    color: T.textPrimary,
+  },
 
-  challengeBanner:   { flexDirection:'row', alignItems:'center', marginHorizontal:16, marginTop:8,
-                       backgroundColor:'#FFFBEB', borderRadius: DP.radiusLg, padding:14,
-                       borderWidth:2, borderColor: DP.tertiary, borderStyle:'dashed' },
-  challengeIcon:     { fontSize:22, marginRight:10 },
-  challengeLabel:    { fontSize:11, fontWeight:'700', color:'#92400E', letterSpacing:0.5 },
-  challengeTitle:    { fontSize:14, fontWeight:'700', color: DP.textPri, marginTop:2 },
-  challengeArrow:    { fontSize:22, color: DP.tertiary, fontWeight:'700' },
+  // ── Season chip
+  seasonChip: {
+    alignSelf: 'center', marginTop: 10,
+    backgroundColor: T.white60,
+    borderRadius: 20, borderWidth: 1, borderColor: T.brownBorder,
+    paddingHorizontal: 16, paddingVertical: 7,
+    shadowColor: T.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8, shadowRadius: 6, elevation: 2,
+  },
+  seasonText: {
+    fontFamily: 'Caveat_700Bold', fontSize: 15,
+    color: T.textSecondary,
+  },
 
-  basketCTA:         { flexDirection:'row', alignItems:'center', marginHorizontal:16, marginTop:8,
-                       backgroundColor: DP.surface, borderRadius: DP.radiusLg, padding:14,
-                       borderWidth:2, borderColor: DP.border, borderStyle:'dashed', ...dpSm },
-  basketIcon:        { fontSize:22, marginRight:10 },
-  basketTitle:       { fontSize:14, fontWeight:'700', color: DP.textPri },
-  basketSub:         { fontSize:12, color: DP.textSec, marginTop:2 },
-  basketBadge:       { backgroundColor: DP.primary, borderRadius: DP.radiusFull,
-                       paddingHorizontal:8, paddingVertical:3, marginRight:6 },
-  basketBadgeText:   { color:'white', fontSize:12, fontWeight:'700' },
-  basketArrow:       { fontSize:20, color: DP.border, fontWeight:'300' },
+  // ── Divider
+  divider: {
+    height: 1, backgroundColor: T.brownBorder,
+    marginHorizontal: 16, marginVertical: 16,
+    opacity: 0.5,
+  },
 
-  sectionTitle:      { fontSize:17, fontWeight:'700', marginHorizontal:16,
-                       marginTop:16, marginBottom:10, color: DP.textPri },
+  // ── Challenge
+  challengeBorder: { borderColor: T.goldBorder },
+  challengeEyebrow: {
+    fontFamily: 'Nunito_700Bold', fontSize: 10,
+    color: T.gold, letterSpacing: 1, textTransform: 'uppercase',
+  },
+  challengeTitle: {
+    fontFamily: 'Nunito_600SemiBold', fontSize: 14,
+    color: T.textPrimary, marginTop: 2,
+  },
 
-  hListContent:      { paddingLeft:16, paddingRight:8 },
-  dishCard:          { width:204, backgroundColor: DP.surface, borderRadius: DP.radiusLg,
-                       marginRight:12, borderWidth:2, borderColor: DP.border,
-                       borderStyle:'dashed', overflow:'hidden', ...dpMd },
-  cardImageWrap:     { position:'relative', height:120 },
-  cardImage:         { width:'100%', height:'100%' },
-  imagePlaceholder:  { width:'100%', height:'100%', backgroundColor:'#F3F4F6',
-                       justifyContent:'center', alignItems:'center' },
-  dishEmoji:         { fontSize:40 },
-  rankBadge:         { position:'absolute', top:8, left:8, backgroundColor: DP.primary,
-                       borderRadius: DP.radiusFull, paddingHorizontal:8, paddingVertical:3 },
-  rankText:          { color:'white', fontSize:11, fontWeight:'700' },
-  boostBadge:        { position:'absolute', top:8, right:8, backgroundColor: DP.tertiary,
-                       borderRadius: DP.radiusFull, paddingHorizontal:6, paddingVertical:2 },
-  boostText:         { color:'white', fontSize:10, fontWeight:'600' },
-  cardBody:          { padding:12 },
-  dishTitle:         { fontSize:14, fontWeight:'700', color: DP.textPri, lineHeight:20 },
-  cardMeta:          { flexDirection:'row', marginTop:6, gap:6 },
-  metaChip:          { fontSize:11, color: DP.textSec, backgroundColor:'#F3F4F6',
-                       paddingHorizontal:8, paddingVertical:3, borderRadius: DP.radiusFull },
-  cardHint:          { fontSize:11, color: DP.textSec, marginTop:6, lineHeight:16 },
-  quickFeedback:     { flexDirection:'row', gap:6, marginTop:10 },
-  fbBtn:             { flex:1, paddingVertical:8, borderRadius: DP.radiusMd, alignItems:'center' },
-  fbText:            { color:'white', fontSize:12, fontWeight:'700' },
-  eatBtn:            { backgroundColor: DP.secondary },
-  skipBtn:           { backgroundColor: DP.error },
+  // ── Basket
+  basketTitle: {
+    fontFamily: 'Nunito_700Bold', fontSize: 14,
+    color: T.textPrimary,
+  },
+  basketSub: {
+    fontFamily: 'Caveat_400Regular', fontSize: 13,
+    color: T.textMuted, marginTop: 2,
+  },
 
-  listItem:          { flexDirection:'row', backgroundColor: DP.surface, marginHorizontal:16,
-                       marginBottom:8, borderRadius: DP.radiusMd, borderWidth:1.5,
-                       borderColor: DP.border, borderStyle:'dashed', overflow:'hidden', ...dpSm },
-  listImageWrap:     { width:76, height:76 },
-  listImage:         { width:'100%', height:'100%' },
-  listImageFallback: { width:'100%', height:'100%', backgroundColor:'#F3F4F6',
-                       justifyContent:'center', alignItems:'center' },
-  listContent:       { flex:1, padding:10, justifyContent:'center' },
-  listTitle:         { fontSize:14, fontWeight:'700', color: DP.textPri },
-  listMetaRow:       { flexDirection:'row', marginTop:4, gap:8 },
-  listMeta:          { fontSize:11, color: DP.textSec },
-  listHint:          { fontSize:11, color:'#9CA3AF', marginTop:3 },
-  listActions:       { width:52, justifyContent:'center', alignItems:'center', gap:6, padding:8 },
-  miniFb:            { width:34, height:34, borderRadius: DP.radiusFull,
-                       justifyContent:'center', alignItems:'center' },
+  // ── Badge
+  badge: {
+    backgroundColor: T.brown, borderRadius: 12,
+    paddingHorizontal: 8, paddingVertical: 3, marginRight: 6,
+  },
+  badgeText: {
+    fontFamily: 'Nunito_700Bold', fontSize: 12, color: T.white,
+  },
 
-  loadMoreBtn:       { marginHorizontal:16, marginTop:8, paddingVertical:13,
-                       borderRadius: DP.radiusLg, alignItems:'center',
-                       backgroundColor: DP.surface, borderWidth:2,
-                       borderColor: DP.primary, borderStyle:'dashed', ...dpSm },
-  loadMoreText:      { fontSize:14, fontWeight:'700', color: DP.primary },
+  // ── Chevron
+  chevron: {
+    fontFamily: 'Nunito_400Regular',
+    fontSize: 22, color: T.brownLight,
+  },
+  rowCenter: { flexDirection: 'row', alignItems: 'center' },
 
-  emptyState:        { alignItems:'center', paddingVertical:60 },
-  emptyIcon:         { fontSize:52, marginBottom:12 },
-  emptyTitle:        { fontSize:18, fontWeight:'700', color: DP.textPri },
-  emptySub:          { fontSize:14, color: DP.textSec, marginTop:4 },
+  // ── Toggle buttons
+  toggleRow: {
+    flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, gap: 8,
+  },
+  toggleBtn: {
+    flex: 1, borderRadius: 16, overflow: 'hidden',
+    borderWidth: 1, borderColor: T.brownBorder,
+    shadowColor: T.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8, shadowRadius: 6, elevation: 3,
+  },
+  toggleBtnActive: {
+    flex: 1, borderRadius: 16, overflow: 'hidden',
+    borderWidth: 1.5, borderColor: T.woodDark,
+    shadowColor: T.shadow, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1, shadowRadius: 8, elevation: 5,
+  },
+  toggleBtnImg: { borderRadius: 16 },
+  toggleBtnOverlay: {
+    backgroundColor: 'rgba(92,58,30,0.12)',
+    paddingVertical: 11, alignItems: 'center',
+  },
+  toggleBtnOverlayInactive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingVertical: 11, alignItems: 'center',
+  },
+  toggleText: {
+    fontFamily: 'Nunito_600SemiBold', fontSize: 13,
+    color: T.textSecondary,
+  },
+  toggleTextActive: {
+    fontFamily: 'Nunito_700Bold', fontSize: 13,
+    color: T.brown,
+  },
+
+  // ── Search button
+  searchBtn: {
+    marginHorizontal: 16, marginTop: 8, borderRadius: 22,
+    overflow: 'hidden',
+    borderWidth: 1.5, borderColor: 'rgba(160,120,74,0.5)',
+    shadowColor: T.shadow, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1, shadowRadius: 14, elevation: 7,
+  },
+  searchBtnDirty: {
+    borderColor: 'rgba(110,60,180,0.5)',
+  },
+  searchBtnInner: { borderRadius: 22, overflow: 'hidden' },
+  searchBtnContent: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 18,
+    backgroundColor: 'rgba(92,58,30,0.72)',
+    gap: 4,
+  },
+  searchBtnText: {
+    fontFamily: 'Nunito_700Bold', fontSize: 16,
+    color: T.white, letterSpacing: 0.3,
+  },
 });
 
 export default HomeScreen;

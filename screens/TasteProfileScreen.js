@@ -1,369 +1,489 @@
-// screens/TasteProfileScreen.js  — F08 Taste Profile & Quê Quán
+/**
+ * TasteProfileScreen — Redesigned
+ * Phong cách: Notebook giấy kẻ × Ghibli
+ *
+ * Deps:  yarn add react-native-svg lottie-react-native @react-native-community/slider
+ * Assets:
+ *   assets/textures/notebook_lines.png   ← nền trang giấy kẻ
+ *   assets/textures/wood_light.png       ← nút save / stamp
+ *   assets/animations/meo_ma.json        ← mascot
+ */
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
   FlatList, TextInput, ActivityIndicator, StatusBar,
-  Platform, Animated,
+  Platform, Animated, ImageBackground, Dimensions,
 } from 'react-native';
+import Svg, { Circle, Rect, Path, Line } from 'react-native-svg';
 import Slider from '@react-native-community/slider';
+import LottieView from 'lottie-react-native';
+
 import { useAppStore } from '../store/useAppStore';
 import { getTasteProfile, saveTasteProfile, getProvinces, regionToTaste, DEFAULT_TASTE }
   from '../services/tasteProfileService';
 
-// ── Design tokens (DoodlePad palette) ──────────────────────────────────────
-const DP = {
-  primary:'#60A5FA', primaryDk:'#3B82F6', secondary:'#4ADE80',
-  tertiary:'#FBBF24', error:'#F87171',
-  base:'#FFFFF0', surface:'#FFFFFF',
-  textPri:'#1E1E1E', textSec:'#6B7280',
-  border:'#E5E7EB', radiusMd:16, radiusLg:24, radiusFull:9999,
+const { width: SW, height: SH } = Dimensions.get('window');
+
+// ─── Palette ──────────────────────────────────────────────────────────────────
+const C = {
+  ink:       '#2C1A0E',
+  inkMid:    '#5C3D1E',
+  inkLight:  '#8B6B4A',
+  faint:     '#BCA98A',
+  paper:     '#FAF6EE',
+  cream:     '#F5EDD8',
+  margin:    '#E8A090',   // màu đường kẻ đỏ trái
+  rule:      '#AABDD4',   // màu đường kẻ ngang xanh
+  stamp:     '#C8956A',
+  stampDk:   '#8B5E3C',
+  green:     '#5A9E6F',
+  blue:      '#5B8DB8',
+  ring:      '#6B4F35',   // màu vòng xoắn
 };
 
-// ── Hằng số ─────────────────────────────────────────────────────────────────
-const TASTE_KEYS = ['sweet','sour','salty','bitter','umami','spicy','astringent'];
-const TASTE_VI   = { sweet:'Ngọt 🍬', sour:'Chua 🍋', salty:'Mặn 🧂',
-                     bitter:'Đắng ☕', umami:'Umami 🍜', spicy:'Cay 🌶', astringent:'Chát 🍵' };
-const TASTE_COLOR = { sweet:'#FBBF24', sour:'#34D399', salty:'#60A5FA',
-                      bitter:'#A78BFA', umami:'#F87171', spicy:'#EF4444', astringent:'#6EE7B7' };
+// ─── Taste constants ──────────────────────────────────────────────────────────
+const TASTE_KEYS  = ['sweet','sour','salty','bitter','umami','spicy','astringent'];
+const TASTE_VI    = { sweet:'Ngọt 🍬', sour:'Chua 🍋', salty:'Mặn 🧂',
+                      bitter:'Đắng ☕', umami:'Umami 🍜', spicy:'Cay 🌶', astringent:'Chát 🍵' };
+const TASTE_COLOR = { sweet:'#D4A82A', sour:'#5BAD7A', salty:'#5B8DB8',
+                      bitter:'#7B6BAA', umami:'#C06060', spicy:'#C04040', astringent:'#5BAA8A' };
 
-// ── Sub-components ───────────────────────────────────────────────────────────
-const ModeToggle = ({ mode, onChange }) => (
-  <View style={s.modeRow}>
-    {[['hometown','🗺 Theo quê quán'],['manual','🎛 Thủ công']].map(([m, label]) => (
-      <TouchableOpacity key={m} style={[s.modeBtn, mode===m && s.modeBtnActive]}
-        onPress={() => onChange(m)} activeOpacity={0.8}>
-        <Text style={[s.modeBtnText, mode===m && s.modeBtnTextActive]}>{label}</Text>
-      </TouchableOpacity>
-    ))}
-  </View>
-);
-
-// ── TasteSlider ──────────────────────────────────────────────────────────────
-const TasteSlider = ({ tastKey, value, onChange }) => {
-  const color = TASTE_COLOR[tastKey];
+// ─── Spiral binding (SVG vòng xoắn trái) ─────────────────────────────────────
+const SpiralBinding = () => {
+  const count = Math.floor(SH / 38);
   return (
-    <View style={s.sliderRow}>
-      <Text style={s.sliderLabel}>{TASTE_VI[tastKey]}</Text>
-      <View style={s.sliderTrack}>
-        <Slider
-          style={{ flex:1, height:36 }}
-          minimumValue={0} maximumValue={1} step={0.05}
-          value={value}
-          onValueChange={(v) => onChange(tastKey, parseFloat(v.toFixed(2)))}
-          minimumTrackTintColor={color}
-          maximumTrackTintColor={DP.border}
-          thumbTintColor={color}
-        />
-      </View>
-      <Text style={[s.sliderVal, { color }]}>{(value * 10).toFixed(0)}</Text>
+    <View style={st.spiralWrap} pointerEvents="none">
+      <Svg width={28} height={SH}>
+        {Array.from({ length: count }).map((_, i) => {
+          const cy = 24 + i * 38;
+          return (
+            <React.Fragment key={i}>
+              {/* outer ring */}
+              <Circle cx={14} cy={cy} r={9} stroke={C.ring} strokeWidth={2} fill={C.paper} />
+              {/* inner hole */}
+              <Circle cx={14} cy={cy} r={4} stroke={C.ring} strokeWidth={1.5} fill={C.cream} />
+            </React.Fragment>
+          );
+        })}
+        {/* vertical wire behind rings */}
+        <Line x1={14} y1={0} x2={14} y2={SH} stroke={C.ring} strokeWidth={1.5} opacity={0.35} />
+      </Svg>
     </View>
   );
 };
 
-// ── RadarMini — hiển thị 7 bar ngang mini ───────────────────────────────────
-const RadarMini = ({ taste }) => (
-  <View style={s.radarWrap}>
+// ─── Stamp mode toggle ────────────────────────────────────────────────────────
+const ModeToggle = ({ mode, onChange }) => (
+  <View style={st.modeRow}>
+    {[['hometown','🗺  Theo quê quán'], ['manual','📋  Thủ công']].map(([m, label]) => {
+      const active = mode === m;
+      return (
+        <TouchableOpacity key={m} onPress={() => onChange(m)} activeOpacity={0.75}
+          style={[st.modeBtn, active && st.modeBtnActive]}>
+          {active && (
+            <ImageBackground
+              source={require('../assets/textures/wood_light.png')}
+              style={StyleSheet.absoluteFill}
+              imageStyle={{ borderRadius: 10, opacity: 0.55 }}
+              resizeMode="cover"
+            />
+          )}
+          <Text style={[st.modeBtnText, active && st.modeBtnTextActive]}>{label}</Text>
+        </TouchableOpacity>
+      );
+    })}
+  </View>
+);
+
+// ─── Taste bar (RadarMini) ────────────────────────────────────────────────────
+const TasteBars = ({ taste }) => (
+  <View style={st.barsWrap}>
     {TASTE_KEYS.map(k => (
-      <View key={k} style={s.radarRow}>
-        <Text style={s.radarKey}>{TASTE_VI[k].split(' ')[0]}</Text>
-        <View style={s.radarBarBg}>
-          <View style={[s.radarBarFill, { width:`${(taste[k]??0)*100}%`, backgroundColor: TASTE_COLOR[k] }]} />
+      <View key={k} style={st.barRow}>
+        <Text style={st.barKey}>{TASTE_VI[k]}</Text>
+        <View style={st.barBg}>
+          <View style={[st.barFill, { width: `${(taste[k] ?? 0) * 100}%`, backgroundColor: TASTE_COLOR[k] }]} />
         </View>
-        <Text style={[s.radarVal, { color: TASTE_COLOR[k] }]}>{((taste[k]??0)*10).toFixed(0)}</Text>
+        <Text style={[st.barVal, { color: TASTE_COLOR[k] }]}>{((taste[k] ?? 0) * 10).toFixed(0)}</Text>
       </View>
     ))}
   </View>
 );
 
-// ── ProvinceItem ─────────────────────────────────────────────────────────────
-const ProvinceItem = React.memo(({ item, selected, onPress }) => (
-  <TouchableOpacity style={[s.provItem, selected && s.provItemActive]}
-    onPress={() => onPress(item)} activeOpacity={0.75}>
-    <View style={{ flex:1 }}>
-      <Text style={[s.provName, selected && s.provNameActive]}>{item.name}</Text>
-      {item.regional_flavor
-        ? <Text style={s.provFlavor}>{item.regional_flavor}</Text>
-        : null}
+// ─── Taste slider ─────────────────────────────────────────────────────────────
+const TasteSlider = ({ tastKey, value, onChange }) => {
+  const color = TASTE_COLOR[tastKey];
+  return (
+    <View style={st.sliderRow}>
+      <Text style={st.sliderLabel}>{TASTE_VI[tastKey]}</Text>
+      <Slider
+        style={{ flex: 1, height: 34 }}
+        minimumValue={0} maximumValue={1} step={0.05}
+        value={value}
+        onValueChange={v => onChange(tastKey, parseFloat(v.toFixed(2)))}
+        minimumTrackTintColor={color}
+        maximumTrackTintColor={C.faint}
+        thumbTintColor={color}
+      />
+      <Text style={[st.sliderVal, { color }]}>{(value * 10).toFixed(0)}</Text>
     </View>
-    <View style={[s.checkbox, selected && s.checkboxActive]}>
-      {selected && <Text style={s.checkmark}>✓</Text>}
+  );
+};
+
+// ─── Province row ─────────────────────────────────────────────────────────────
+const ProvinceRow = React.memo(({ item, selected, onPress }) => (
+  <TouchableOpacity style={st.provRow} onPress={() => onPress(item)} activeOpacity={0.6}>
+    <Text style={[st.provName, selected && st.provNameActive]}>{item.name}</Text>
+    {/* circular checkbox */}
+    <View style={[st.circle, selected && st.circleActive]}>
+      {selected && (
+        <Svg width={14} height={14}>
+          <Path d="M3 7 L6 10 L11 4" stroke="#fff" strokeWidth={2}
+            fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      )}
     </View>
   </TouchableOpacity>
 ));
 
-// ── Main Screen ──────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 const TasteProfileScreen = ({ navigation }) => {
-  const { tasteProfile: storeProfile, hometownProvinceId: storeHometownId,
-          tasteMode: storeTasteMode, provinces: storeProvinces,
-          setTasteProfile, setHometown, setTasteMode, setProvinces } = useAppStore();
+  const {
+    tasteProfile: storeProfile, hometownProvinceId: storeHometownId,
+    tasteMode: storeTasteMode, provinces: storeProvinces,
+    setTasteProfile, setHometown, setTasteMode, setProvinces,
+  } = useAppStore();
 
-  const [mode, setMode]                   = useState(storeTasteMode ?? 'hometown');
-  const [taste, setTaste]                 = useState(storeProfile ?? { ...DEFAULT_TASTE });
-  const [selectedProvince, setSelProv]    = useState(null);
-  const [provinces, setLocalProvinces]    = useState(storeProvinces ?? []);
-  const [search, setSearch]               = useState('');
-  const [loading, setLoading]             = useState(false);
-  const [saving, setSaving]               = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [mode, setMode]             = useState(storeTasteMode ?? 'hometown');
+  const [taste, setTaste]           = useState(storeProfile ?? { ...DEFAULT_TASTE });
+  const [selectedProvince, setSelProv] = useState(null);
+  const [provinces, setLocalProv]   = useState(storeProvinces ?? []);
+  const [search, setSearch]         = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  // ── Load provinces & existing profile ────────────────────────────────────
   useEffect(() => {
     (async () => {
-      console.log('[TasteProfileScreen] init');
       setLoading(true);
       try {
-        // Load provinces nếu chưa có trong store
-        let provList = storeProvinces?.length ? storeProvinces : await getProvinces();
-        setLocalProvinces(provList);
-        if (!storeProvinces?.length) setProvinces(provList);
-
-        // Pre-fill nếu user đã có profile
+        let list = storeProvinces?.length ? storeProvinces : await getProvinces();
+        setLocalProv(list);
+        if (!storeProvinces?.length) setProvinces(list);
         if (storeHometownId) {
-          const found = provList.find(p => p.id === storeHometownId);
+          const found = list.find(p => p.id === storeHometownId);
           if (found) setSelProv(found);
         }
         if (storeProfile) setTaste(storeProfile);
-      } catch (e) { console.error('[TasteProfileScreen] init:', e); }
+      } catch (e) { console.error(e); }
       finally { setLoading(false); }
     })();
   }, []);
 
-  // ── Animate khi đổi mode ─────────────────────────────────────────────────
   useEffect(() => {
     fadeAnim.setValue(0);
-    Animated.timing(fadeAnim, { toValue:1, duration:250, useNativeDriver:true }).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
   }, [mode]);
 
-  // ── Filter provinces theo search ─────────────────────────────────────────
-  const filteredProvinces = useMemo(() => {
+  const filtered = useMemo(() => {
     if (!search.trim()) return provinces;
     const q = search.toLowerCase();
-    return provinces.filter(p => p.name.toLowerCase().includes(q) ||
-      (p.regional_flavor||'').toLowerCase().includes(q));
+    return provinces.filter(p =>
+      p.name.toLowerCase().includes(q) || (p.regional_flavor || '').toLowerCase().includes(q));
   }, [search, provinces]);
 
-  // ── Chọn tỉnh → auto-fill taste ──────────────────────────────────────────
-  const handleSelectProvince = useCallback((prov) => {
+  const handleSelectProv = useCallback((prov) => {
     setSelProv(prov);
-    const mapped = regionToTaste(prov.food_region);
-    setTaste({ ...mapped });
+    setTaste({ ...regionToTaste(prov.food_region) });
   }, []);
 
-  // ── Cập nhật 1 giá trị slider ─────────────────────────────────────────────
-  const handleSliderChange = useCallback((key, val) => {
+  const handleSlider = useCallback((key, val) => {
     setTaste(prev => ({ ...prev, [key]: val }));
   }, []);
 
-  // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     const total = TASTE_KEYS.reduce((s, k) => s + (taste[k] ?? 0), 0);
-    if (total === 0) {
-      Alert.alert('Chưa thiết lập', 'Vui lòng chọn ít nhất một vị.');
-      return;
-    }
+    if (total === 0) { Alert.alert('Chưa thiết lập', 'Chọn ít nhất một vị nhé.'); return; }
     setSaving(true);
     try {
-      // Lưu Firestore nếu có uid (auth), còn không chỉ lưu local store
-      // (project hiện chưa có Auth — lưu store trước, bổ sung uid sau)
       setTasteProfile(taste);
       setHometown(selectedProvince?.id ?? null);
       setTasteMode(mode);
-
-      // Thử lưu Firestore (uid placeholder — thay bằng auth.currentUser.uid khi có Auth)
-      const uid = 'local_user'; // TODO: thay bằng uid thật
-      await saveTasteProfile(uid, {
-        tasteProfile:       taste,
-        hometownProvinceId: selectedProvince?.id ?? null,
-        tasteMode:          mode,
+      await saveTasteProfile('local_user', {
+        tasteProfile: taste, hometownProvinceId: selectedProvince?.id ?? null, tasteMode: mode,
       });
-
-      Alert.alert('✅ Đã lưu', 'Khẩu vị của bạn đã được cập nhật!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      Alert.alert('✅ Đã lưu', 'Khẩu vị đã được cập nhật!', [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (e) {
-      console.error('[TasteProfileScreen] save:', e);
-      // Dù Firestore lỗi, store đã được cập nhật
-      Alert.alert('Lưu cục bộ', 'Khẩu vị đã lưu trên máy (chưa đồng bộ cloud).', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      Alert.alert('Lưu cục bộ', 'Khẩu vị đã lưu trên máy.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } finally { setSaving(false); }
   };
 
-  // ── Render province item ──────────────────────────────────────────────────
-  const renderProvince = useCallback(({ item }) => (
-    <ProvinceItem item={item} selected={selectedProvince?.id === item.id}
-      onPress={handleSelectProvince} />
-  ), [selectedProvince, handleSelectProvince]);
-
-  // ── UI ────────────────────────────────────────────────────────────────────
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <View style={st.root}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-          <Text style={s.backText}>←</Text>
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>👅 Khẩu vị của tôi</Text>
-        <View style={{ width:40 }} />
-      </View>
+      {/* Notebook paper background */}
+      <ImageBackground
+        source={require('../assets/textures/paper_cream.png')}
+        style={StyleSheet.absoluteFill}
+        resizeMode="repeat"
+      />
 
-      <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
-        <View style={s.body}>
-          <Text style={s.subtitle}>Hệ thống gợi ý món sẽ ưu tiên khẩu vị bạn thích.</Text>
+      {/* Spiral binding — left edge */}
+      <SpiralBinding />
+
+      {/* Content — offset right to clear spiral */}
+      <View style={st.page}>
+
+        {/* ── Header ── */}
+        <View style={st.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={st.backBtn} activeOpacity={0.7}>
+            <Text style={st.backArrow}>‹</Text>
+          </TouchableOpacity>
+          <Text style={st.title}>Khẩu vị của tôi</Text>
+          <View style={{ width: 36 }} />
+        </View>
+
+        {/* thin rule under title */}
+        <View style={st.titleRule} />
+
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled" contentContainerStyle={st.scroll}>
+
           <ModeToggle mode={mode} onChange={setMode} />
 
           <Animated.View style={{ opacity: fadeAnim }}>
-            {/* ── Mode Hometown ── */}
+
+            {/* ── Hometown mode ── */}
             {mode === 'hometown' && (
-              <View style={s.section}>
-                <Text style={s.sectionTitle}>Quê quán của bạn</Text>
-                <View style={s.searchBox}>
-                  <Text style={s.searchIcon}>🔍</Text>
-                  <TextInput style={s.searchInput} placeholder="Tìm tỉnh/thành..."
-                    placeholderTextColor="#9CA3AF" value={search} onChangeText={setSearch}
-                    clearButtonMode="while-editing" />
+              <View>
+                <Text style={st.sectionLabel}>Quê quán của bạn</Text>
+
+                {/* Search */}
+                <View style={st.searchBox}>
+                  <Text style={st.searchIcon}>🔍</Text>
+                  <TextInput
+                    style={st.searchInput}
+                    placeholder="Tìm tỉnh/thành..."
+                    placeholderTextColor={C.faint}
+                    value={search}
+                    onChangeText={setSearch}
+                    clearButtonMode="while-editing"
+                  />
                 </View>
+
                 {loading
-                  ? <ActivityIndicator style={{ marginTop:24 }} color={DP.primary} />
+                  ? <ActivityIndicator style={{ marginTop: 24 }} color={C.stamp} />
                   : (
                     <FlatList
-                      data={filteredProvinces} keyExtractor={p => String(p.id)}
-                      renderItem={renderProvince} scrollEnabled={false}
-                      initialNumToRender={10}
-                      ItemSeparatorComponent={() => <View style={{ height:1, backgroundColor:DP.border }} />}
-                      style={s.provList}
+                      data={filtered}
+                      keyExtractor={p => String(p.id)}
+                      scrollEnabled={false}
+                      renderItem={({ item }) => (
+                        <ProvinceRow item={item}
+                          selected={selectedProvince?.id === item.id}
+                          onPress={handleSelectProv} />
+                      )}
+                      ItemSeparatorComponent={() => <View style={st.listDivider} />}
                       ListEmptyComponent={
-                        <Text style={s.emptyText}>Không tìm thấy "{search}"</Text>
+                        <Text style={st.emptyText}>Không tìm thấy "{search}"</Text>
                       }
                     />
-                  )
-                }
+                  )}
+
                 {selectedProvince && (
-                  <View style={s.previewBox}>
-                    <Text style={s.previewTitle}>Khẩu vị vùng miền</Text>
-                    <Text style={s.previewFlavor}>{selectedProvince.regional_flavor || '–'}</Text>
-                    <RadarMini taste={taste} />
+                  <View style={st.previewBox}>
+                    <Text style={st.previewTitle}>
+                      Khẩu vị vùng {selectedProvince.name}
+                    </Text>
+                    {selectedProvince.regional_flavor
+                      ? <Text style={st.previewFlavor}>{selectedProvince.regional_flavor}</Text>
+                      : null}
+                    <TasteBars taste={taste} />
                   </View>
                 )}
               </View>
             )}
 
-            {/* ── Mode Manual ── */}
+            {/* ── Manual mode ── */}
             {mode === 'manual' && (
-              <View style={s.section}>
-                <Text style={s.sectionTitle}>Điều chỉnh khẩu vị thủ công</Text>
-                <Text style={s.sectionHint}>Kéo thanh trượt theo mức độ bạn thích (0 = không, 10 = rất thích)</Text>
+              <View>
+                <Text style={st.sectionLabel}>Tự điều chỉnh khẩu vị</Text>
+                <Text style={st.hint}>Kéo thanh trượt: 0 = không thích · 10 = rất thích</Text>
                 {TASTE_KEYS.map(k => (
-                  <TasteSlider key={k} tastKey={k} value={taste[k] ?? 0.5}
-                    onChange={handleSliderChange} />
+                  <TasteSlider key={k} tastKey={k} value={taste[k] ?? 0.5} onChange={handleSlider} />
                 ))}
-                <View style={s.previewBox}>
-                  <Text style={s.previewTitle}>Xem trước khẩu vị</Text>
-                  <RadarMini taste={taste} />
+                <View style={st.previewBox}>
+                  <Text style={st.previewTitle}>Xem trước khẩu vị</Text>
+                  <TasteBars taste={taste} />
                 </View>
               </View>
             )}
-          </Animated.View>
-        </View>
-        <View style={{ height:120 }} />
-      </ScrollView>
 
-      {/* Save button — sticky bottom */}
-      <View style={s.saveWrap}>
-        <TouchableOpacity style={[s.saveBtn, saving && { opacity:0.7 }]}
-          onPress={handleSave} disabled={saving} activeOpacity={0.85}>
-          {saving
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={s.saveBtnText}>💾 Lưu khẩu vị</Text>
-          }
+          </Animated.View>
+
+          {/* Mascot — bottom of content */}
+          <View style={st.mascotWrap}>
+            <LottieView
+              source={require('../assets/animations/cat.json')}
+              autoPlay loop
+              style={st.mascot}
+            />
+          </View>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      </View>
+
+      {/* ── Sticky save button ── */}
+      <View style={st.saveWrap}>
+        <TouchableOpacity onPress={handleSave} disabled={saving} activeOpacity={0.82}
+          style={[st.saveBtn, saving && { opacity: 0.7 }]}>
+          <ImageBackground
+            source={require('../assets/textures/wood_light.png')}
+            style={StyleSheet.absoluteFill}
+            imageStyle={{ borderRadius: 16, opacity: 0.8 }}
+            resizeMode="cover"
+          />
+          <View style={st.saveBtnOverlay}>
+            {saving
+              ? <ActivityIndicator color={C.ink} />
+              : <Text style={st.saveBtnText}>✓  Lưu khẩu vị</Text>
+            }
+          </View>
         </TouchableOpacity>
       </View>
     </View>
   );
 };
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  root:         { flex:1, backgroundColor: DP.base },
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const st = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.paper },
+
+  // Spiral
+  spiralWrap: {
+    position: 'absolute', left: 0, top: 0, bottom: 0,
+    width: 28, zIndex: 10,
+  },
+
+  // Page content area (offset from spiral)
+  page: {
+    flex: 1,
+    marginLeft: 28,
+  },
 
   // Header
-  header:       { flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                  backgroundColor:'#fff', paddingTop: Platform.OS==='ios' ? 56 : 20,
-                  paddingBottom:14, paddingHorizontal:16,
-                  borderBottomWidth:2, borderBottomColor: DP.border, borderStyle:'dashed' },
-  backBtn:      { width:40, alignItems:'flex-start' },
-  backText:     { fontSize:22, color: DP.primaryDk, fontWeight:'700' },
-  headerTitle:  { fontSize:20, fontWeight:'800', color: DP.textPri },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'android' ? 44 : 56,
+    paddingHorizontal: 16, paddingBottom: 4,
+  },
+  backBtn:   { width: 36, height: 36, justifyContent: 'center' },
+  backArrow: { fontSize: 28, color: C.inkMid, fontWeight: '300', lineHeight: 32 },
+  title:     { fontSize: 24, fontFamily: 'Patrick Hand', color: C.ink, letterSpacing: 0.3 },
+  titleRule: { height: 1.5, backgroundColor: C.rule, marginHorizontal: 16, marginBottom: 12, opacity: 0.7 },
 
-  body:         { padding:16 },
-  subtitle:     { fontSize:14, color: DP.textSec, marginBottom:16, lineHeight:20 },
+  scroll: { paddingHorizontal: 18, paddingTop: 4 },
 
   // Mode toggle
-  modeRow:      { flexDirection:'row', backgroundColor:'#F3F4F6', borderRadius:9999, padding:4, marginBottom:20 },
-  modeBtn:      { flex:1, paddingVertical:10, alignItems:'center', borderRadius:9999 },
-  modeBtnActive:{ backgroundColor:'#fff',
-                  shadowColor:'#000', shadowOffset:{width:0,height:1}, shadowOpacity:0.08, shadowRadius:3, elevation:2 },
-  modeBtnText:  { fontSize:14, fontWeight:'600', color:'#9CA3AF' },
-  modeBtnTextActive: { color: DP.primaryDk, fontWeight:'700' },
+  modeRow: {
+    flexDirection: 'row', gap: 10, marginBottom: 18,
+  },
+  modeBtn: {
+    flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10,
+    borderWidth: 1.5, borderColor: C.faint, overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  modeBtnActive: {
+    borderColor: C.stampDk,
+    shadowColor: C.stampDk, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2, shadowRadius: 4, elevation: 3,
+  },
+  modeBtnText:       { fontSize: 14, fontFamily: 'Nunito', fontWeight: '600', color: C.inkLight },
+  modeBtnTextActive: { color: C.stampDk, fontWeight: '800' },
 
-  section:      { marginBottom:16 },
-  sectionTitle: { fontSize:16, fontWeight:'800', color: DP.textPri, marginBottom:10 },
-  sectionHint:  { fontSize:13, color: DP.textSec, marginBottom:14, lineHeight:18 },
+  // Section
+  sectionLabel: { fontSize: 15, fontFamily: 'Patrick Hand', color: C.inkMid, marginBottom: 10, letterSpacing: 0.2 },
+  hint:         { fontSize: 13, fontFamily: 'Nunito', color: C.inkLight, marginBottom: 14, lineHeight: 18 },
 
   // Search
-  searchBox:    { flexDirection:'row', alignItems:'center', backgroundColor:'#fff',
-                  borderRadius:16, paddingHorizontal:12, marginBottom:12,
-                  borderWidth:2, borderColor: DP.border, borderStyle:'dashed' },
-  searchIcon:   { fontSize:16, marginRight:8 },
-  searchInput:  { flex:1, fontSize:16, color: DP.textPri, paddingVertical:12 },
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 22, paddingHorizontal: 14,
+    borderWidth: 1.5, borderColor: C.faint,
+    marginBottom: 10,
+  },
+  searchIcon:  { fontSize: 15, marginRight: 8, opacity: 0.7 },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: 'Nunito', color: C.ink, paddingVertical: 10 },
 
   // Province list
-  provList:     { backgroundColor:'#fff', borderRadius:16, borderWidth:2,
-                  borderColor: DP.border, borderStyle:'dashed', overflow:'hidden', marginBottom:16 },
-  provItem:     { flexDirection:'row', alignItems:'center', padding:14, paddingHorizontal:16 },
-  provItemActive:{ backgroundColor:'#EFF6FF' },
-  provName:     { fontSize:16, fontWeight:'600', color: DP.textPri },
-  provNameActive:{ color: DP.primaryDk, fontWeight:'700' },
-  provFlavor:   { fontSize:13, color: DP.textSec, marginTop:2 },
-  emptyText:    { textAlign:'center', color:'#9CA3AF', padding:24, fontSize:15 },
-  checkbox:     { width:24, height:24, borderRadius:12, borderWidth:2,
-                  borderColor:'#D1D5DB', alignItems:'center', justifyContent:'center' },
-  checkboxActive:{ backgroundColor:'#4ADE80', borderColor:'#4ADE80' },
-  checkmark:    { color:'#fff', fontWeight:'bold', fontSize:13 },
+  provRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 4 },
+  provName:     { flex: 1, fontSize: 16, fontFamily: 'Nunito', color: C.ink, fontWeight: '500' },
+  provNameActive:{ color: C.green, fontWeight: '700' },
+  circle:       {
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 1.5, borderColor: C.faint,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  circleActive: { backgroundColor: C.stamp, borderColor: C.stampDk },
+  listDivider:  { height: 1, backgroundColor: C.rule, opacity: 0.45 },
+  emptyText:    { textAlign: 'center', color: C.faint, padding: 24, fontSize: 15, fontFamily: 'Nunito' },
 
   // Preview box
-  previewBox:   { backgroundColor:'#fff', borderRadius: DP.radiusLg, padding:16,
-                  borderWidth:2, borderColor: DP.border, borderStyle:'dashed', marginTop:12 },
-  previewTitle: { fontSize:14, fontWeight:'700', color: DP.textSec, marginBottom:4 },
-  previewFlavor:{ fontSize:16, fontWeight:'800', color: DP.primaryDk, marginBottom:12 },
+  previewBox: {
+    marginTop: 16, backgroundColor: 'rgba(255,255,255,0.55)',
+    borderRadius: 14, padding: 14,
+    borderWidth: 1.5, borderColor: C.faint,
+  },
+  previewTitle:  { fontSize: 14, fontFamily: 'Patrick Hand', color: C.inkMid, marginBottom: 4, letterSpacing: 0.2 },
+  previewFlavor: { fontSize: 15, fontFamily: 'Nunito', fontWeight: '700', color: C.stampDk, marginBottom: 12 },
 
-  // Radar mini
-  radarWrap:    { gap:6 },
-  radarRow:     { flexDirection:'row', alignItems:'center', gap:8 },
-  radarKey:     { width:52, fontSize:12, color: DP.textSec, fontWeight:'600' },
-  radarBarBg:   { flex:1, height:8, backgroundColor:'#F3F4F6', borderRadius:99, overflow:'hidden' },
-  radarBarFill: { height:'100%', borderRadius:99 },
-  radarVal:     { width:20, fontSize:12, fontWeight:'700', textAlign:'right' },
+  // Taste bars
+  barsWrap:  { gap: 7 },
+  barRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  barKey:    { width: 70, fontSize: 12, fontFamily: 'Nunito', color: C.inkLight, fontWeight: '600' },
+  barBg:     { flex: 1, height: 7, backgroundColor: 'rgba(180,160,130,0.2)', borderRadius: 99, overflow: 'hidden' },
+  barFill:   { height: '100%', borderRadius: 99 },
+  barVal:    { width: 18, fontSize: 12, fontFamily: 'Nunito', fontWeight: '800', textAlign: 'right' },
 
   // Slider
-  sliderRow:    { flexDirection:'row', alignItems:'center', marginBottom:10 },
-  sliderLabel:  { width:80, fontSize:14, color: DP.textPri, fontWeight:'600' },
-  sliderTrack:  { flex:1, marginHorizontal:8 },
-  sliderVal:    { width:24, fontSize:14, fontWeight:'800', textAlign:'right' },
+  sliderRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  sliderLabel: { width: 76, fontSize: 13, fontFamily: 'Nunito', color: C.ink, fontWeight: '600' },
+  sliderVal:   { width: 22, fontSize: 13, fontFamily: 'Nunito', fontWeight: '800', textAlign: 'right' },
 
-  // Save
-  saveWrap:     { position:'absolute', bottom:0, left:0, right:0,
-                  backgroundColor:'rgba(255,255,240,0.95)',
-                  paddingHorizontal:16, paddingBottom:Platform.OS==='ios' ? 32 : 20, paddingTop:12,
-                  borderTopWidth:2, borderTopColor: DP.border, borderStyle:'dashed' },
-  saveBtn:      { backgroundColor: DP.primaryDk, borderRadius: DP.radiusLg,
-                  paddingVertical:16, alignItems:'center',
-                  shadowColor: DP.primaryDk, shadowOffset:{width:0,height:4}, shadowOpacity:0.3, shadowRadius:10, elevation:5 },
-  saveBtnText:  { fontSize:18, fontWeight:'800', color:'#fff' },
+  // Mascot
+  mascotWrap: { alignItems: 'flex-end', marginTop: 8, marginRight: 8 },
+  mascot:     { width: 100, height: 100 },
+
+  // Save button
+  saveWrap: {
+    position: 'absolute', bottom: 0, left: 28, right: 0,
+    paddingHorizontal: 18,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+    paddingTop: 10,
+    backgroundColor: 'rgba(250,246,238,0.92)',
+    borderTopWidth: 1, borderTopColor: C.rule,
+  },
+  saveBtn: {
+    height: 52, borderRadius: 16, overflow: 'hidden', justifyContent: 'center',
+    shadowColor: C.stampDk, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2, shadowRadius: 6, elevation: 4,
+  },
+  saveBtnOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(80,45,15,0.12)',
+    borderRadius: 16, justifyContent: 'center', alignItems: 'center',
+  },
+  saveBtnText: {
+    fontSize: 19, fontFamily: 'Patrick Hand', color: C.ink, letterSpacing: 0.5,
+    textShadowColor: 'rgba(255,255,255,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
 });
-
 
 export default TasteProfileScreen;
