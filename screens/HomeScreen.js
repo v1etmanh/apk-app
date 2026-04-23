@@ -13,74 +13,34 @@ import {
   getWeatherCache, setWeatherCache, setSetting,
   getRecentDishIds, saveRecentDishesCache, loadRecentDishesCache,
 } from '../utils/database';
+import { Ionicons } from '@expo/vector-icons';
+import { C } from '../theme';
+import ScreenBackground from '../components/ui/ScreenBackground';
+import PaperCard from '../components/ui/PaperCard';
+import WoodButton from '../components/ui/WoodButton';
 
 // ── Assets ────────────────────────────────────────────────────────────────────
-// Đặt các file texture vào thư mục assets/textures/ trong project của bạn
 const ASSETS = {
-  sky:   require('../assets/textures/sky_watercolor.png'),
   wood:  require('../assets/textures/wood_light.png'),
   paper: require('../assets/textures/paper_cream.png'),
 };
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const T = {
-  // Browns & warms — Ghibli storybook palette
-  brown:       '#5C3A1E',
-  brownMid:    '#7A4E2D',
-  brownLight:  '#A0784A',
-  brownSoft:   'rgba(92,58,30,0.12)',
-  brownBorder: 'rgba(92,58,30,0.18)',
-  brownBorder2:'rgba(92,58,30,0.28)',
-
-  // Cream & paper
-  cream:       '#F5EDD8',
-  creamDark:   '#EDE0C4',
-  creamLight:  '#FAF6EE',
-
-  // Wood
-  wood:        '#D4B878',
-  woodDark:    '#C09850',
-
-  // Accents
-  gold:        '#C8860A',
-  goldSoft:    'rgba(200,134,10,0.15)',
-  goldBorder:  'rgba(200,134,10,0.35)',
-  green:       '#4A7C59',
-  greenSoft:   'rgba(74,124,89,0.15)',
-  orange:      '#C8601A',
-  red:         '#B84040',
-  sky:         '#7AABCA',
-
-  // Text on paper
-  textPrimary:   '#3D2410',
-  textSecondary: '#7A5A3A',
-  textMuted:     'rgba(92,58,30,0.45)',
-
-  // White overlays
-  white:    '#FFFFFF',
-  white80:  'rgba(255,255,255,0.80)',
-  white60:  'rgba(255,255,255,0.60)',
-  white40:  'rgba(255,255,255,0.40)',
-  white20:  'rgba(255,255,255,0.20)',
-
-  // Shadow
-  shadow:   'rgba(92,58,30,0.22)',
-};
+// Removed local T object, using C from theme
 
 // ── AQI label ─────────────────────────────────────────────────────────────────
 const aqiInfo = (aqi) => {
-  if (aqi <= 50)  return { label: 'Tốt',        color: T.green };
-  if (aqi <= 100) return { label: 'Trung bình',  color: T.gold };
-  if (aqi <= 150) return { label: 'Không tốt',   color: T.orange };
-  return               { label: 'Nguy hiểm',    color: T.red };
+  if (aqi <= 50)  return { label: 'Tốt',        color: C.accentGreen };
+  if (aqi <= 100) return { label: 'Trung bình',  color: C.accentGold };
+  if (aqi <= 150) return { label: 'Không tốt',   color: C.orange || '#C8601A' };
+  return               { label: 'Nguy hiểm',    color: C.red || '#B84040' };
 };
 
 const uvInfo = (uv) => {
-  if (uv <= 2)  return { label: 'Thấp',       color: T.green };
-  if (uv <= 5)  return { label: 'Vừa phải',   color: T.gold };
-  if (uv <= 7)  return { label: 'Cao',         color: T.orange };
+  if (uv <= 2)  return { label: 'Thấp',       color: C.accentGreen };
+  if (uv <= 5)  return { label: 'Vừa phải',   color: C.accentGold };
+  if (uv <= 7)  return { label: 'Cao',         color: C.orange || '#C8601A' };
   if (uv <= 10) return { label: 'Rất cao',     color: '#C06010' };
-  return               { label: 'Cực kỳ cao',  color: T.red };
+  return               { label: 'Cực kỳ cao',  color: C.red || '#B84040' };
 };
 
 const weatherIcon = (cond = '', temp = 30) => {
@@ -103,9 +63,9 @@ const UVBar = ({ value }) => {
       {Array.from({ length: 10 }, (_, i) => (
         <View key={i} style={{
           width: 18, height: 6, borderRadius: 3,
-          backgroundColor: i < filled ? color : T.brownSoft,
+          backgroundColor: i < filled ? color : 'rgba(92,58,30,0.12)',
           borderWidth: i < filled ? 0 : 0.5,
-          borderColor: T.brownBorder,
+          borderColor: C.border,
         }} />
       ))}
     </View>
@@ -117,7 +77,7 @@ const AQIBar = ({ value }) => {
   const pct = Math.min(value / 300, 1);
   const { color } = aqiInfo(value);
   return (
-    <View style={{ flex: 1, height: 6, backgroundColor: T.brownSoft, borderRadius: 3, borderWidth: 0.5, borderColor: T.brownBorder }}>
+    <View style={{ flex: 1, height: 6, backgroundColor: 'rgba(92,58,30,0.12)', borderRadius: 3, borderWidth: 0.5, borderColor: C.border }}>
       <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: color, borderRadius: 3 }} />
     </View>
   );
@@ -133,18 +93,6 @@ const WoodMetricCell = ({ icon, value, unit, label }) => (
       </Text>
       <Text style={s.woodLabel}>{label}</Text>
     </View>
-  </ImageBackground>
-);
-
-// ── Paper card wrapper ────────────────────────────────────────────────────────
-const PaperCard = ({ children, style, borderColor }) => (
-  <ImageBackground
-    source={ASSETS.paper}
-    style={[s.paperCard, style, borderColor && { borderColor }]}
-    imageStyle={s.paperCardImg}
-    resizeMode="cover"
-  >
-    <View style={s.paperCardInner}>{children}</View>
   </ImageBackground>
 );
 
@@ -277,29 +225,28 @@ const HomeScreen = ({ navigation }) => {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <ImageBackground source={ASSETS.sky} style={{ flex: 1 }} resizeMode="cover">
-      {/* Overlay nhạt để text đọc được */}
-      <View style={s.skyOverlay} />
-      <StatusBar barStyle="dark-content" />
-
+    <ScreenBackground texture="sky">
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.brownMid} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.textMid} />
         }
       >
 
         {/* ── Header ── */}
         <View style={s.header}>
           <View>
-            <Text style={s.locationLabel}>📍 {location?.province || 'Đang xác định...'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="location-outline" size={16} color={C.textMid} />
+              <Text style={s.locationLabel}> {location?.province || 'Đang xác định...'}</Text>
+            </View>
             <Text style={s.dateLabel}>
               {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })}
             </Text>
           </View>
           <TouchableOpacity style={s.profileBtn} onPress={() => navigation.navigate('Profile')}>
-            <Text style={{ fontSize: 18 }}>👤</Text>
+            <Ionicons name="person-circle-outline" size={26} color={C.text} />
           </TouchableOpacity>
         </View>
 
@@ -327,13 +274,13 @@ const HomeScreen = ({ navigation }) => {
           </View>
         ) : (
           <View style={[s.woodRow, { justifyContent: 'center', paddingVertical: 24 }]}>
-            <ActivityIndicator color={T.brownMid} />
+            <ActivityIndicator color={C.textMid} />
           </View>
         )}
 
         {/* ── AQI Card ── */}
         {weatherData && (
-          <PaperCard style={s.cardSpacing}>
+          <PaperCard style={s.cardSpacing} containerStyle={{ padding: 14 }}>
             <View style={s.cardRow}>
               <Text style={s.cardLabel}>🌫️  Chất lượng không khí</Text>
               <Text style={[s.cardBadge, { color: aqi.color }]}>{aqi.label}</Text>
@@ -349,7 +296,7 @@ const HomeScreen = ({ navigation }) => {
 
         {/* ── UV Card ── */}
         {weatherData && (
-          <PaperCard style={s.cardSpacing}>
+          <PaperCard style={s.cardSpacing} containerStyle={{ padding: 14 }}>
             <View style={s.cardRow}>
               <Text style={s.cardLabel}>☀️  Chỉ số UV</Text>
               <Text style={[s.cardBadge, { color: uv.color }]}>
@@ -379,14 +326,14 @@ const HomeScreen = ({ navigation }) => {
         {/* ── Challenge Banner ── */}
         {challengeTitle !== '' && (
           <TouchableOpacity activeOpacity={0.82} onPress={() => navigation.navigate('CookingChallenge')}>
-            <PaperCard style={[s.cardSpacing, s.challengeBorder]}>
+            <PaperCard style={[s.cardSpacing, s.challengeBorder]} containerStyle={{ padding: 14 }}>
               <View style={s.rowCenter}>
-                <Text style={{ fontSize: 20 }}>🏆</Text>
+                <Ionicons name="trophy-outline" size={24} color={C.accentGold} />
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={s.challengeEyebrow}>THỬ THÁCH HÔM NAY</Text>
                   <Text style={s.challengeTitle} numberOfLines={1}>{challengeTitle}</Text>
                 </View>
-                <Text style={[s.chevron, { color: T.gold }]}>›</Text>
+                <Ionicons name="chevron-forward" size={20} color={C.accentGold} />
               </View>
             </PaperCard>
           </TouchableOpacity>
@@ -394,9 +341,9 @@ const HomeScreen = ({ navigation }) => {
 
         {/* ── Basket CTA ── */}
         <TouchableOpacity activeOpacity={0.82} onPress={() => navigation.navigate('MarketBasket')}>
-          <PaperCard style={s.cardSpacing}>
+          <PaperCard style={s.cardSpacing} containerStyle={{ padding: 14 }}>
             <View style={s.rowCenter}>
-              <Text style={{ fontSize: 20 }}>🛒</Text>
+              <Ionicons name="cart-outline" size={24} color={C.text} />
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={s.basketTitle}>
                   {basketBadge > 0 ? `Đã chọn ${basketBadge} nguyên liệu` : 'Bạn đã mua gì hôm nay?'}
@@ -408,7 +355,7 @@ const HomeScreen = ({ navigation }) => {
                   <Text style={s.badgeText}>{basketBadge}</Text>
                 </View>
               )}
-              <Text style={s.chevron}>›</Text>
+              <Ionicons name="chevron-forward" size={20} color={C.textLight} />
             </View>
           </PaperCard>
         </TouchableOpacity>
@@ -468,25 +415,17 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* ── Search CTA ── */}
-        <TouchableOpacity style={[s.searchBtn, isDirty && s.searchBtnDirty]} onPress={goSearch} activeOpacity={0.84}>
-          <ImageBackground
-            source={ASSETS.wood}
-            style={s.searchBtnInner}
-            imageStyle={{ borderRadius: 22, opacity: isDirty ? 0 : 0.55 }}
-            resizeMode="cover"
-          >
-            <View style={[s.searchBtnContent, isDirty && { backgroundColor: 'rgba(110,60,180,0.88)' }]}>
-              <Text style={s.searchBtnText}>
-                {isDirty ? '✨ Tìm lại với bộ lọc mới' : '🔍 Tìm món cho tôi'}
-              </Text>
-              <Text style={{ color: T.white80, fontSize: 18, marginLeft: 6 }}>→</Text>
-            </View>
-          </ImageBackground>
-        </TouchableOpacity>
+        <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+          <WoodButton
+            title={isDirty ? '✨ Tìm lại với bộ lọc mới' : '🔍 Tìm món cho tôi'}
+            onPress={goSearch}
+            isLoading={isLoadingRef.current}
+          />
+        </View>
 
         <View style={{ height: 48 }} />
       </ScrollView>
-    </ImageBackground>
+    </ScreenBackground>
   );
 };
 
@@ -504,18 +443,18 @@ const s = StyleSheet.create({
   },
   locationLabel: {
     fontFamily: 'Caveat_400Regular', fontSize: 15,
-    color: T.brownMid, letterSpacing: 0.3,
+    color: C.woodDark, letterSpacing: 0.3,
   },
   dateLabel: {
     fontFamily: 'Nunito_600SemiBold', fontSize: 16,
-    color: T.textPrimary, marginTop: 2,
+    color: C.text, marginTop: 2,
   },
   profileBtn: {
     width: 42, height: 42, borderRadius: 21,
-    backgroundColor: T.white60,
-    borderWidth: 1, borderColor: T.brownBorder,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderWidth: 1, borderColor: C.borderLight,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 1, shadowRadius: 6, elevation: 3,
   },
 
@@ -525,19 +464,19 @@ const s = StyleSheet.create({
   tempRow:   { flexDirection: 'row', alignItems: 'flex-start' },
   tempNum: {
     fontFamily: 'Nunito_700Bold', fontSize: 92,
-    color: T.textPrimary, letterSpacing: -3, lineHeight: 100,
+    color: C.text, letterSpacing: -3, lineHeight: 100,
   },
   tempDeg: {
     fontFamily: 'Nunito_400Regular', fontSize: 34,
-    color: T.brownMid, marginTop: 18,
+    color: C.woodDark, marginTop: 18,
   },
   condText: {
     fontFamily: 'Caveat_700Bold', fontSize: 22,
-    color: T.textSecondary, marginTop: -4,
+    color: C.textMid, marginTop: -4,
   },
   feelsLike: {
     fontFamily: 'Caveat_400Regular', fontSize: 15,
-    color: T.textMuted, marginTop: 4,
+    color: C.textLight, marginTop: 4,
   },
 
   // ── Wood metric row
@@ -548,7 +487,7 @@ const s = StyleSheet.create({
   woodCell: {
     flex: 1, borderRadius: 16, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(160,120,74,0.35)',
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 4 },
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1, shadowRadius: 8, elevation: 4,
   },
   woodCellImg: { borderRadius: 16, opacity: 0.92 },
@@ -559,23 +498,23 @@ const s = StyleSheet.create({
   woodIcon:  { fontSize: 20, marginBottom: 5 },
   woodVal: {
     fontFamily: 'Nunito_700Bold', fontSize: 18,
-    color: T.brown, lineHeight: 22,
+    color: C.woodDeep, lineHeight: 22,
   },
   woodUnit: {
     fontFamily: 'Nunito_400Regular', fontSize: 11,
-    color: T.brownLight,
+    color: C.wood,
   },
   woodLabel: {
     fontFamily: 'Caveat_400Regular', fontSize: 13,
-    color: T.brownMid, marginTop: 3,
+    color: C.woodDark, marginTop: 3,
   },
 
   // ── Paper card
   paperCard: {
     marginHorizontal: 16,
     borderRadius: 18, overflow: 'hidden',
-    borderWidth: 1, borderColor: T.brownBorder,
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 3 },
+    borderWidth: 1, borderColor: C.borderLight,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 1, shadowRadius: 10, elevation: 4,
   },
   paperCardImg:   { borderRadius: 18, opacity: 0.88 },
@@ -585,69 +524,65 @@ const s = StyleSheet.create({
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardLabel: {
     fontFamily: 'Caveat_400Regular', fontSize: 15,
-    color: T.textSecondary,
+    color: C.textMid,
   },
   cardBadge: {
     fontFamily: 'Nunito_700Bold', fontSize: 13,
-    color: T.textPrimary,
+    color: C.text,
   },
 
   // ── Season chip
   seasonChip: {
     alignSelf: 'center', marginTop: 10,
-    backgroundColor: T.white60,
-    borderRadius: 20, borderWidth: 1, borderColor: T.brownBorder,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderRadius: 20, borderWidth: 1, borderColor: C.borderLight,
     paddingHorizontal: 16, paddingVertical: 7,
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.8, shadowRadius: 6, elevation: 2,
   },
   seasonText: {
     fontFamily: 'Caveat_700Bold', fontSize: 15,
-    color: T.textSecondary,
+    color: C.textMid,
   },
 
   // ── Divider
   divider: {
-    height: 1, backgroundColor: T.brownBorder,
+    height: 1, backgroundColor: C.borderLight,
     marginHorizontal: 16, marginVertical: 16,
     opacity: 0.5,
   },
 
   // ── Challenge
-  challengeBorder: { borderColor: T.goldBorder },
+  challengeBorder: { borderColor: C.accentAmber },
   challengeEyebrow: {
     fontFamily: 'Nunito_700Bold', fontSize: 10,
-    color: T.gold, letterSpacing: 1, textTransform: 'uppercase',
+    color: C.accentAmber, letterSpacing: 1, textTransform: 'uppercase',
   },
   challengeTitle: {
     fontFamily: 'Nunito_600SemiBold', fontSize: 14,
-    color: T.textPrimary, marginTop: 2,
+    color: C.text, marginTop: 2,
   },
 
   // ── Basket
   basketTitle: {
     fontFamily: 'Nunito_700Bold', fontSize: 14,
-    color: T.textPrimary,
+    color: C.text,
   },
   basketSub: {
     fontFamily: 'Caveat_400Regular', fontSize: 13,
-    color: T.textMuted, marginTop: 2,
+    color: C.textLight, marginTop: 2,
   },
 
   // ── Badge
   badge: {
-    backgroundColor: T.brown, borderRadius: 12,
+    backgroundColor: C.primary, borderRadius: 12,
     paddingHorizontal: 8, paddingVertical: 3, marginRight: 6,
   },
   badgeText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 12, color: T.white,
+    fontFamily: 'Nunito_700Bold', fontSize: 12, color: '#FFFFFF',
   },
 
   // ── Chevron
-  chevron: {
-    fontFamily: 'Nunito_400Regular',
-    fontSize: 22, color: T.brownLight,
-  },
   rowCenter: { flexDirection: 'row', alignItems: 'center' },
 
   // ── Toggle buttons
@@ -656,14 +591,14 @@ const s = StyleSheet.create({
   },
   toggleBtn: {
     flex: 1, borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1, borderColor: T.brownBorder,
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 2 },
+    borderWidth: 1, borderColor: C.border,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.8, shadowRadius: 6, elevation: 3,
   },
   toggleBtnActive: {
     flex: 1, borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1.5, borderColor: T.woodDark,
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 3 },
+    borderWidth: 1.5, borderColor: C.textMid,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 1, shadowRadius: 8, elevation: 5,
   },
   toggleBtnImg: { borderRadius: 16 },
@@ -677,34 +612,11 @@ const s = StyleSheet.create({
   },
   toggleText: {
     fontFamily: 'Nunito_600SemiBold', fontSize: 13,
-    color: T.textSecondary,
+    color: C.textMid,
   },
   toggleTextActive: {
     fontFamily: 'Nunito_700Bold', fontSize: 13,
-    color: T.brown,
-  },
-
-  // ── Search button
-  searchBtn: {
-    marginHorizontal: 16, marginTop: 8, borderRadius: 22,
-    overflow: 'hidden',
-    borderWidth: 1.5, borderColor: 'rgba(160,120,74,0.5)',
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 1, shadowRadius: 14, elevation: 7,
-  },
-  searchBtnDirty: {
-    borderColor: 'rgba(110,60,180,0.5)',
-  },
-  searchBtnInner: { borderRadius: 22, overflow: 'hidden' },
-  searchBtnContent: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 18,
-    backgroundColor: 'rgba(92,58,30,0.72)',
-    gap: 4,
-  },
-  searchBtnText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 16,
-    color: T.white, letterSpacing: 0.3,
+    color: C.text,
   },
 });
 

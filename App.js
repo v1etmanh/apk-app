@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, StatusBar, View, Text } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts } from 'expo-font';
@@ -42,8 +44,8 @@ const MainTabs = () => {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#666',
+        tabBarActiveTintColor: '#8B5E3C', // Using primary wood color
+        tabBarInactiveTintColor: '#A67C52', // Using woodLight color
         headerShown: false,
       }}
     >
@@ -52,8 +54,8 @@ const MainTabs = () => {
         component={HomeScreen} 
         options={{ 
           tabBarLabel: 'Trang chủ',
-          tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 16, color: focused ? '#007AFF' : '#666' }}>🏠</Text>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" color={color} size={size} />
           )
         }}
       />
@@ -62,9 +64,8 @@ const MainTabs = () => {
         component={RecommendScreen} 
         options={{ 
           tabBarLabel: 'Đề xuất',
-          tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 16, color: focused ? '#007AFF' : '#666' }}>💡</Text>
-          
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bulb" color={color} size={size} />
           )
         }}
       />
@@ -73,8 +74,8 @@ const MainTabs = () => {
         component={HistoryScreen} 
         options={{ 
           tabBarLabel: 'Lịch sử',
-          tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 16, color: focused ? '#007AFF' : '#666' }}>📅</Text>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar" color={color} size={size} />
           )
         }}
       />
@@ -83,8 +84,8 @@ const MainTabs = () => {
         component={ProfileScreen} 
         options={{ 
           tabBarLabel: 'Hồ sơ',
-          tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 16, color: focused ? '#007AFF' : '#666' }}>👤</Text>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" color={color} size={size} />
           )
         }}
       />
@@ -93,8 +94,8 @@ const MainTabs = () => {
         component={SettingsScreen} 
         options={{ 
           tabBarLabel: 'Cài đặt',
-          tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 16, color: focused ? '#007AFF' : '#666' }}>⚙️</Text>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings" color={color} size={size} />
           )
         }}
       />
@@ -164,29 +165,31 @@ const App = () => {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {showOnboarding ? (
-            <Stack.Screen name="Onboarding" component={OnboardingStack} />
-          ) : (
-            <>
-              <Stack.Screen name="Main" component={MainTabs} />
-              <Stack.Screen name="DishDetail" component={DishDetailScreen} />
-              <Stack.Screen name="MarketBasket" component={MarketBasketScreen} />
-              <Stack.Screen name="HistoryDetail" component={HistoryDetailScreen} />
-              <Stack.Screen name="EditPersonal" component={EditPersonalScreen} />
-              <Stack.Screen name="BodyMetrics" component={BodyMetricsScreen} />
-              <Stack.Screen name="Allergy" component={AllergyScreen} />
-              <Stack.Screen name="CookingChallenge" component={CookingChallengeScreen} />
-              <Stack.Screen name="TasteProfile" component={TasteProfileScreen} />
-               <Stack.Screen name="Recommend" component={RecommendScreen} />
-            </>
-          )}
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F5EDDC' }}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F5EDDC" />
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            {showOnboarding ? (
+              <Stack.Screen name="Onboarding" component={OnboardingStack} />
+            ) : (
+              <>
+                <Stack.Screen name="Main" component={MainTabs} />
+                <Stack.Screen name="DishDetail" component={DishDetailScreen} />
+                <Stack.Screen name="MarketBasket" component={MarketBasketScreen} />
+                <Stack.Screen name="HistoryDetail" component={HistoryDetailScreen} />
+                <Stack.Screen name="EditPersonal" component={EditPersonalScreen} />
+                <Stack.Screen name="BodyMetrics" component={BodyMetricsScreen} />
+                <Stack.Screen name="Allergy" component={AllergyScreen} />
+                <Stack.Screen name="CookingChallenge" component={CookingChallengeScreen} />
+                <Stack.Screen name="TasteProfile" component={TasteProfileScreen} />
+                <Stack.Screen name="Recommend" component={RecommendScreen} />
+              </>
+            )}
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 };
 
