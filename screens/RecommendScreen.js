@@ -247,7 +247,18 @@ const RecommendScreen = ({ navigation, route }) => {
   const fetchRecommendations = async () => {
     setIsLoading(true); setError(null);
     try {
+      if(!searchParams){
+         const cached = await loadRecentDishesCache();
+      if (cached.length) { setDishes(cached); setError('offline'); }
+      else {
+        const sessions = await loadSessions(1);
+        if (sessions.length) { setDishes(await loadDishesBySession(sessions[0].id)); setError('offline'); }
+        else setError('empty');
+      }
+      return
+    }
       const recentDishIds = await getRecentDishIds(3);
+
       const res = await api.post('/api/v1/recommend', { ...searchParams, recent_dish_ids: recentDishIds });
       const ranked = res.data.ranked_dishes || [];
       setDishes(ranked);

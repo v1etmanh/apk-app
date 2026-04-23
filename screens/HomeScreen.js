@@ -11,7 +11,7 @@ import {
   saveSession, saveDishesToSession,
   loadSessions, loadDishesBySession,
   getWeatherCache, setWeatherCache, setSetting,
-  getRecentDishIds, saveRecentDishesCache, loadRecentDishesCache,
+  getRecentDishIds, saveRecentDishesCache, loadRecentDishesCache,getSetting,
 } from '../utils/database';
 import {
   useFonts,
@@ -212,10 +212,15 @@ const HomeScreen = ({ navigation }) => {
 
   const getUserLocation = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return null;
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      return { lat: loc.coords.latitude, lon: loc.coords.longitude };
+      
+      // const { status } = await Location.requestForegroundPermissionsAsync();
+      // if (status !== 'granted') return null;
+      // const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      
+      // return { lat: loc.coords.latitude, lon: loc.coords.longitude };
+      lat=getSetting('last_known_lat') || '16.047';
+      lon=getSetting('last_known_lon') || '108.206';
+      return {lat: Number(lat), lon: Number(lon)};
     } catch { return null; }
   };
 

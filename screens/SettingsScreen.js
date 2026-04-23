@@ -7,6 +7,7 @@ import { Picker } from '@react-native-picker/picker';
 import Svg, { Path, Circle, Line, Rect } from 'react-native-svg';
 import { getSetting, setSetting, clearAllHistory } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
+import { supabase } from '../store/suppabase';   // ← thêm import
 
 // ─── Design Tokens ─────────────────────────────────────────────────
 const C = {
@@ -41,29 +42,24 @@ const WobblyBorder = ({ width, height, color = C.dashed, sw = 1.8, dash = '5,4' 
   );
 };
 
-// ─── SVG Lined Paper Tag (thay vì texture ảnh) ────────────────────
+// ─── SVG Lined Paper Tag ──────────────────────────────────────────
 const LinedPaperTag = ({ width = 110, height = 52, children }) => {
   const lines = [12, 20, 28, 36, 44];
   return (
     <View style={{ width, height, position: 'relative' }}>
       <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
-        {/* Paper base */}
         <Rect x={0} y={0} width={width} height={height} rx={6}
           fill="#EEF4FB" stroke={C.skyBlue} strokeWidth={1} strokeDasharray="3,2"/>
-        {/* Margin line left */}
         <Line x1={14} y1={2} x2={14} y2={height-2}
           stroke="#E8B0B0" strokeWidth={0.8} opacity={0.7}/>
-        {/* Ruled lines */}
         {lines.map(y => (
           <Line key={y} x1={16} y1={y} x2={width-4} y2={y}
             stroke={C.skyBlue} strokeWidth={0.7} opacity={0.55}/>
         ))}
-        {/* Torn top edge */}
         <Path
           d={`M0,0 Q${width*.15},3 ${width*.3},1 Q${width*.45},3 ${width*.6},0 Q${width*.75},3 ${width*.9},1 Q${width*.96},2 ${width},0`}
           fill="#EEF4FB" stroke={C.skyBlue} strokeWidth={0.5}/>
       </Svg>
-      {/* Content */}
       <View style={{ position:'absolute', inset:0, justifyContent:'center',
                      alignItems:'center', paddingHorizontal: 6 }}>
         {children}
@@ -72,18 +68,16 @@ const LinedPaperTag = ({ width = 110, height = 52, children }) => {
   );
 };
 
-// ─── Wood Section Header ───────────────────────────────────────────
+// ─── Wood Section Header ──────────────────────────────────────────
 const WoodSectionHeader = ({ title, emoji }) => (
   <ImageBackground
     source={require('../assets/textures/wood_light.png')}
-    style={st.sectionHeader}
-    resizeMode="cover"
+    style={st.sectionHeader} resizeMode="cover"
     imageStyle={{ opacity: 0.4 }}
   >
     <View style={st.sectionHeaderInner}>
       <Text style={st.sectionEmoji}>{emoji}</Text>
       <Text style={st.sectionTitle}>{title}</Text>
-      {/* Small decorative nails */}
       <View style={st.nail}/>
       <View style={[st.nail, { right: 10, left: undefined }]}/>
     </View>
@@ -103,22 +97,14 @@ const WavyDivider = () => (
 const PickerRow = ({ icon, iconBg, label, selectedValue, onValueChange, children, isLast }) => (
   <>
     <View style={st.row}>
-      {/* Icon */}
       <View style={[st.iconBox, { backgroundColor: iconBg }]}>
         <Text style={st.iconEmoji}>{icon}</Text>
       </View>
-
-      {/* Label */}
       <Text style={st.rowLabel}>{label}</Text>
-
-      {/* Lined paper picker tag */}
       <LinedPaperTag width={116} height={50}>
         <Picker
-          selectedValue={selectedValue}
-          onValueChange={onValueChange}
-          style={st.pickerInTag}
-          dropdownIconColor={C.inkLight}
-          itemStyle={st.pickerItem}
+          selectedValue={selectedValue} onValueChange={onValueChange}
+          style={st.pickerInTag} dropdownIconColor={C.inkLight} itemStyle={st.pickerItem}
         >
           {children}
         </Picker>
@@ -136,8 +122,6 @@ const ActionRow = ({ icon, iconBg, label, actionLabel, onPress, danger, isLast }
         <Text style={st.iconEmoji}>{icon}</Text>
       </View>
       <Text style={[st.rowLabel, danger && { color: C.danger }]}>{label}</Text>
-
-      {/* Action badge as mini lined paper */}
       <LinedPaperTag width={60} height={36}>
         <Text style={[st.actionText, danger && { color: C.danger }]}>{actionLabel}</Text>
       </LinedPaperTag>
@@ -146,7 +130,7 @@ const ActionRow = ({ icon, iconBg, label, actionLabel, onPress, danger, isLast }
   </>
 );
 
-// ─── Main Screen ───────────────────────────────────────────────────
+// ─── Main Screen ──────────────────────────────────────────────────
 const SettingsScreen = () => {
   const [cuisinePreference, setCuisinePreference] = useState('vietnam');
   const [maxCookTime,       setMaxCookTime]       = useState('60');
@@ -155,8 +139,8 @@ const SettingsScreen = () => {
   const [unitSystem,        setUnitSystem]         = useState('metric');
   const { location, setLocation, setCostPreference: setStoreCostPref } = useAppStore();
 
-  // Gear rotation animation
   const gearRot = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     loadSettings();
     Animated.loop(
@@ -210,7 +194,26 @@ const SettingsScreen = () => {
     setTimeout(() => Alert.alert('Thành công ✓', 'Nguyên liệu đã được cập nhật'), 1000);
   };
 
-  const exportData = () => Alert.alert('Xuất dữ liệu', 'Tính năng sẽ có trong phiên bản tới 🚀', [{ text: 'OK' }]);
+  const exportData = () => Alert.alert('Xuất dữ liệu', 'Tính năng sẽ có trong phiên bản tới 🚀');
+
+  // ── Logout ──────────────────────────────────────────────────────
+  const handleLogout = () => {
+    Alert.alert(
+      'Đăng xuất',
+      'Bạn chắc chắn muốn đăng xuất không? 🐱',
+      [
+        { text: 'Thôi', style: 'cancel' },
+        {
+          text: 'Đăng xuất',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.auth.signOut();
+            // App.js lắng nghe onAuthStateChange → tự chuyển về LoginScreen
+          },
+        },
+      ]
+    );
+  };
 
   const gearDeg = gearRot.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
@@ -220,24 +223,16 @@ const SettingsScreen = () => {
       style={st.root} resizeMode="cover"
     >
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent/>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={st.scroll}
-      >
         {/* ── Header ── */}
         <ImageBackground
           source={require('../assets/textures/sky_watercolor.png')}
-          style={st.header} resizeMode="cover"
-          imageStyle={{ opacity: 0.45 }}
+          style={st.header} resizeMode="cover" imageStyle={{ opacity: 0.45 }}
         >
-          <Animated.Text style={[st.headerGear, { transform: [{ rotate: gearDeg }] }]}>
-            ⚙️
-          </Animated.Text>
+          <Animated.Text style={[st.headerGear, { transform: [{ rotate: gearDeg }] }]}>⚙️</Animated.Text>
           <Text style={st.headerTitle}>Cài đặt</Text>
           <Text style={st.headerSub}>Tuỳ chỉnh theo ý bạn nhé</Text>
-
-          {/* Wavy bottom */}
           <Svg width={SW} height={22} style={st.headerWave}>
             <Path
               d={`M0,8 Q${SW*.13},20 ${SW*.27},9 Q${SW*.41},0 ${SW*.55},11 Q${SW*.69},20 ${SW*.83},8 Q${SW*.92},2 ${SW},9 L${SW},22 L0,22 Z`}
@@ -283,7 +278,7 @@ const SettingsScreen = () => {
           </PickerRow>
           <PickerRow icon="📏" iconBg="#F5E8D4" label="Đơn vị đo lường"
             selectedValue={unitSystem} onValueChange={handleUnitChange} isLast>
-            <Picker.Item label="Metric (kg, cm)"  value="metric"/>
+            <Picker.Item label="Metric (kg, cm)"   value="metric"/>
             <Picker.Item label="Imperial (lb, ft)" value="imperial"/>
           </PickerRow>
         </View>
@@ -300,14 +295,27 @@ const SettingsScreen = () => {
             actionLabel="Xóa" onPress={clearHistory} danger isLast/>
         </View>
 
-        {/* ── Footer version ── */}
+        {/* ── Section: Tài khoản ── */}
+        <WoodSectionHeader emoji="👤" title="Tài khoản"/>
+        <View style={st.card}>
+          <WobblyBorder width={CARD_W} height={72} color={C.wood} sw={2}/>
+          <ActionRow
+            icon="🚪"
+            iconBg={C.dangerBg}
+            label="Đăng xuất"
+            actionLabel="Thoát"
+            onPress={handleLogout}
+            danger
+            isLast
+          />
+        </View>
+
+        {/* ── Footer ── */}
         <View style={st.footer}>
-          {/* Wavy line above */}
           <Svg width={120} height={10} style={{ marginBottom: 10 }}>
             <Path d="M0,5 Q30,1 60,5 Q90,9 120,5"
               fill="none" stroke={C.dashed} strokeWidth={1.2} strokeDasharray="4,3"/>
           </Svg>
-
           <View style={st.versionBadge}>
             <WobblyBorder width={160} height={38} color={C.wood} sw={1.5} dash="4,3"/>
             <Text style={st.versionText}>🌿 Phiên bản 1.0.0</Text>
@@ -327,49 +335,30 @@ const st = StyleSheet.create({
   root:   { flex: 1, backgroundColor: C.paper },
   scroll: { paddingBottom: 40 },
 
-  // ── Header ──
-  header:      { alignItems: 'center', paddingTop: 56, paddingBottom: 0,
-                 backgroundColor: C.skyBlue },
+  header:      { alignItems: 'center', paddingTop: 56, paddingBottom: 0, backgroundColor: C.skyBlue },
   headerGear:  { fontSize: 44, marginBottom: 6 },
   headerTitle: { fontFamily: 'Patrick Hand', fontSize: 32, color: C.ink },
-  headerSub:   { fontFamily: 'Nunito', fontSize: 14, color: C.inkLight,
-                 fontWeight: '600', marginTop: 4, marginBottom: 10 },
+  headerSub:   { fontFamily: 'Nunito', fontSize: 14, color: C.inkLight, fontWeight: '600', marginTop: 4, marginBottom: 10 },
   headerWave:  { marginTop: 2 },
 
-  // ── Wood section header ──
-  sectionHeader:      { marginTop: 20, marginBottom: 0, height: 44,
-                        backgroundColor: C.woodDark, justifyContent: 'center' },
-  sectionHeaderInner: { flexDirection: 'row', alignItems: 'center',
-                        paddingHorizontal: 20, gap: 8 },
+  sectionHeader:      { marginTop: 20, marginBottom: 0, height: 44, backgroundColor: C.woodDark, justifyContent: 'center' },
+  sectionHeaderInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, gap: 8 },
   sectionEmoji:       { fontSize: 18 },
-  sectionTitle:       { fontFamily: 'Patrick Hand', fontSize: 18, color: C.white,
-                        flex: 1 },
-  nail:               { position: 'absolute', left: 6, width: 8, height: 8,
-                        borderRadius: 4, backgroundColor: C.woodDeep,
-                        borderWidth: 1, borderColor: C.amber },
+  sectionTitle:       { fontFamily: 'Patrick Hand', fontSize: 18, color: C.white, flex: 1 },
+  nail:               { position: 'absolute', left: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: C.woodDeep, borderWidth: 1, borderColor: C.amber },
 
-  // ── Card ──
-  card: { backgroundColor: C.white, marginHorizontal: 16,
-          borderRadius: 0, paddingVertical: 4,
-          shadowColor: C.woodDark, shadowOffset: { width: 2, height: 4 },
-          shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
+  card: { backgroundColor: C.white, marginHorizontal: 16, borderRadius: 0, paddingVertical: 4,
+          shadowColor: C.woodDark, shadowOffset: { width: 2, height: 4 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
 
-  // ── Row ──
-  row:       { flexDirection: 'row', alignItems: 'center',
-               paddingHorizontal: 16, paddingVertical: 10, gap: 10 },
-  iconBox:   { width: 40, height: 40, borderRadius: 12,
-               justifyContent: 'center', alignItems: 'center' },
+  row:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 10 },
+  iconBox:   { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   iconEmoji: { fontSize: 20 },
   rowLabel:  { flex: 1, fontFamily: 'Patrick Hand', fontSize: 16, color: C.ink },
 
-  // ── Picker inside tag ──
   pickerInTag: { height: 44, width: 104, color: C.ink },
   pickerItem:  { fontSize: 13, color: C.ink, fontFamily: 'Nunito' },
+  actionText:  { fontFamily: 'Patrick Hand', fontSize: 14, color: C.inkLight },
 
-  // ── Action badge ──
-  actionText: { fontFamily: 'Patrick Hand', fontSize: 14, color: C.inkLight },
-
-  // ── Footer ──
   footer:       { alignItems: 'center', marginTop: 32, gap: 8 },
   versionBadge: { width: 160, height: 38, justifyContent: 'center', alignItems: 'center' },
   versionText:  { fontFamily: 'Patrick Hand', fontSize: 15, color: C.inkLight },
