@@ -8,6 +8,32 @@ import axios from 'axios';
 // Thiết bị thật / Expo Go: đổi thành IP LAN (vd: 'http://192.168.1.5:5001')
 // Tìm IP: Windows → `ipconfig` | Mac → `ifconfig`
 const API_BASE_URL = 'https://dailyserver-production.up.railway.app/';
+const DEFAULT_WEATHER_COORDS = { lat: 16.047, lon: 108.206 };
+
+const isValidCoordinate = (value, min, max) => {
+  if (value === null || value === undefined || value === '') return false;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) && numberValue >= min && numberValue <= max;
+};
+
+const normalizeWeatherUrl = (url = '') => {
+  if (!url.includes('/api/weather')) return url;
+
+  const [path, queryString = ''] = url.split('?');
+  const params = new URLSearchParams(queryString);
+  const lat = params.get('lat');
+  const lon = params.get('lon');
+
+  if (!isValidCoordinate(lat, -90, 90)) {
+    params.set('lat', String(DEFAULT_WEATHER_COORDS.lat));
+  }
+
+  if (!isValidCoordinate(lon, -180, 180)) {
+    params.set('lon', String(DEFAULT_WEATHER_COORDS.lon));
+  }
+
+  return `${path}?${params.toString()}`;
+};
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -16,7 +42,10 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use(
-  (config) => config,
+  (config) => ({
+    ...config,
+    url: normalizeWeatherUrl(config.url),
+  }),
   (error) => Promise.reject(error)
 );
 

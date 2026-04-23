@@ -132,20 +132,22 @@ const TopCard = ({ item, onPress }) => {
 
           {/* Body */}
           <View style={s.topBody}>
-            <Text style={s.topTitle} numberOfLines={2}>{item.title}</Text>
-            <View style={s.chipRow}>
-              <MetaChip 
-                icon={<Ionicons name="time-outline" size={11} color={C.textMid}/>} 
-                label={`${item.cook_time_min}p`} 
-              />
-              <MetaChip 
-                variant="accent" 
-                icon={<Ionicons name="star" size={11} color={C.accentGreen}/>} 
-                label={`${(item.final_score * 100).toFixed(0)}%`} 
-              />
-              {item.nation && (
-                <MetaChip label={item.nation} />
-              )}
+            <View style={s.topPrimaryInfo}>
+              <Text style={s.topTitle} numberOfLines={2}>{item.title}</Text>
+              <View style={s.chipRow}>
+                <MetaChip 
+                  icon={<Ionicons name="time-outline" size={11} color={C.textMid}/>} 
+                  label={`${item.cook_time_min}p`} 
+                />
+                <MetaChip 
+                  variant="accent" 
+                  icon={<Ionicons name="star" size={11} color={C.accentGreen}/>} 
+                  label={`${(item.final_score * 100).toFixed(0)}%`} 
+                />
+                {item.nation && (
+                  <MetaChip label={item.nation} />
+                )}
+              </View>
             </View>
             {item.explanation?.[0] && (
               <Text style={s.topHint} numberOfLines={2}>{item.explanation[0]}</Text>
@@ -214,7 +216,7 @@ const ListRow = ({ item, onPress }) => (
 // ─────────────────────────────────────────────────────────────────────────────
 const RecommendScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
-  const { searchParams } = route.params || {};
+  const { searchParams = {} } = route.params || {};
   const [dishes, setDishes]        = useState([]);
   const [isLoading, setIsLoading]  = useState(true);
   const [visibleCount, setVisible] = useState(10);
@@ -244,13 +246,15 @@ const RecommendScreen = ({ navigation, route }) => {
   };
 
   const persistSession = async (result, params) => {
+    const safeParams = params || {};
     try {
       const sid = await saveSession({
         created_at: new Date().toISOString(),
-        lat: params.lat, lon: params.lon,
-        province: params.location?.province || '',
-        cuisine_scope: params.cuisine_scope,
-        basket_skipped: params.market_basket?.is_skipped ? 1 : 0,
+        lat: safeParams.lat ?? null,
+        lon: safeParams.lon ?? null,
+        province: safeParams.location?.province || '',
+        cuisine_scope: safeParams.cuisine_scope || '',
+        basket_skipped: safeParams.market_basket?.is_skipped ? 1 : 0,
       });
       setCurrentSessionId(sid);
       if (result.ranked_dishes?.length) {
@@ -293,13 +297,25 @@ const RecommendScreen = ({ navigation, route }) => {
         resizeMode="cover"
       >
         <View style={s.headerInner}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={[s.backBtn, { flexDirection: 'row', alignItems: 'center' }]}>
-            <Ionicons name="arrow-back" size={16} color={C.textMid} />
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={[s.headerAction, s.backBtn]}
+            activeOpacity={0.78}
+            accessibilityRole="button"
+            accessibilityLabel="Quay lai"
+          >
+            <Ionicons name="chevron-back" size={18} color={C.textMid} />
             <Text style={s.backText}> Quay lại</Text>
           </TouchableOpacity>
           <Text style={s.headerTitle}>Gợi ý món ăn</Text>
-          <TouchableOpacity onPress={fetchRecommendations} style={[s.refreshBtn, { flexDirection: 'row', alignItems: 'center' }]}>
-            <Ionicons name="refresh" size={16} color={C.accentGold} />
+          <TouchableOpacity
+            onPress={fetchRecommendations}
+            style={[s.headerAction, s.refreshBtn]}
+            activeOpacity={0.78}
+            accessibilityRole="button"
+            accessibilityLabel="Lam moi goi y mon an"
+          >
+            <Ionicons name="refresh" size={17} color={C.accentGold} />
             <Text style={s.refreshText}> Làm mới</Text>
           </TouchableOpacity>
         </View>
@@ -426,17 +442,45 @@ const s = StyleSheet.create({
     shadowOpacity: 1, shadowRadius: 8, elevation: 4,
   },
   headerInner: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 10,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    position: 'relative',
   },
-  backBtn:    { paddingVertical: 4, paddingRight: 12 },
+  headerAction: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(92,58,30,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.42)',
+  },
+  backBtn: {
+    paddingLeft: 10,
+    paddingRight: 12,
+  },
   backText: {
-    fontFamily: 'Nunito_600SemiBold', fontSize: 14, color: C.textMid,
+    fontFamily: 'Nunito_700Bold', fontSize: 13, color: C.textMid,
   },
   headerTitle: {
-    fontFamily: 'Nunito_700Bold', fontSize: 17, color: C.text,
+    position: 'absolute',
+    left: 112,
+    right: 112,
+    bottom: 20,
+    textAlign: 'center',
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 18,
+    color: C.text,
   },
-  refreshBtn:  { paddingVertical: 4, paddingLeft: 12 },
+  refreshBtn: {
+    paddingLeft: 12,
+    paddingRight: 12,
+  },
   refreshText: {
     fontFamily: 'Nunito_700Bold', fontSize: 13, color: C.accentGold,
   },
@@ -544,20 +588,26 @@ const s = StyleSheet.create({
     fontFamily: 'Nunito_700Bold', fontSize: 10, color: '#FFFFFF',
   },
   topBody: { 
-    padding: 18,
-    minHeight: 180, // Ensures consistent body height for description/chips
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    height: 154,
+    justifyContent: 'space-between',
+  },
+  topPrimaryInfo: {
+    minHeight: 78,
     justifyContent: 'flex-start',
   },
   topTitle: {
     fontFamily: 'Nunito_700Bold', fontSize: 16,
     color: C.text, lineHeight: 22,
-    height: 44, // Fixed height for exactly 2 lines of text
+    minHeight: 44,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 10,
+    marginTop: 6,
     alignItems: 'center',
   },
   topHint: {

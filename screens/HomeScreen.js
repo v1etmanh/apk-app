@@ -18,12 +18,31 @@ import { C } from '../theme';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard from '../components/ui/PaperCard';
 import WoodButton from '../components/ui/WoodButton';
+import WeatherAnimationSprite from '../components/ui/WeatherAnimationSprite';
+import { Drop } from 'phosphor-react-native/lib/module/icons/Drop';
+import { Wind } from 'phosphor-react-native/lib/module/icons/Wind';
+import { Gauge } from 'phosphor-react-native/lib/module/icons/Gauge';
 
 // ── Assets ────────────────────────────────────────────────────────────────────
 const ASSETS = {
   wood:  require('../assets/textures/wood_light.png'),
   paper: require('../assets/textures/paper_cream.png'),
 };
+
+const DEFAULT_LOCATION = { lat: 16.047, lon: 108.206, province: 'Đà Nẵng' };
+const isValidCoordinate = (value, min, max) => {
+  if (value === null || value === undefined || value === '') return false;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= min && n <= max;
+};
+const hasValidLocation = (loc) => (
+  isValidCoordinate(loc?.lat, -90, 90) && isValidCoordinate(loc?.lon, -180, 180)
+);
+const normalizeLocation = (loc) => (
+  hasValidLocation(loc)
+    ? { ...loc, lat: Number(loc.lat), lon: Number(loc.lon) }
+    : DEFAULT_LOCATION
+);
 
 // Removed local T object, using C from theme
 
@@ -119,18 +138,31 @@ const MetricScaleBar = ({ value, max, color, labels }) => {
 };
 
 // ── Wood metric cell ──────────────────────────────────────────────────────────
-const WoodMetricCell = ({ icon, value, unit, label }) => (
-  <ImageBackground source={ASSETS.wood} style={s.woodCell} imageStyle={s.woodCellImg} resizeMode="cover">
-    <View style={s.woodCellOverlay}>
-      <Text style={s.woodIcon}>{icon}</Text>
-      <View style={s.woodValRow}>
-        <Text style={s.woodVal}>{value}</Text>
-        {unit ? <Text style={s.woodUnit}>{unit}</Text> : null}
+const METRIC_ICONS = { Drop, Wind, Gauge };
+
+const WoodMetricCell = ({ iconName, value, unit, label, accentColor = 'rgba(255,220,150,0.18)' }) => {
+  const IconComp = METRIC_ICONS[iconName];
+  return (
+    <ImageBackground source={ASSETS.wood} style={s.woodCell} imageStyle={s.woodCellImg} resizeMode="cover">
+      <View style={s.woodCellOverlay}>
+        {/* Icon badge row */}
+        <View style={[s.woodIconBadge, { backgroundColor: accentColor }]}>
+          {IconComp && <IconComp size={18} color="rgba(255,248,225,0.85)" weight="fill" />}
+          <Text style={s.woodLabel} numberOfLines={1}>{label.toUpperCase()}</Text>
+        </View>
+        {/* Divider */}
+        <View style={s.woodDivider} />
+        {/* Value col: number full-width, unit below */}
+        <View style={s.woodValCol}>
+          <Text style={s.woodVal} adjustsFontSizeToFit numberOfLines={1} minimumFontScale={0.4}>
+            {value ?? '--'}
+          </Text>
+          {unit ? <Text style={s.woodUnit}>{unit}</Text> : null}
+        </View>
       </View>
-      <Text style={s.woodLabel}>{label}</Text>
-    </View>
-  </ImageBackground>
-);
+    </ImageBackground>
+  );
+};
 
 const FilterFlagMark = ({ code }) => {
   if (code === 'GLOBAL') {
@@ -184,16 +216,16 @@ const HomeScreen = ({ navigation }) => {
   }, [marketBasket?.selectedIngredients?.length]);
 
   useFocusEffect(useCallback(() => {
-    const lat = location?.lat || 16.047;
-    const lon = location?.lon || 108.206;
+    const safeLocation = normalizeLocation(location);
+    const lat = safeLocation.lat;
+    const lon = safeLocation.lon;
     api.get(`/api/v1/challenge?lat=${lat}&lon=${lon}`)
       .then(r => setChallengeTitle(r.data?.challenge_dish?.title || ''))
       .catch(() => {});
     loadRecentDishesCache().then(cached => {
       if (cached.length > 0) setRankedDishes(cached);
     });
-    const loc = location || { lat: 16.047, lon: 108.206 };
-    fetchWeather(loc.lat, loc.lon);
+    fetchWeather(lat, lon);
   }, []));
 
   const getUserLocation = async () => {
@@ -205,14 +237,15 @@ const HomeScreen = ({ navigation }) => {
     } catch { return null; }
   };
 
-  const gridKey = (lat, lon) => `${Math.round(lat * 10) / 10}:${Math.round(lon * 10) / 10}`;
+  const gridKey = (lat, lon) => `${Math.round(Number(lat) * 10) / 10}:${Math.round(Number(lon) * 10) / 10}`;
 
   const fetchWeather = async (lat, lon) => {
-    const key = gridKey(lat, lon);
+    const loc = normalizeLocation({ lat, lon });
+    const key = gridKey(loc.lat, loc.lon);
     const cached = await getWeatherCache(key);
     if (cached?.temperature != null) { setWeatherData(cached); return cached; }
     try {
-      const res = await api.get(`/api/weather?lat=${lat}&lon=${lon}`);
+      const res = await api.get(`/api/weather?lat=${loc.lat}&lon=${loc.lon}`);
       const hr = new Date().getHours();
       await setWeatherCache(key, res.data, hr >= 6 && hr < 22 ? 30 : 60);
       setWeatherData(res.data);
@@ -228,13 +261,14 @@ const HomeScreen = ({ navigation }) => {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
     const gps = await getUserLocation();
-    const currentLocation = gps || location || { lat: 16.047, lon: 108.206, province: 'Đà Nẵng' };
-    setLocation(currentLocation);
+    const currentLocation = gps || normalizeLocation(location);
+    const safeCurrentLocation = normalizeLocation(currentLocation);
+    setLocation(safeCurrentLocation);
     if (gps) {
       await setSetting('last_known_lat', String(gps.lat));
       await setSetting('last_known_lon', String(gps.lon));
     }
-    const weather = await fetchWeather(currentLocation.lat, currentLocation.lon);
+    const weather = await fetchWeather(safeCurrentLocation.lat, safeCurrentLocation.lon);
     const personal = {
       age: profile?.age || 25,
       gender: profile?.gender || 'female',
@@ -253,13 +287,13 @@ const HomeScreen = ({ navigation }) => {
       : { is_skipped: false, selected_ingredient_ids: marketBasket.selectedIngredients, boost_strategy: marketBasket.boostStrategy };
     navigation.navigate('Recommend', {
       searchParams: {
-        lat: currentLocation.lat, lon: currentLocation.lon,
+        lat: safeCurrentLocation.lat, lon: safeCurrentLocation.lon,
         weather, personal,
         cuisine_scope: cuisineScope,
         dish_type_filter: dishFilter,
         cost_preference: costPreference,
         market_basket: basket,
-        location: currentLocation,
+        location: safeCurrentLocation,
       },
     });
     setIsDirty(false);
@@ -269,9 +303,10 @@ const HomeScreen = ({ navigation }) => {
   const onRefresh = async () => {
     setRefreshing(true);
     const gps = await getUserLocation();
-    const loc = gps || location || { lat: 16.047, lon: 108.206 };
+    const loc = gps || normalizeLocation(location);
+    const safeLocation = normalizeLocation(loc);
     if (gps) setLocation(gps);
-    await fetchWeather(loc.lat, loc.lon);
+    await fetchWeather(safeLocation.lat, safeLocation.lon);
     setRefreshing(false);
   };
 
@@ -284,6 +319,7 @@ const HomeScreen = ({ navigation }) => {
     <ScreenBackground texture="sky">
       <ScrollView
         style={{ flex: 1 }}
+        contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.textMid} />
@@ -306,27 +342,26 @@ const HomeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* ── Main Temperature ── */}
-        <View style={s.tempSection}>
-          <Text style={s.tempIcon}>{icon}</Text>
-          <View style={s.tempRow}>
-            <Text style={s.tempNum}>{weatherData?.temperature ?? '--'}</Text>
-            <Text style={s.tempDeg}>°C</Text>
+        {/* ── Main Temperature with Animated Weather Sprite ── */}
+        {weatherData ? (
+          <WeatherAnimationSprite
+            icon={icon}
+            temperature={weatherData.temperature}
+            condition={weatherData.condition}
+            feelsLike={weatherData.temperature ? Math.round(weatherData.temperature + (weatherData.humidity > 70 ? 4 : 1)) : null}
+          />
+        ) : (
+          <View style={s.tempSection}>
+            <ActivityIndicator color={C.textMid} size="large" />
           </View>
-          <Text style={s.condText}>{weatherData?.condition || 'Đang tải...'}</Text>
-          {weatherData?.temperature && (
-            <Text style={s.feelsLike}>
-              Cảm giác như {Math.round(weatherData.temperature + (weatherData.humidity > 70 ? 4 : 1))}°C
-            </Text>
-          )}
-        </View>
+        )}
 
         {/* ── 3-col Wood Metric Cards ── */}
         {weatherData ? (
           <View style={s.woodRow}>
-            <WoodMetricCell icon="💧" value={weatherData.humidity}   unit="%" label="Độ ẩm" />
-            <WoodMetricCell icon="💨" value={weatherData.wind_speed} unit=" km/h" label="Sức gió" />
-            <WoodMetricCell icon="🌡️" value={weatherData.pressure}   unit=" hPa" label="Áp suất" />
+            <WoodMetricCell iconName="Drop"  value={weatherData.humidity}   unit="%"    label="Độ ẩm"   accentColor="rgba(100,180,255,0.18)" />
+            <WoodMetricCell iconName="Wind"  value={weatherData.wind_speed} unit="km/h" label="Sức gió" accentColor="rgba(160,220,160,0.18)" />
+            <WoodMetricCell iconName="Gauge" value={weatherData.pressure}   unit="hPa"  label="Áp suất" accentColor="rgba(255,180,100,0.18)" />
           </View>
         ) : (
           <View style={[s.woodRow, { justifyContent: 'center', paddingVertical: 24 }]}>
@@ -443,16 +478,17 @@ const HomeScreen = ({ navigation }) => {
           </PaperCard>
         </TouchableOpacity>
 
-        {/* ── Selection Toggles (Pill style horizontal scroll) ── */}
+        {/* ── Selection Toggles (Two distinct rows) ── */}
         <View style={s.filtersContainer}>
           <Text style={s.filtersEyebrow}>TÙY CHỌN TÌM KIẾM</Text>
+          
+          {/* Row 1: Cuisine Options */}
           <ScrollView 
             horizontal 
             showsHorizontalScrollIndicator={false} 
             contentContainerStyle={s.filtersScrollContent}
             style={s.filtersScroll}
           >
-            {/* Cuisine Options */}
             {[{ k: 'vietnam', l: 'Việt Nam', flagCode: 'VN' }, { k: 'global', l: 'Toàn cầu', flagCode: 'GLOBAL' }].map(({ k, l, flagCode }) => (
               <TouchableOpacity
                 key={k}
@@ -474,10 +510,15 @@ const HomeScreen = ({ navigation }) => {
                 </ImageBackground>
               </TouchableOpacity>
             ))}
+          </ScrollView>
 
-            <View style={s.pillDivider} />
-
-            {/* Dish Type Options */}
+          {/* Row 2: Dish Type Options */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            contentContainerStyle={[s.filtersScrollContent, { paddingTop: 0 }]}
+            style={[s.filtersScroll, { marginTop: 12 }]}
+          >
             {[
               { k: 'all',       l: '🍽️ Tất cả' },
               { k: 'soup',      l: '🥣 Canh' },
@@ -512,7 +553,6 @@ const HomeScreen = ({ navigation }) => {
           />
         </View>
 
-        <View style={{ height: 48 }} />
       </ScrollView>
     </ScreenBackground>
   );
@@ -520,6 +560,10 @@ const HomeScreen = ({ navigation }) => {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
+  scrollContent: {
+    paddingBottom: 28,
+  },
+
   skyOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(255,255,255,0.28)',
@@ -570,39 +614,67 @@ const s = StyleSheet.create({
 
   // ── Wood metric row
   woodRow: {
-    flexDirection: 'row', gap: 12,
+    flexDirection: 'row', gap: 10,
     marginHorizontal: 24, marginTop: 12,
   },
   woodCell: {
-    flex: 1, borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(160,120,74,0.35)',
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1, shadowRadius: 8, elevation: 4,
+    flex: 1,
+    height: 118,
+    borderRadius: 18, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(160,120,74,0.3)',
+    shadowColor: '#2A1500',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18, shadowRadius: 12, elevation: 7,
   },
-  woodCellImg: { borderRadius: 16, opacity: 0.92 },
+  woodCellImg: { borderRadius: 18, opacity: 0.88 },
   woodCellOverlay: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center', paddingVertical: 14, paddingHorizontal: 6,
+    backgroundColor: 'rgba(15,7,2,0.32)',
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingTop: 11,
+    paddingBottom: 13,
+    justifyContent: 'space-between',
   },
-  woodIcon:  { fontSize: 20, marginBottom: 5 },
-  woodValRow: {
+  woodIconBadge: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
   },
-  woodVal: {
-    fontFamily: 'Nunito_700Bold', fontSize: 18,
-    color: C.woodDark, lineHeight: 22,
-  },
-  woodUnit: {
-    fontFamily: 'Nunito_600SemiBold', fontSize: 11,
-    color: C.woodLight,
-    marginLeft: 2,
-    marginTop: 1,
+  woodDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,240,200,0.12)',
+    marginVertical: 7,
+    marginHorizontal: -2,
   },
   woodLabel: {
-    fontFamily: 'Caveat_400Regular', fontSize: 13,
-    color: C.woodDark, marginTop: 3,
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 10,
+    color: '#FDF5E6', // Old Lace - a very warm white
+    opacity: 0.55,
+    letterSpacing: 0.8,
+  },
+  woodValCol: {
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+  },
+  woodVal: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 28,
+    color: '#FFF9EB',
+    letterSpacing: -0.5,
+    lineHeight: 32,
+  },
+  woodUnit: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 10,
+    color: '#FDF5E6',
+    opacity: 0.55,
+    marginTop: 1,
+    letterSpacing: 0.3,
   },
 
   // ── Paper card

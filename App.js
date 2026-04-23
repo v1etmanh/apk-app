@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, StatusBar, View, Text } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { House } from 'phosphor-react-native/lib/module/icons/House';
 import { Lightbulb } from 'phosphor-react-native/lib/module/icons/Lightbulb';
 import { CalendarBlank } from 'phosphor-react-native/lib/module/icons/CalendarBlank';
@@ -46,28 +46,51 @@ const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 const MainTabs = () => {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 360;
+  const bottomInset = Math.max(insets.bottom, 8);
+  const tabHeight = (isCompact ? 62 : 66) + bottomInset;
+  const tabLabelSize = isCompact ? 10 : 11;
+  const tabIconSize = isCompact ? 22 : 24;
+
   return (
     <Tab.Navigator
       screenOptions={{
         tabBarActiveTintColor: '#8B5E3C', // Using primary wood color
         tabBarInactiveTintColor: '#A67C52', // Using woodLight color
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
-          height: 72,
-          paddingTop: 8,
-          paddingBottom: 10,
+          height: tabHeight,
+          paddingTop: 7,
+          paddingBottom: bottomInset,
+          paddingHorizontal: width >= 768 ? 28 : 6,
+          backgroundColor: 'rgba(255, 250, 239, 0.98)',
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: 'rgba(139, 94, 60, 0.22)',
+          shadowColor: '#5C3A1E',
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.08,
+          shadowRadius: 10,
+          elevation: 12,
         },
         tabBarItemStyle: {
           minHeight: 52,
-          paddingVertical: 4,
+          paddingTop: 3,
+          paddingBottom: 2,
+          borderRadius: 14,
         },
         tabBarLabelStyle: {
           fontFamily: 'Nunito_600SemiBold',
-          fontSize: 11,
-          marginTop: 2,
+          fontSize: tabLabelSize,
+          lineHeight: tabLabelSize + 4,
+          marginTop: 0,
+          marginBottom: 0,
         },
         tabBarIconStyle: {
-          marginTop: 2,
+          marginTop: 1,
+          marginBottom: 0,
         },
       }}
     >
@@ -76,8 +99,8 @@ const MainTabs = () => {
         component={HomeScreen}
         options={{
           tabBarLabel: 'Trang chủ',
-          tabBarIcon: ({ color, size }) => (
-            <House weight="duotone" color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <House weight="duotone" color={color} size={tabIconSize} />
           ),
         }}
       />
@@ -86,8 +109,8 @@ const MainTabs = () => {
         component={RecommendScreen}
         options={{
           tabBarLabel: 'Đề xuất',
-          tabBarIcon: ({ color, size }) => (
-            <Lightbulb weight="duotone" color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <Lightbulb weight="duotone" color={color} size={tabIconSize} />
           ),
         }}
       />
@@ -96,8 +119,8 @@ const MainTabs = () => {
         component={HistoryScreen}
         options={{
           tabBarLabel: 'Lịch sử',
-          tabBarIcon: ({ color, size }) => (
-            <CalendarBlank weight="duotone" color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <CalendarBlank weight="duotone" color={color} size={tabIconSize} />
           ),
         }}
       />
@@ -106,8 +129,8 @@ const MainTabs = () => {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Hồ sơ',
-          tabBarIcon: ({ color, size }) => (
-            <User weight="duotone" color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <User weight="duotone" color={color} size={tabIconSize} />
           ),
         }}
       />
@@ -116,8 +139,8 @@ const MainTabs = () => {
         component={SettingsScreen}
         options={{
           tabBarLabel: 'Cài đặt',
-          tabBarIcon: ({ color, size }) => (
-            <GearSix weight="duotone" color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <GearSix weight="duotone" color={color} size={tabIconSize} />
           ),
         }}
       />
@@ -195,7 +218,7 @@ const App = () => {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#F5EDDC' }}>
+      <View style={{ flex: 1, backgroundColor: '#F5EDDC' }}>
         <StatusBar barStyle="dark-content" backgroundColor="#F5EDDC" />
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -224,7 +247,7 @@ const App = () => {
             onFinish={() => setActuallyReady(true)} 
           />
         )}
-      </SafeAreaView>
+      </View>
     </SafeAreaProvider>
   );
 };

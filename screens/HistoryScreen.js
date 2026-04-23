@@ -171,7 +171,7 @@ const SessionCard = ({ item, index, onPress }) => {
 const HistoryScreen = ({ navigation }) => {
   const [sessions, setSessions] = useState([]);
   const [loading,  setLoading]  = useState(true);
-  const [statsH,   setStatsH]   = useState(0);
+  const [statsSize, setStatsSize] = useState({ width: 0, height: 0 });
 
   // Cat bob animation
   const catBob   = useRef(new Animated.Value(0)).current;
@@ -265,12 +265,27 @@ const HistoryScreen = ({ navigation }) => {
       <View
         style={st.statsCard}
         onLayout={(e) => {
-          const h = e.nativeEvent.layout.height;
-          if (h > 0) setStatsH(h);
+          const { width, height } = e.nativeEvent.layout;
+          if (
+            width > 0 &&
+            height > 0 &&
+            (width !== statsSize.width || height !== statsSize.height)
+          ) {
+            setStatsSize({ width, height });
+          }
         }}
       >
-        {/* WobblyBorder measured dynamically to match real card height */}
-        {statsH > 0 && <WobblyBorder width={CARD_W} height={statsH} color={C.wood} sw={2} />}
+        {/* Border follows the measured card size and stays inset from content edges. */}
+        {statsSize.width > 0 && statsSize.height > 0 && (
+          <View style={st.statsBorderLayer}>
+            <WobblyBorder
+              width={statsSize.width - 12}
+              height={statsSize.height - 12}
+              color={C.wood}
+              sw={2}
+            />
+          </View>
+        )}
 
         <View style={st.statItem}>
           <Text style={st.statEmoji}>📋</Text>
@@ -371,17 +386,22 @@ const st = StyleSheet.create({
   statsCard:     { flexDirection: 'row', alignItems: 'center',
                    backgroundColor: C.white, borderRadius: 24,
                    marginHorizontal: 16, marginTop: 14, marginBottom: 8,
-                   paddingVertical: 18, paddingHorizontal: 20,
+                   minHeight: 130,
+                   paddingVertical: 22, paddingHorizontal: 18,
                    shadowColor: C.woodDark, shadowOffset: { width: 2, height: 4 },
-                   shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
-  statItem:      { flex: 1, alignItems: 'center' },
+                   shadowOpacity: 0.1, shadowRadius: 6, elevation: 3,
+                   position: 'relative' },
+  statsBorderLayer: { position: 'absolute', left: 6, top: 6, zIndex: 0 },
+  statItem:      { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center',
+                   paddingHorizontal: 4, zIndex: 1 },
   statEmoji:     { fontSize: 22, marginBottom: 4 },
-  statNum:       { fontFamily: 'Patrick Hand', fontSize: 30, color: C.ink, lineHeight: 34 },
-  statValueRow:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center' },
-  statUnit:      { fontFamily: 'Nunito', fontSize: 12, color: C.inkLight, marginTop: 4, marginLeft: 3, fontWeight: '600' },
+  statNum:       { fontFamily: 'Patrick Hand', fontSize: 32, color: C.ink, lineHeight: 36 },
+  statValueRow:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center',
+                   minHeight: 38 },
+  statUnit:      { fontFamily: 'Nunito', fontSize: 12, color: C.inkLight, marginTop: 6, marginLeft: 3, fontWeight: '700' },
   statLabel:     { fontFamily: 'Nunito', fontSize: 12, color: C.inkLight,
-                   fontWeight: '600', marginTop: 2 },
-  statCenter:    { alignItems: 'center', paddingHorizontal: 12 },
+                   fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  statCenter:    { width: 38, alignItems: 'center', zIndex: 1 },
   statPaw:       { fontSize: 14, opacity: 0.5 },
   statLine:      { width: 1, height: 28, backgroundColor: C.dashed, marginVertical: 3 },
 

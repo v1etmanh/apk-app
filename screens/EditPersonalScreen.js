@@ -18,8 +18,30 @@ import {
   TextInput, StatusBar, Alert, ImageBackground, Image,
   Dimensions, Platform,
 } from 'react-native';
-import Svg, { Path, Rect, Circle, G, Defs, Filter, FeGaussianBlur, FeTurbulence, FeDisplacementMap } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
+import { CaretRight } from 'phosphor-react-native/lib/module/icons/CaretRight';
+import { GenderMale } from 'phosphor-react-native/lib/module/icons/GenderMale';
+import { GenderFemale } from 'phosphor-react-native/lib/module/icons/GenderFemale';
+import { GenderNeuter } from 'phosphor-react-native/lib/module/icons/GenderNeuter';
+import { ForkKnife } from 'phosphor-react-native/lib/module/icons/ForkKnife';
+import { Leaf } from 'phosphor-react-native/lib/module/icons/Leaf';
+import { Plant } from 'phosphor-react-native/lib/module/icons/Plant';
+import { Fish } from 'phosphor-react-native/lib/module/icons/Fish';
+import { Scales } from 'phosphor-react-native/lib/module/icons/Scales';
+import { TrendDown } from 'phosphor-react-native/lib/module/icons/TrendDown';
+import { Barbell } from 'phosphor-react-native/lib/module/icons/Barbell';
+import { FlowerLotus } from 'phosphor-react-native/lib/module/icons/FlowerLotus';
+import { Armchair } from 'phosphor-react-native/lib/module/icons/Armchair';
+import { PersonSimpleWalk } from 'phosphor-react-native/lib/module/icons/PersonSimpleWalk';
+import { PersonSimpleRun } from 'phosphor-react-native/lib/module/icons/PersonSimpleRun';
+import { Lightning } from 'phosphor-react-native/lib/module/icons/Lightning';
+import { Cake } from 'phosphor-react-native/lib/module/icons/Cake';
+import { Target } from 'phosphor-react-native/lib/module/icons/Target';
+import { IdentificationBadge } from 'phosphor-react-native/lib/module/icons/IdentificationBadge';
+import { BowlFood } from 'phosphor-react-native/lib/module/icons/BowlFood';
+import { Sparkle } from 'phosphor-react-native/lib/module/icons/Sparkle';
 
 import { loadProfile as loadProfileDB, saveProfile as saveProfileDB } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
@@ -43,21 +65,21 @@ const C = {
 };
 
 // ─── Options ──────────────────────────────────────────────────────────────────
-const GENDER_OPTS   = [{ key:'male',   icon:'👨', text:'Nam'       },
-                       { key:'female', icon:'👩', text:'Nữ'        },
-                       { key:'other',  icon:'🧑', text:'Khác'      }];
-const DIET_OPTS     = [{ key:'omnivore',    icon:'🍗', text:'Ăn tất cả'  },
-                       { key:'vegetarian', icon:'🥬', text:'Chay'        },
-                       { key:'vegan',      icon:'🌱', text:'Thuần chay'  },
-                       { key:'pescatarian',icon:'🐟', text:'Ăn cá'       }];
-const GOAL_OPTS     = [{ key:'maintenance', icon:'⚖️', text:'Duy trì'   },
-                       { key:'weight_loss', icon:'📉', text:'Giảm cân'  },
-                       { key:'muscle_gain', icon:'💪', text:'Tăng cơ'   },
-                       { key:'detox',       icon:'🌿', text:'Detox'      }];
-const ACTIVITY_OPTS = [{ key:'sedentary',         icon:'🪑', text:'Ít vận động' },
-                       { key:'lightly_active',    icon:'🚶', text:'Nhẹ nhàng'   },
-                       { key:'moderately_active', icon:'🏃', text:'Vừa phải'    },
-                       { key:'very_active',       icon:'⚡', text:'Nhiều'       }];
+const GENDER_OPTS   = [{ key:'male',   Icon: GenderMale,   text:'Nam'       },
+                       { key:'female', Icon: GenderFemale, text:'Nữ'        },
+                       { key:'other',  Icon: GenderNeuter, text:'Khác'      }];
+const DIET_OPTS     = [{ key:'omnivore',    Icon: ForkKnife, text:'Ăn tất cả'  },
+                       { key:'vegetarian', Icon: Leaf,      text:'Chay'        },
+                       { key:'vegan',      Icon: Plant,     text:'Thuần chay'  },
+                       { key:'pescatarian',Icon: Fish,      text:'Ăn cá'       }];
+const GOAL_OPTS     = [{ key:'maintenance', Icon: Scales,      text:'Duy trì'   },
+                       { key:'weight_loss', Icon: TrendDown,   text:'Giảm cân'  },
+                       { key:'muscle_gain', Icon: Barbell,     text:'Tăng cơ'   },
+                       { key:'detox',       Icon: FlowerLotus, text:'Detox'      }];
+const ACTIVITY_OPTS = [{ key:'sedentary',         Icon: Armchair,         text:'Ít vận động' },
+                       { key:'lightly_active',    Icon: PersonSimpleWalk, text:'Nhẹ nhàng'   },
+                       { key:'moderately_active', Icon: PersonSimpleRun,  text:'Vừa phải'    },
+                       { key:'very_active',       Icon: Lightning,        text:'Nhiều'       }];
 
 // ─── Wobbly border SVG (giả lập nét bút tay) ─────────────────────────────────
 const WobblyFrame = ({ width, height, color = C.border, strokeWidth = 2.5 }) => {
@@ -86,32 +108,37 @@ const WobblyFrame = ({ width, height, color = C.border, strokeWidth = 2.5 }) => 
 };
 
 // ─── Section label với dấu ♦ ─────────────────────────────────────────────────
-const SectionLabel = ({ text }) => (
+const SectionLabel = ({ text, Icon }) => (
   <View style={st.labelRow}>
-    <Svg width={14} height={14} style={{ marginRight: 6, marginTop: 1 }}>
-      <Path d="M7 1 L13 7 L7 13 L1 7 Z" fill={C.stamp} />
-    </Svg>
+    {Icon && <Icon weight="bold" size={18} color={C.stamp} style={{ marginRight: 6 }} />}
     <Text style={st.blockLabel}>{text}</Text>
   </View>
 );
 
 // ─── Stamp Chip ───────────────────────────────────────────────────────────────
-const StampChip = ({ icon, text, active, onPress }) => (
+const StampChip = ({ Icon, text, active, onPress }) => (
   <TouchableOpacity onPress={onPress} activeOpacity={0.75} style={{ marginRight: 8, marginBottom: 8 }}>
     <View style={[st.chip, active && st.chipActive]}>
-      {icon ? <Text style={st.chipIcon}>{icon}</Text> : null}
+      {Icon ? (
+        <Icon 
+          weight={active ? "fill" : "bold"} 
+          size={16} 
+          color={active ? C.blueDark : C.inkLight} 
+          style={{ marginRight: 5 }} 
+        />
+      ) : null}
       <Text style={[st.chipText, active && st.chipTextActive]}>{text}</Text>
     </View>
   </TouchableOpacity>
 );
 
 // ─── Chip group ───────────────────────────────────────────────────────────────
-const ChipGroup = ({ label, options, value, onChange }) => (
+const ChipGroup = ({ label, Icon, options, value, onChange }) => (
   <View style={st.block}>
-    <SectionLabel text={label} />
+    <SectionLabel text={label} Icon={Icon} />
     <View style={st.chips}>
       {options.map(o => (
-        <StampChip key={o.key} icon={o.icon} text={o.text}
+        <StampChip key={o.key} Icon={o.Icon} text={o.text}
           active={value === o.key} onPress={() => onChange(o.key)} />
       ))}
     </View>
@@ -140,6 +167,7 @@ const NoteCard = ({ children, style }) => {
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 const EditPersonalScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [age, setAge]           = useState('25');
   const [gender, setGender]     = useState('female');
   const [dietType, setDietType] = useState('omnivore');
@@ -211,27 +239,33 @@ const EditPersonalScreen = ({ navigation }) => {
       <View style={st.paperOverlay} />
 
       {/* ── Header ── */}
-      <View style={st.header}>
-        <TouchableOpacity style={st.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+      <View style={[st.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity 
+          style={st.backBtn} 
+          onPress={() => navigation.goBack()} 
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Quay lại"
+        >
           <View style={st.backBtnInner}>
-            <Text style={st.backArrow}>‹</Text>
+            <CaretRight weight="bold" size={22} color={C.ink} style={{ transform: [{ rotate: '180deg' }] }} />
           </View>
         </TouchableOpacity>
 
         <View style={st.titleWrap}>
-          <Text style={st.navTitle}>Thông tin cá nhân</Text>
-          {/* tiny deco line */}
+          <Text style={st.navTitle} numberOfLines={1}>Thông tin cá nhân</Text>
           <View style={st.titleUnderline} />
         </View>
 
-        {/* Mascot meo_ma */}
-        <LottieView
-          ref={lottieRef}
-          source={require('../assets/animations/Cattr.json')}
-          autoPlay loop
-          autoPlay loop speed={0.6}
-          style={st.mascot}
-        />
+        <View style={st.mascotWrap}>
+          <LottieView
+            ref={lottieRef}
+            source={require('../assets/animations/Cattr.json')}
+            autoPlay loop
+            speed={0.6}
+            style={st.mascot}
+          />
+        </View>
       </View>
 
       {/* ── Scroll content ── */}
@@ -244,7 +278,7 @@ const EditPersonalScreen = ({ navigation }) => {
         {/* Age stepper card */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <SectionLabel text="Tuổi 🎂" />
+            <SectionLabel text="Tuổi" Icon={Cake} />
             <View style={st.ageRow}>
               <TouchableOpacity style={st.stepper} onPress={() => stepAge(-1)} activeOpacity={0.7}>
                 <View style={st.stepInner}>
@@ -276,28 +310,28 @@ const EditPersonalScreen = ({ navigation }) => {
         {/* Gender */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Giới tính 💡" options={GENDER_OPTS} value={gender} onChange={setGender} />
+            <ChipGroup label="Giới tính" Icon={IdentificationBadge} options={GENDER_OPTS} value={gender} onChange={setGender} />
           </View>
         </NoteCard>
 
         {/* Diet */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Chế độ ăn 🥗" options={DIET_OPTS} value={dietType} onChange={setDietType} />
+            <ChipGroup label="Chế độ ăn" Icon={BowlFood} options={DIET_OPTS} value={dietType} onChange={setDietType} />
           </View>
         </NoteCard>
 
         {/* Goal */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Mục tiêu 🎯" options={GOAL_OPTS} value={goal} onChange={setGoal} />
+            <ChipGroup label="Mục tiêu" Icon={Target} options={GOAL_OPTS} value={goal} onChange={setGoal} />
           </View>
         </NoteCard>
 
         {/* Activity */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Mức vận động 🏃" options={ACTIVITY_OPTS} value={activity} onChange={setActivity} />
+            <ChipGroup label="Mức vận động" Icon={PersonSimpleRun} options={ACTIVITY_OPTS} value={activity} onChange={setActivity} />
           </View>
         </NoteCard>
 
@@ -345,37 +379,58 @@ const st = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'android' ? 44 : 54,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
+    zIndex: 10,
   },
-  backBtn: { marginRight: 10 },
+  backBtn: { 
+    width: 56,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
   backBtnInner: {
-    width: 38, height: 38, borderRadius: 12,
+    width: 44, height: 44, borderRadius: 15,
     backgroundColor: C.white,
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 1.5, borderColor: C.border,
-    shadowColor: C.ink, shadowOffset: { width: 1, height: 2 },
-    shadowOpacity: 0.12, shadowRadius: 4, elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: C.ink,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: { elevation: 3 },
+      web: {
+        boxShadow: '0 2px 4px rgba(59, 42, 26, 0.1)',
+      }
+    }),
   },
-  backArrow: {
-    fontSize: 26, color: C.inkLight, fontWeight: '300', lineHeight: 30, marginTop: -2,
+  titleWrap: { 
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  titleWrap: { flex: 1, alignItems: 'center' },
   navTitle: {
     fontSize: 20,
-    fontFamily: 'Patrick Hand',
+    fontFamily: 'Nunito-Bold',
     color: C.ink,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   titleUnderline: {
-    width: 60, height: 2, borderRadius: 1,
-    backgroundColor: C.stamp, marginTop: 3,
-    opacity: 0.6,
+    width: 40, height: 3, borderRadius: 2,
+    backgroundColor: C.stamp, marginTop: 4,
+    opacity: 0.4,
+  },
+  mascotWrap: {
+    width: 56,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
   },
   mascot: {
-    width: 52, height: 52,
-    marginLeft: 6,
+    width: 56, height: 56,
   },
 
   // Scroll
@@ -391,8 +446,9 @@ const st = StyleSheet.create({
     backgroundColor: C.white,
     overflow: 'hidden',
     ...Platform.select({
-      ios:     { shadowColor: C.ink, shadowOffset:{width:0,height:3}, shadowOpacity:0.1, shadowRadius:8 },
+      ios: { shadowColor: C.ink, shadowOffset:{width:0,height:3}, shadowOpacity:0.1, shadowRadius:8 },
       android: { elevation: 3 },
+      web: { boxShadow: '0 3px 8px rgba(59, 42, 26, 0.1)' }
     }),
   },
   cardPad: { padding: 16 },
@@ -401,7 +457,7 @@ const st = StyleSheet.create({
   // Label
   labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   blockLabel: {
-    fontSize: 16, fontFamily: 'Patrick Hand', color: C.ink, letterSpacing: 0.2,
+    fontSize: 17, fontFamily: 'Nunito-Bold', color: C.ink, letterSpacing: 0.2,
   },
 
   // Chips
@@ -412,19 +468,21 @@ const st = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 13, paddingVertical: 8,
     borderWidth: 1.5, borderColor: C.border,
-    shadowColor: C.ink, shadowOffset: { width: 1, height: 2 },
-    shadowOpacity: 0.1, shadowRadius: 3, elevation: 2,
+    ...Platform.select({
+      ios: { shadowColor: C.ink, shadowOffset: { width: 1, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3 },
+      android: { elevation: 2 },
+      web: { boxShadow: '1px 2px 3px rgba(59, 42, 26, 0.1)' }
+    }),
   },
   chipActive: {
     backgroundColor: '#EBF4FF',
     borderColor: C.blue,
   },
-  chipIcon: { fontSize: 15, marginRight: 5 },
   chipText: {
-    fontSize: 13, color: C.inkLight, fontFamily: 'Nunito', fontWeight: '600',
+    fontSize: 13, color: C.inkLight, fontFamily: 'Nunito_600SemiBold',
   },
   chipTextActive: {
-    color: C.blueDark, fontWeight: '700',
+    color: C.blueDark, fontFamily: 'Nunito-Bold',
   },
 
   // Age stepper
@@ -435,30 +493,36 @@ const st = StyleSheet.create({
     backgroundColor: C.white,
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 1.5, borderColor: C.border,
-    shadowColor: C.ink, shadowOffset: { width: 1, height: 2 },
-    shadowOpacity: 0.12, shadowRadius: 4, elevation: 3,
+    ...Platform.select({
+      ios: { shadowColor: C.ink, shadowOffset: { width: 1, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4 },
+      android: { elevation: 3 },
+      web: { boxShadow: '1px 2px 4px rgba(59, 42, 26, 0.12)' }
+    }),
   },
   stepIcon: {
-    fontSize: 22, color: C.stamp, fontWeight: '600', lineHeight: 26,
+    fontSize: 22, color: C.stamp, fontFamily: 'Nunito-Bold', lineHeight: 26,
   },
   ageInputWrap: { alignItems: 'center' },
   ageInput: {
-    width: 78, height: 54,
+    width: 88, height: 60,
     backgroundColor: C.white,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 2, borderColor: C.blue,
-    fontSize: 30, fontFamily: 'Patrick Hand', color: C.ink,
+    fontSize: 32, fontFamily: 'Nunito-Bold', color: C.ink,
     textAlign: 'center',
   },
   ageUnit: {
-    fontSize: 13, color: C.inkLight, fontFamily: 'Nunito', marginTop: 4,
+    fontSize: 14, color: C.inkLight, fontFamily: 'Nunito_600SemiBold', marginTop: 4,
   },
 
   // Save button
   saveBtnWrap: {
     marginTop: 6,
-    shadowColor: C.ink, shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.2, shadowRadius: 8, elevation: 5,
+    ...Platform.select({
+      ios: { shadowColor: C.ink, shadowOffset: { width: 2, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+      android: { elevation: 5 },
+      web: { boxShadow: '2px 4px 8px rgba(59, 42, 26, 0.2)' }
+    }),
   },
   saveBtn: {
     width: SW - 40, height: 60,
@@ -474,8 +538,8 @@ const st = StyleSheet.create({
     borderRadius: 20,
   },
   saveBtnText: {
-    fontSize: 20, fontFamily: 'Patrick Hand', color: '#3B2A1A',
-    letterSpacing: 0.8,
+    fontSize: 20, fontFamily: 'Nunito-Bold', color: '#3B2A1A',
+    letterSpacing: 0.5,
     textShadowColor: 'rgba(255,255,255,0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,

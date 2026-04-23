@@ -37,7 +37,14 @@ export const useAppStore = create((set, get) => ({
   setRankedDishes:     (dishes)    => set({ rankedDishes: [...dishes] }),
   setLoading:          (loading)   => set({ isLoading: loading }),
   setError:            (error)     => set({ error }),
-  setLocation:         (location)  => set({ location }),
+  setLocation:         (location)  => set({
+    location: {
+      lat: location?.lat ?? null,
+      lon: location?.lon ?? null,
+      province: location?.province ?? '',
+      food_region: location?.food_region ?? '',
+    },
+  }),
   setMaxPrepTime:      (val)       => set({ maxPrepTime: Number(val) }),
   setCostPreference:   (val)       => set({ costPreference: Number(val) }),  // F03
   setAllIngredients:   (list)      => set({ allIngredients: list }),
