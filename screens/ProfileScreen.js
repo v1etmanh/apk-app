@@ -4,8 +4,16 @@ import {
   Animated, Dimensions, ImageBackground
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { Scales } from 'phosphor-react-native/lib/module/icons/Scales';
+import { Ruler } from 'phosphor-react-native/lib/module/icons/Ruler';
+import { ChartBar } from 'phosphor-react-native/lib/module/icons/ChartBar';
+import { Person } from 'phosphor-react-native/lib/module/icons/Person';
+import { PersonSimpleRun } from 'phosphor-react-native/lib/module/icons/PersonSimpleRun';
+import { Warning } from 'phosphor-react-native/lib/module/icons/Warning';
+import { ForkKnife } from 'phosphor-react-native/lib/module/icons/ForkKnife';
+import { CaretRight } from 'phosphor-react-native/lib/module/icons/CaretRight';
+import { PawPrint } from 'phosphor-react-native/lib/module/icons/PawPrint';
 import { useAppStore } from '../store/useAppStore';
 
 import { C } from '../theme';
@@ -18,26 +26,53 @@ const { width: SW } = Dimensions.get('window');
 const DIET_LABEL     = { omnivore:'Ăn tất cả', vegetarian:'Chay', vegan:'Thuần chay', pescatarian:'Ăn cá' };
 const ACTIVITY_LABEL = { sedentary:'Ít vận động', lightly_active:'Nhẹ nhàng', moderately_active:'Vừa phải', very_active:'Nhiều vận động' };
 
-const StatCard = ({ label, value, unit, color, icon }) => (
+const ProfileAvatarMark = () => (
+  <Svg width={48} height={48} viewBox="0 0 48 48" fill="none">
+    <Circle cx="24" cy="24" r="22" fill="rgba(139,94,60,0.08)" />
+    <Path
+      d="M24 11.5C19.86 11.5 16.5 14.86 16.5 19C16.5 23.14 19.86 26.5 24 26.5C28.14 26.5 31.5 23.14 31.5 19C31.5 14.86 28.14 11.5 24 11.5Z"
+      fill="#CDA06D"
+    />
+    <Path
+      d="M13.5 37.2C15.91 32.62 19.52 30.25 24 30.25C28.48 30.25 32.09 32.62 34.5 37.2"
+      stroke="#8B5E3C"
+      strokeWidth="3"
+      strokeLinecap="round"
+    />
+    <Path
+      d="M24 13.25C20.83 13.25 18.25 15.83 18.25 19C18.25 22.17 20.83 24.75 24 24.75C27.17 24.75 29.75 22.17 29.75 19C29.75 15.83 27.17 13.25 24 13.25Z"
+      stroke="#8B5E3C"
+      strokeWidth="2.5"
+    />
+    <Path
+      d="M17.25 35.75C19.2 33.35 21.43 32.25 24 32.25C26.57 32.25 28.8 33.35 30.75 35.75"
+      stroke="#CDA06D"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
+const StatCard = ({ label, value, unit, color, IconComponent }) => (
   <PaperCard containerStyle={st.statCard} style={{ flex: 1, paddingVertical: 18, alignItems: 'center' }}>
-    <Ionicons name={icon} size={28} color={color} style={{ marginBottom: 4 }} />
+    <IconComponent weight="duotone" size={28} color={color} style={{ marginBottom: 4 }} />
     <Text style={[st.statValue, { color }]}>{value}</Text>
     {unit ? <Text style={[st.statUnit, { color }]}>{unit}</Text> : null}
     <Text style={st.statLabel}>{label}</Text>
   </PaperCard>
 );
 
-const MenuItem = ({ icon, iconBg, label, sub, onPress, isLast }) => (
+const MenuItem = ({ IconComponent, iconBg, label, sub, onPress, isLast }) => (
   <>
     <TouchableOpacity style={st.menuRow} onPress={onPress} activeOpacity={0.75}>
       <View style={[st.menuIconWrap, { backgroundColor: iconBg || C.bg }]}>
-        <Ionicons name={icon} size={24} color={C.text} />
+        <IconComponent weight="duotone" size={24} color={C.text} />
       </View>
       <View style={st.menuTextWrap}>
         <Text style={st.menuLabel}>{label}</Text>
         {sub ? <Text style={st.menuSub} numberOfLines={1}>{sub}</Text> : null}
       </View>
-      <Ionicons name="chevron-forward" size={20} color={C.border} />
+      <CaretRight weight="bold" size={18} color={C.border} />
     </TouchableOpacity>
     {!isLast && (
       <View style={st.menuDivider} />
@@ -45,7 +80,7 @@ const MenuItem = ({ icon, iconBg, label, sub, onPress, isLast }) => (
   </>
 );
 
-const Avatar = ({ gender }) => {
+const Avatar = () => {
   const bob = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -54,18 +89,12 @@ const Avatar = ({ gender }) => {
     ])).start();
   }, []);
 
-  const getIcon = () => {
-    if (gender === 'male') return 'man';
-    if (gender === 'female') return 'woman';
-    return 'person';
-  };
-
   return (
     <Animated.View style={[st.avatarWrap, { transform: [{ translateY: bob }] }]}>
       <View style={st.avatarGlow}/>
       <View style={st.avatarRing}>
         <View style={st.avatarInner}>
-          <Ionicons name={getIcon()} size={42} color={C.primary} />
+          <ProfileAvatarMark />
         </View>
       </View>
     </Animated.View>
@@ -88,22 +117,22 @@ const ProfileScreen = ({ navigation }) => {
 
   const menuItems = [
     {
-      icon: 'person-outline', iconBg: 'rgba(52,152,219,0.2)', label: 'Thông tin cá nhân',
+      IconComponent: Person, iconBg: 'rgba(52,152,219,0.2)', label: 'Thông tin cá nhân',
       sub: profile ? `${profile.age} tuổi · ${DIET_LABEL[profile.diet_type] || ''}` : 'Chưa thiết lập',
       onPress: () => navigation.getParent()?.navigate('EditPersonal'),
     },
     {
-      icon: 'barbell-outline', iconBg: 'rgba(56,176,122,0.2)', label: 'Chỉ số cơ thể',
+      IconComponent: Scales, iconBg: 'rgba(56,176,122,0.2)', label: 'Chỉ số cơ thể',
       sub: latestMetrics ? `${latestMetrics.weight_kg} kg · BMI ${bmi}` : 'Chưa thiết lập',
       onPress: () => navigation.getParent()?.navigate('BodyMetrics'),
     },
     {
-      icon: 'warning-outline', iconBg: 'rgba(245,158,11,0.2)', label: 'Dị ứng & Chế độ ăn',
+      IconComponent: Warning, iconBg: 'rgba(245,158,11,0.2)', label: 'Dị ứng & Chế độ ăn',
       sub: 'Quản lý thực phẩm cần tránh',
       onPress: () => navigation.getParent()?.navigate('Allergy'),
     },
     {
-      icon: 'restaurant-outline', iconBg: 'rgba(231,76,60,0.2)', label: 'Khẩu vị của tôi',
+      IconComponent: ForkKnife, iconBg: 'rgba(231,76,60,0.2)', label: 'Khẩu vị của tôi',
       sub: 'Sở thích hương vị cá nhân',
       onPress: () => navigation.getParent()?.navigate('TasteProfile'),
     },
@@ -121,7 +150,7 @@ const ProfileScreen = ({ navigation }) => {
         <View style={[st.deco, { width: 55, height: 55, top: insets.top + 60, left: 10,  opacity: 0.10 }]}/>
         <View style={[st.deco, { width: 40, height: 40, bottom: 30, right: 60, opacity: 0.08 }]}/>
 
-        <Avatar gender={profile?.gender}/>
+        <Avatar />
 
         <Text style={st.heroAge}>
           {profile?.age ? `${profile.age} tuổi` : 'Chưa thiết lập'}
@@ -130,13 +159,13 @@ const ProfileScreen = ({ navigation }) => {
         <View style={st.heroPills}>
           {profile?.diet_type && (
             <View style={st.heroPill}>
-              <Ionicons name="restaurant" size={14} color={C.text} style={{ marginRight: 4 }} />
+              <ForkKnife weight="duotone" size={14} color={C.text} style={{ marginRight: 4 }} />
               <Text style={st.heroPillText}>{DIET_LABEL[profile.diet_type]}</Text>
             </View>
           )}
           {profile?.activity_level && (
             <View style={[st.heroPill, { backgroundColor: 'rgba(56,176,122,0.3)' }]}>
-              <Ionicons name="walk" size={14} color={C.text} style={{ marginRight: 4 }} />
+              <PersonSimpleRun weight="duotone" size={14} color={C.text} style={{ marginRight: 4 }} />
               <Text style={st.heroPillText}>{ACTIVITY_LABEL[profile.activity_level]}</Text>
             </View>
           )}
@@ -153,17 +182,17 @@ const ProfileScreen = ({ navigation }) => {
         
         <View style={st.statsRow}>
           <StatCard
-            icon="scale-outline" label="Cân nặng"
+            IconComponent={Scales} label="Cân nặng"
             value={latestMetrics?.weight_kg ?? '–'} unit="kg"
             color={C.accentBlue}
           />
           <StatCard
-            icon="body-outline" label="Chiều cao"
+            IconComponent={Ruler} label="Chiều cao"
             value={latestMetrics?.height_cm ?? '–'} unit="cm"
             color={C.primary}
           />
           <StatCard
-            icon="analytics-outline" label={bmiLabel}
+            IconComponent={ChartBar} label={bmiLabel}
             value={bmi ?? '–'} unit=""
             color={bmiColor}
           />
@@ -182,8 +211,8 @@ const ProfileScreen = ({ navigation }) => {
         </PaperCard>
 
         <View style={st.footer}>
-          <Ionicons name="paw" size={24} color={C.woodLight} style={{ opacity: 0.5, marginRight: 8 }} />
-          <Ionicons name="paw" size={24} color={C.woodLight} style={{ opacity: 0.3 }} />
+          <PawPrint weight="duotone" size={24} color={C.woodLight} style={{ opacity: 0.5, marginRight: 8 }} />
+          <PawPrint weight="duotone" size={24} color={C.woodLight} style={{ opacity: 0.3 }} />
         </View>
 
         <View style={{ height: 36 }}/>
@@ -196,33 +225,33 @@ const st = StyleSheet.create({
   // ── Hero ──
   hero:         { paddingBottom: 0, alignItems: 'center', backgroundColor: 'rgba(52,152,219,0.15)' },
   deco:         { position: 'absolute', borderRadius: 999, backgroundColor: C.primary },
-  wave:         { marginTop: 12 },
+  wave:         { marginTop: 18 },
 
   // ── Avatar ──
-  avatarWrap:   { marginBottom: 10, alignItems: 'center', justifyContent: 'center' },
-  avatarGlow:   { position: 'absolute', width: 106, height: 106, borderRadius: 53,
+  avatarWrap:   { marginTop: 10, marginBottom: 14, alignItems: 'center', justifyContent: 'center' },
+  avatarGlow:   { position: 'absolute', width: 112, height: 112, borderRadius: 56,
                   backgroundColor: 'rgba(139,94,60,0.15)' },
-  avatarRing:   { width: 92, height: 92, borderRadius: 46,
+  avatarRing:   { width: 96, height: 96, borderRadius: 48,
                   backgroundColor: C.woodLight, justifyContent: 'center', alignItems: 'center',
                   shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
-  avatarInner:  { width: 78, height: 78, borderRadius: 39,
+  avatarInner:  { width: 82, height: 82, borderRadius: 41,
                   backgroundColor: C.surface, justifyContent: 'center', alignItems: 'center' },
 
   // ── Hero text ──
-  heroAge:      { fontFamily: 'Nunito_700Bold', fontSize: 26, color: C.text },
-  heroPills:    { flexDirection: 'row', gap: 10, marginTop: 12, marginBottom: 4,
-                  flexWrap: 'wrap', justifyContent: 'center', paddingHorizontal: 20 },
+  heroAge:      { fontFamily: 'Nunito_700Bold', fontSize: 26, color: C.text, marginTop: 2, marginBottom: 2 },
+  heroPills:    { flexDirection: 'row', gap: 10, marginTop: 14, marginBottom: 10,
+                  flexWrap: 'wrap', justifyContent: 'center', paddingHorizontal: 24 },
   heroPill:     { backgroundColor: 'rgba(139,94,60,0.2)', borderRadius: 9999,
-                  paddingHorizontal: 14, paddingVertical: 8,
+                  paddingHorizontal: 14, paddingVertical: 9,
                   flexDirection: 'row', alignItems: 'center' },
   heroPillText: { fontFamily: 'Nunito_700Bold', fontSize: 13, color: C.text },
 
   // ── Scroll ──
-  scroll:       { paddingHorizontal: 16, paddingTop: 6 },
+  scroll:       { paddingHorizontal: 16, paddingTop: 10 },
 
   // ── Stats row ──
-  statsRow:     { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  statsRow:     { flexDirection: 'row', gap: 10, marginBottom: 14 },
   statCard:     { flex: 1, backgroundColor: C.surface, padding: 0 },
   statValue:    { fontFamily: 'Nunito_700Bold', fontSize: 24, lineHeight: 28 },
   statUnit:     { fontFamily: 'Nunito_700Bold', fontSize: 13, opacity: 0.8 },
@@ -230,8 +259,8 @@ const st = StyleSheet.create({
                   marginTop: 6, textAlign: 'center' },
 
   // ── Menu card ──
-  cardWrapper:  { paddingHorizontal: 16, paddingVertical: 8 },
-  menuRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
+  cardWrapper:  { paddingHorizontal: 16, paddingVertical: 10 },
+  menuRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
   menuIconWrap: { width: 44, height: 44, borderRadius: 14,
                   justifyContent: 'center', alignItems: 'center' },
   menuTextWrap: { flex: 1, marginLeft: 16 },
@@ -240,7 +269,7 @@ const st = StyleSheet.create({
   menuDivider:  { height: 1, backgroundColor: C.borderLight, marginLeft: 60, opacity: 0.8 },
 
   // ── Footer ──
-  footer:       { flexDirection: 'row', justifyContent: 'center', paddingTop: 28 },
+  footer:       { flexDirection: 'row', justifyContent: 'center', paddingTop: 32 },
 });
 
 export default ProfileScreen;

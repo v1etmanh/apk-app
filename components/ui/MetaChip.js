@@ -19,7 +19,7 @@ export default function MetaChip({
       isAccent && styles.chipAccent,
       style
     ]}>
-      {icon && <Text style={[styles.icon, isAccent && styles.textAccent]}>{icon}</Text>}
+      {icon ? <View style={styles.iconWrap}>{icon}</View> : null}
       <Text style={[
         styles.text,
         isAccent && styles.textAccent,
@@ -58,7 +58,8 @@ const styles = StyleSheet.create({
     color: C.accentGreen,
     fontFamily: 'Nunito_700Bold',
   },
-  icon: {
-    fontSize: 11,
-  }
+  iconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

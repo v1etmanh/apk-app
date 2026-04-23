@@ -6,7 +6,16 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import WoodPicker from '../components/ui/WoodPicker';
 import Svg, { Path } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
+import { ForkKnife } from 'phosphor-react-native/lib/module/icons/ForkKnife';
+import { CurrencyDollar } from 'phosphor-react-native/lib/module/icons/CurrencyDollar';
+import { Timer } from 'phosphor-react-native/lib/module/icons/Timer';
+import { Globe } from 'phosphor-react-native/lib/module/icons/Globe';
+import { Ruler } from 'phosphor-react-native/lib/module/icons/Ruler';
+import { ArrowsClockwise } from 'phosphor-react-native/lib/module/icons/ArrowsClockwise';
+import { DownloadSimple } from 'phosphor-react-native/lib/module/icons/DownloadSimple';
+import { Trash } from 'phosphor-react-native/lib/module/icons/Trash';
+import { GearSix } from 'phosphor-react-native/lib/module/icons/GearSix';
+import { PawPrint } from 'phosphor-react-native/lib/module/icons/PawPrint';
 import { getSetting, setSetting, clearAllHistory } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
 
@@ -18,11 +27,20 @@ import SectionHeader from '../components/ui/SectionHeader';
 const { width: SW } = Dimensions.get('window');
 
 // ─── Settings Row ───────────────────────────────────────────────────
-const SettingsRow = ({ icon, iconBg, label, control, danger, isLast, onPress }) => {
+// PhosphorIcon accepts a component class + renders with correct props
+const PhosphorIcon = ({ IconComponent, danger }) => (
+  <IconComponent
+    weight="duotone"
+    size={22}
+    color={danger ? C.accentRed : '#8B5E3C'}
+  />
+);
+
+const SettingsRow = ({ IconComponent, iconBg, label, control, danger, isLast, onPress }) => {
   const inner = (
     <>
       <View style={[st.settingsIconBox, { backgroundColor: danger ? 'rgba(231,76,60,0.2)' : iconBg }]}>
-        <Ionicons name={icon} size={22} color={danger ? C.accentRed : C.text} />
+        <PhosphorIcon IconComponent={IconComponent} danger={danger} />
       </View>
       <Text style={[st.settingsRowLabel, danger && { color: C.accentRed }]}>{label}</Text>
       <View style={st.settingsControl}>
@@ -48,9 +66,9 @@ const SettingsRow = ({ icon, iconBg, label, control, danger, isLast, onPress }) 
 };
 
 // ─── Action Row ───────────────────────────────────────────────────
-const ActionRow = ({ icon, iconBg, label, actionLabel, onPress, danger, isLast }) => (
+const ActionRow = ({ IconComponent, iconBg, label, actionLabel, onPress, danger, isLast }) => (
   <SettingsRow
-    icon={icon} iconBg={iconBg} label={label} danger={danger} isLast={isLast} onPress={onPress}
+    IconComponent={IconComponent} iconBg={iconBg} label={label} danger={danger} isLast={isLast} onPress={onPress}
     control={
       <View style={[st.actionBadge, danger && { borderColor: 'rgba(231,76,60,0.3)', backgroundColor: 'rgba(231,76,60,0.1)' }]}>
         <Text style={[st.actionText, danger && { color: C.accentRed }]}>{actionLabel}</Text>
@@ -141,7 +159,7 @@ const SettingsScreen = () => {
           imageStyle={{ opacity: 0.45 }}
         >
           <Animated.View style={{ transform: [{ rotate: gearDeg }], marginBottom: 6 }}>
-            <Ionicons name="settings" size={44} color={C.textMid} />
+            <GearSix weight="duotone" size={44} color={C.textMid} />
           </Animated.View>
           <Text style={st.headerTitle}>Cài đặt</Text>
           <Text style={st.headerSub}>Tuỳ chỉnh theo ý bạn nhé</Text>
@@ -157,23 +175,23 @@ const SettingsScreen = () => {
         {/* ── Section: Gợi ý mặc định ── */}
         <SectionHeader title="Gợi ý mặc định" />
         <PaperCard containerStyle={st.cardWrapper}>
-          <SettingsRow icon="restaurant-outline" iconBg="rgba(245,158,11,0.2)" label="Phạm vi ẩm thực"
+          <SettingsRow IconComponent={ForkKnife} iconBg="rgba(245,158,11,0.2)" label="Phạm vi ẩm thực"
             control={
               <WoodPicker
                 selectedValue={cuisinePreference}
                 onValueChange={handleCuisineChange}
                 items={[
-                  { label: "🇻🇳 Việt Nam", value: "vietnam"},
-                  { label: "🌍 Toàn cầu", value: "global"},
-                  { label: "🇯🇵 Nhật Bản", value: "japan"},
-                  { label: "🇹🇭 Thái Lan", value: "thailand"},
-                  { label: "🇮🇹 Ý",         value: "italy"},
-                  { label: "🇰🇷 Hàn Quốc", value: "korea"},
+                  { label: "Việt Nam", value: "vietnam", flagCode: "VN" },
+                  { label: "Toàn cầu", value: "global", flagCode: "GLOBAL" },
+                  { label: "Nhật Bản", value: "japan", flagCode: "JP" },
+                  { label: "Thái Lan", value: "thailand", flagCode: "TH" },
+                  { label: "Ý", value: "italy", flagCode: "IT" },
+                  { label: "Hàn Quốc", value: "korea", flagCode: "KR" },
                 ]}
               />
             }
           />
-          <SettingsRow icon="cash-outline" iconBg="rgba(56,176,122,0.2)" label="Mức chi phí"
+          <SettingsRow IconComponent={CurrencyDollar} iconBg="rgba(56,176,122,0.2)" label="Mức chi phí"
             control={
               <WoodPicker
                 selectedValue={costPreference}
@@ -186,7 +204,7 @@ const SettingsScreen = () => {
               />
             }
           />
-          <SettingsRow icon="time-outline" iconBg="rgba(52,152,219,0.2)" label="Thời gian nấu tối đa"
+          <SettingsRow IconComponent={Timer} iconBg="rgba(52,152,219,0.2)" label="Thời gian nấu tối đa"
             control={
               <WoodPicker
                 selectedValue={maxCookTime}
@@ -201,19 +219,19 @@ const SettingsScreen = () => {
         {/* ── Section: Hiển thị ── */}
         <SectionHeader title="Hiển thị" />
         <PaperCard containerStyle={st.cardWrapper}>
-          <SettingsRow icon="globe-outline" iconBg="rgba(155,89,182,0.2)" label="Ngôn ngữ"
+          <SettingsRow IconComponent={Globe} iconBg="rgba(155,89,182,0.2)" label="Ngôn ngữ"
             control={
               <WoodPicker
                 selectedValue={language}
                 onValueChange={handleLanguageChange}
                 items={[
-                  { label: "🇻🇳 Tiếng Việt", value: "vi"},
-                  { label: "🇺🇸 English",    value: "en"},
+                  { label: "Tiếng Việt", value: "vi", flagCode: "VN" },
+                  { label: "English", value: "en", flagCode: "US" },
                ]}
               />
             }
           />
-          <SettingsRow icon="contract-outline" iconBg="rgba(245,158,11,0.2)" label="Đơn vị đo lường"
+          <SettingsRow IconComponent={Ruler} iconBg="rgba(245,158,11,0.2)" label="Đơn vị đo lường"
             control={
               <WoodPicker
                 selectedValue={unitSystem}
@@ -231,11 +249,11 @@ const SettingsScreen = () => {
         {/* ── Section: Dữ liệu ── */}
         <SectionHeader title="Dữ liệu" />
         <PaperCard containerStyle={st.cardWrapper}>
-          <ActionRow icon="sync-circle-outline" iconBg="rgba(56,176,122,0.2)" label="Đồng bộ nguyên liệu"
+          <ActionRow IconComponent={ArrowsClockwise} iconBg="rgba(56,176,122,0.2)" label="Đồng bộ nguyên liệu"
             actionLabel="Làm mới" onPress={syncIngredients}/>
-          <ActionRow icon="cloud-download-outline" iconBg="rgba(52,152,219,0.2)" label="Xuất dữ liệu"
+          <ActionRow IconComponent={DownloadSimple} iconBg="rgba(52,152,219,0.2)" label="Xuất dữ liệu"
             actionLabel="Xuất" onPress={exportData}/>
-          <ActionRow icon="trash-outline" label="Xóa lịch sử"
+          <ActionRow IconComponent={Trash} label="Xóa lịch sử"
             actionLabel="Xóa" onPress={clearHistory} danger isLast/>
         </PaperCard>
 
@@ -245,7 +263,7 @@ const SettingsScreen = () => {
             <Text style={st.versionText}>🌿 Phiên bản 1.0.0</Text>
           </View>
           <Text style={st.serverText}>api.wafrs.app</Text>
-          <Ionicons name="paw" size={24} color={C.woodLight} style={{ opacity: 0.3, marginTop: 8 }} />
+          <PawPrint weight="duotone" size={24} color={C.woodLight} style={{ opacity: 0.3, marginTop: 8 }} />
         </View>
 
         <View style={{ height: 48 }}/>

@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, StatusBar, View, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { House } from 'phosphor-react-native/lib/module/icons/House';
+import { Lightbulb } from 'phosphor-react-native/lib/module/icons/Lightbulb';
+import { CalendarBlank } from 'phosphor-react-native/lib/module/icons/CalendarBlank';
+import { User } from 'phosphor-react-native/lib/module/icons/User';
+import { GearSix } from 'phosphor-react-native/lib/module/icons/GearSix';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts } from 'expo-font';
@@ -36,6 +40,7 @@ import OnboardingPersonal from './screens/onboarding/OnboardingPersonal';
 import OnboardingAllergy from './screens/onboarding/OnboardingAllergy';
 import OnboardingProfileScreen from './screens/onboarding/OnBoardTast';
 import RecommendScreen from './screens/RecommendScreen';
+import LoadingScreen from './components/ui/LoadingScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -47,59 +52,75 @@ const MainTabs = () => {
         tabBarActiveTintColor: '#8B5E3C', // Using primary wood color
         tabBarInactiveTintColor: '#A67C52', // Using woodLight color
         headerShown: false,
+        tabBarStyle: {
+          height: 72,
+          paddingTop: 8,
+          paddingBottom: 10,
+        },
+        tabBarItemStyle: {
+          minHeight: 52,
+          paddingVertical: 4,
+        },
+        tabBarLabelStyle: {
+          fontFamily: 'Nunito_600SemiBold',
+          fontSize: 11,
+          marginTop: 2,
+        },
+        tabBarIconStyle: {
+          marginTop: 2,
+        },
       }}
     >
-      <Tab.Screen 
-        name="Home" 
-        component={HomeScreen} 
-        options={{ 
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{
           tabBarLabel: 'Trang chủ',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" color={color} size={size} />
-          )
+            <House weight="duotone" color={color} size={size} />
+          ),
         }}
       />
-      <Tab.Screen 
-        name="recommend" 
-        component={RecommendScreen} 
-        options={{ 
+      <Tab.Screen
+        name="recommend"
+        component={RecommendScreen}
+        options={{
           tabBarLabel: 'Đề xuất',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bulb" color={color} size={size} />
-          )
+            <Lightbulb weight="duotone" color={color} size={size} />
+          ),
         }}
       />
-      <Tab.Screen 
-        name="History" 
-        component={HistoryScreen} 
-        options={{ 
+      <Tab.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{
           tabBarLabel: 'Lịch sử',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" color={color} size={size} />
-          )
+            <CalendarBlank weight="duotone" color={color} size={size} />
+          ),
         }}
       />
-      <Tab.Screen 
-        name="Profile" 
-        component={ProfileScreen} 
-        options={{ 
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
           tabBarLabel: 'Hồ sơ',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" color={color} size={size} />
-          )
+            <User weight="duotone" color={color} size={size} />
+          ),
         }}
       />
-      <Tab.Screen 
-        name="Settings" 
-        component={SettingsScreen} 
-        options={{ 
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
           tabBarLabel: 'Cài đặt',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" color={color} size={size} />
-          )
+            <GearSix weight="duotone" color={color} size={size} />
+          ),
         }}
       />
-      
     </Tab.Navigator>
   );
 };
@@ -118,6 +139,7 @@ const OnboardingStack = () => {
 const App = () => {
   const { profile, loadProfile, loadLatestMetrics, loadAllergies, initializeLocation,initializeMaxPrepTime,initializeCostPreference, initializeIngredients } = useAppStore();
   const [appReady, setAppReady] = useState(false);
+  const [actuallyReady, setActuallyReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [fontsLoaded] = useFonts({
     Nunito: BeVietnamPro_400Regular,
@@ -137,6 +159,7 @@ const App = () => {
   }, []);
 
   const initializeApp = async () => {
+    const startTime = Date.now();
     try {
       // Initialize database
       await initDB();
@@ -153,16 +176,22 @@ const App = () => {
       const onboardingDone = await AsyncStorage.getItem('onboarding_done');
       setShowOnboarding(!onboardingDone);
       
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 1500) {
+        await new Promise(r => setTimeout(r, 1500 - elapsed));
+      }
       setAppReady(true);
     } catch (error) {
       console.error('Error initializing app:', error);
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 1500) {
+        await new Promise(r => setTimeout(r, 1500 - elapsed));
+      }
       setAppReady(true);
     }
   };
 
-  if (!appReady || !fontsLoaded) {
-    return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Loading...</Text></View>;
-  }
+
 
   return (
     <SafeAreaProvider>
@@ -188,6 +217,13 @@ const App = () => {
             )}
           </Stack.Navigator>
         </NavigationContainer>
+
+        {!actuallyReady && (
+          <LoadingScreen 
+            isReady={appReady && fontsLoaded} 
+            onFinish={() => setActuallyReady(true)} 
+          />
+        )}
       </SafeAreaView>
     </SafeAreaProvider>
   );

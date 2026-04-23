@@ -29,18 +29,27 @@ const ASSETS = {
 
 // ── AQI label ─────────────────────────────────────────────────────────────────
 const aqiInfo = (aqi) => {
-  if (aqi <= 50)  return { label: 'Tốt',        color: C.accentGreen };
-  if (aqi <= 100) return { label: 'Trung bình',  color: C.accentGold };
-  if (aqi <= 150) return { label: 'Không tốt',   color: C.orange || '#C8601A' };
-  return               { label: 'Nguy hiểm',    color: C.red || '#B84040' };
+  if (aqi <= 50)  return { label: 'Tốt',        color: C.accentGreen, textColor: '#275231', bgColor: 'rgba(74, 124, 89, 0.12)' };
+  if (aqi <= 100) return { label: 'Trung bình', color: C.amber,       textColor: '#8A5D00', bgColor: 'rgba(200, 134, 10, 0.12)' };
+  if (aqi <= 150) return { label: 'Không tốt',  color: '#C8601A',     textColor: '#9E450E', bgColor: 'rgba(200, 96, 26, 0.12)' };
+  return               { label: 'Nguy hiểm',    color: '#B84040',     textColor: '#8C2B2B', bgColor: 'rgba(184, 64, 64, 0.12)' };
 };
 
 const uvInfo = (uv) => {
-  if (uv <= 2)  return { label: 'Thấp',       color: C.accentGreen };
-  if (uv <= 5)  return { label: 'Vừa phải',   color: C.accentGold };
-  if (uv <= 7)  return { label: 'Cao',         color: C.orange || '#C8601A' };
-  if (uv <= 10) return { label: 'Rất cao',     color: '#C06010' };
-  return               { label: 'Cực kỳ cao',  color: C.red || '#B84040' };
+  if (uv <= 2)  return { label: 'Thấp',       color: C.accentGreen, textColor: '#275231', bgColor: 'rgba(74, 124, 89, 0.12)' };
+  if (uv <= 5)  return { label: 'Vừa phải',   color: C.amber,       textColor: '#8A5D00', bgColor: 'rgba(200, 134, 10, 0.12)' };
+  if (uv <= 7)  return { label: 'Cao',        color: '#C8601A',     textColor: '#9E450E', bgColor: 'rgba(200, 96, 26, 0.12)' };
+  if (uv <= 10) return { label: 'Rất cao',    color: '#C06010',     textColor: '#94460A', bgColor: 'rgba(192, 96, 16, 0.12)' };
+  return               { label: 'Cực kỳ cao', color: '#B84040',     textColor: '#8C2B2B', bgColor: 'rgba(184, 64, 64, 0.12)' };
+};
+
+const getSeasonInfo = (seasonStr = '') => {
+  const s = seasonStr.toLowerCase();
+  if (s.includes('xuân')) return { icon: 'flower-outline', color: '#275231', bgColor: 'rgba(74, 124, 89, 0.12)' };
+  if (s.includes('hè'))   return { icon: 'sunny-outline', color: '#9E450E', bgColor: 'rgba(200, 96, 26, 0.12)' };
+  if (s.includes('thu'))  return { icon: 'leaf-outline', color: '#8A5D00', bgColor: 'rgba(200, 134, 10, 0.12)' };
+  if (s.includes('đông')) return { icon: 'snow-outline', color: '#2B5A8C', bgColor: 'rgba(64, 124, 184, 0.12)' };
+  return { icon: 'calendar-outline', color: C.primary, bgColor: 'rgba(0,0,0,0.05)' };
 };
 
 const weatherIcon = (cond = '', temp = 30) => {
@@ -83,18 +92,65 @@ const AQIBar = ({ value }) => {
   );
 };
 
+const MetricScaleBar = ({ value, max, color, labels }) => {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const pct = Math.max(0, Math.min(safeValue / max, 1));
+
+  return (
+    <View style={s.metricContainer}>
+      <View style={s.metricScaleTrack}>
+        <View style={[s.metricScaleFill, { width: `${pct * 100}%`, backgroundColor: color }]} />
+        <View style={[s.metricScaleThumb, { left: `${pct * 100}%`, shadowColor: color }]}>
+          <View style={[s.metricScaleThumbInner, { backgroundColor: color }]} />
+        </View>
+      </View>
+      <View style={s.metricScaleTicks}>
+        {Array.from({ length: 6 }, (_, i) => (
+          <View key={i} style={s.metricScaleTick} />
+        ))}
+      </View>
+      <View style={s.metricScaleLabels}>
+        {labels.map((label) => (
+          <Text key={label} style={s.metricScaleLabel}>{label}</Text>
+        ))}
+      </View>
+    </View>
+  );
+};
+
 // ── Wood metric cell ──────────────────────────────────────────────────────────
 const WoodMetricCell = ({ icon, value, unit, label }) => (
   <ImageBackground source={ASSETS.wood} style={s.woodCell} imageStyle={s.woodCellImg} resizeMode="cover">
     <View style={s.woodCellOverlay}>
       <Text style={s.woodIcon}>{icon}</Text>
-      <Text style={s.woodVal}>
-        {value}<Text style={s.woodUnit}>{unit}</Text>
-      </Text>
+      <View style={s.woodValRow}>
+        <Text style={s.woodVal}>{value}</Text>
+        {unit ? <Text style={s.woodUnit}>{unit}</Text> : null}
+      </View>
       <Text style={s.woodLabel}>{label}</Text>
     </View>
   </ImageBackground>
 );
+
+const FilterFlagMark = ({ code }) => {
+  if (code === 'GLOBAL') {
+    return (
+      <View style={[s.filterFlagBase, s.filterFlagGlobal]}>
+        <Ionicons name="earth" size={11} color="#FFFFFF" />
+      </View>
+    );
+  }
+
+  if (code === 'VN') {
+    return (
+      <View style={[s.filterFlagBase, s.filterFlagVN]}>
+        <Text style={s.filterFlagStar}>★</Text>
+      </View>
+    );
+  }
+
+  return null;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 const HomeScreen = ({ navigation }) => {
@@ -280,32 +336,59 @@ const HomeScreen = ({ navigation }) => {
 
         {/* ── AQI Card ── */}
         {weatherData && (
-          <PaperCard style={s.cardSpacing} containerStyle={{ padding: 14 }}>
+          <PaperCard style={s.cardSpacing} innerStyle={{ padding: 20 }}>
             <View style={s.cardRow}>
-              <Text style={s.cardLabel}>🌫️  Chất lượng không khí</Text>
-              <Text style={[s.cardBadge, { color: aqi.color }]}>{aqi.label}</Text>
+              <View style={s.rowCenter}>
+                <Ionicons name="leaf-outline" size={18} color={C.textMid} />
+                <Text style={s.cardLabel}> Chất lượng không khí</Text>
+              </View>
+              <View style={[s.statusBadge, { backgroundColor: aqi.bgColor, borderColor: aqi.color }]}>
+                <Text style={[s.cardBadge, { color: aqi.textColor }]}>{aqi.label}</Text>
+              </View>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
-              <AQIBar value={weatherData.aqi} />
-              <Text style={[s.cardBadge, { color: aqi.color, minWidth: 60, textAlign: 'right' }]}>
-                AQI {Math.round(weatherData.aqi)}
+            <View style={s.metricReadoutRow}>
+              <Text style={s.metricReadoutLabel}>Mức hiện tại</Text>
+              <Text style={[s.metricReadoutValue, { color: aqi.textColor }]}>
+                <Text style={s.metricPrefix}>AQI </Text>
+                {Math.round(weatherData.aqi)}
               </Text>
             </View>
+            <MetricScaleBar
+              value={weatherData.aqi}
+              max={300}
+              color={aqi.color}
+              labels={['0', '50', '100', '150', '200', '300']}
+            />
           </PaperCard>
         )}
 
         {/* ── UV Card ── */}
         {weatherData && (
-          <PaperCard style={s.cardSpacing} containerStyle={{ padding: 14 }}>
+          <PaperCard style={s.cardSpacing} innerStyle={{ padding: 20 }}>
             <View style={s.cardRow}>
-              <Text style={s.cardLabel}>☀️  Chỉ số UV</Text>
-              <Text style={[s.cardBadge, { color: uv.color }]}>
-                {weatherData.uv_index?.toFixed(1)} · {uv.label}
+              <View style={s.rowCenter}>
+                <Ionicons name="sunny-outline" size={18} color={C.textMid} />
+                <Text style={s.cardLabel}> Chỉ số UV</Text>
+              </View>
+              <View style={[s.statusBadge, { backgroundColor: uv.bgColor, borderColor: uv.color }]}>
+                <Text style={[s.cardBadge, { color: uv.textColor }]}>
+                  {weatherData.uv_index?.toFixed(1)} · {uv.label}
+                </Text>
+              </View>
+            </View>
+            <View style={s.metricReadoutRow}>
+              <Text style={s.metricReadoutLabel}>Vị trí trên thang đo</Text>
+              <Text style={[s.metricReadoutValue, { color: uv.textColor }]}>
+                <Text style={s.metricPrefix}>UV </Text>
+                {weatherData.uv_index?.toFixed(1)}
               </Text>
             </View>
-            <View style={{ marginTop: 8 }}>
-              <UVBar value={weatherData.uv_index ?? 0} />
-            </View>
+            <MetricScaleBar
+              value={weatherData.uv_index ?? 0}
+              max={11}
+              color={uv.color}
+              labels={['0', '2', '5', '7', '10', '11+']}
+            />
           </PaperCard>
         )}
 
@@ -326,14 +409,14 @@ const HomeScreen = ({ navigation }) => {
         {/* ── Challenge Banner ── */}
         {challengeTitle !== '' && (
           <TouchableOpacity activeOpacity={0.82} onPress={() => navigation.navigate('CookingChallenge')}>
-            <PaperCard style={[s.cardSpacing, s.challengeBorder]} containerStyle={{ padding: 14 }}>
+            <PaperCard style={[s.cardSpacing, s.challengeBorder]} innerStyle={{ padding: 20 }}>
               <View style={s.rowCenter}>
-                <Ionicons name="trophy-outline" size={24} color={C.accentGold} />
+                <Ionicons name="trophy-outline" size={24} color={C.amber} />
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={s.challengeEyebrow}>THỬ THÁCH HÔM NAY</Text>
                   <Text style={s.challengeTitle} numberOfLines={1}>{challengeTitle}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={C.accentGold} />
+                <Ionicons name="chevron-forward" size={20} color={C.amber} style={s.cardTrailingIcon} />
               </View>
             </PaperCard>
           </TouchableOpacity>
@@ -341,7 +424,7 @@ const HomeScreen = ({ navigation }) => {
 
         {/* ── Basket CTA ── */}
         <TouchableOpacity activeOpacity={0.82} onPress={() => navigation.navigate('MarketBasket')}>
-          <PaperCard style={s.cardSpacing} containerStyle={{ padding: 14 }}>
+          <PaperCard style={s.cardSpacing} innerStyle={{ padding: 20 }}>
             <View style={s.rowCenter}>
               <Ionicons name="cart-outline" size={24} color={C.text} />
               <View style={{ flex: 1, marginLeft: 10 }}>
@@ -355,67 +438,73 @@ const HomeScreen = ({ navigation }) => {
                   <Text style={s.badgeText}>{basketBadge}</Text>
                 </View>
               )}
-              <Ionicons name="chevron-forward" size={20} color={C.textLight} />
+              <Ionicons name="chevron-forward" size={20} color={C.textLight} style={s.cardTrailingIcon} />
             </View>
           </PaperCard>
         </TouchableOpacity>
 
-        {/* ── Cuisine Toggle ── */}
-        <View style={s.toggleRow}>
-          {[{ k: 'vietnam', l: '🇻🇳 Việt Nam' }, { k: 'global', l: '🌍 Toàn cầu' }].map(({ k, l }) => (
-            <TouchableOpacity
-              key={k}
-              onPress={() => setCuisineScope(k)}
-              activeOpacity={0.78}
-            >
-              {cuisineScope === k ? (
-                <ImageBackground source={ASSETS.wood} style={s.toggleBtnActive} imageStyle={s.toggleBtnImg} resizeMode="cover">
-                  <View style={s.toggleBtnOverlay}>
-                    <Text style={s.toggleTextActive}>{l}</Text>
+        {/* ── Selection Toggles (Pill style horizontal scroll) ── */}
+        <View style={s.filtersContainer}>
+          <Text style={s.filtersEyebrow}>TÙY CHỌN TÌM KIẾM</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            contentContainerStyle={s.filtersScrollContent}
+            style={s.filtersScroll}
+          >
+            {/* Cuisine Options */}
+            {[{ k: 'vietnam', l: 'Việt Nam', flagCode: 'VN' }, { k: 'global', l: 'Toàn cầu', flagCode: 'GLOBAL' }].map(({ k, l, flagCode }) => (
+              <TouchableOpacity
+                key={k}
+                onPress={() => setCuisineScope(k)}
+                activeOpacity={0.78}
+              >
+                <ImageBackground 
+                  source={cuisineScope === k ? ASSETS.wood : ASSETS.paper} 
+                  style={[s.pillBtn, cuisineScope === k ? s.pillBtnActive : null]} 
+                  imageStyle={s.pillBtnImg} 
+                  resizeMode="cover"
+                >
+                  <View style={cuisineScope === k ? s.pillOverlayActive : s.pillOverlayInactive}>
+                    <View style={s.pillContent}>
+                      <FilterFlagMark code={flagCode} />
+                      <Text style={cuisineScope === k ? s.pillTextActive : s.pillText}>{l}</Text>
+                    </View>
                   </View>
                 </ImageBackground>
-              ) : (
-                <ImageBackground source={ASSETS.paper} style={s.toggleBtn} imageStyle={s.toggleBtnImg} resizeMode="cover">
-                  <View style={s.toggleBtnOverlayInactive}>
-                    <Text style={s.toggleText}>{l}</Text>
-                  </View>
-                </ImageBackground>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
+              </TouchableOpacity>
+            ))}
 
-        {/* ── Dish Type Toggle ── */}
-        <View style={s.toggleRow}>
-          {[
-            { k: 'all',       l: '🍽️ Tất cả' },
-            { k: 'soup',      l: '🥣 Canh' },
-            { k: 'main_dish', l: '🍖 Món mặn' },
-          ].map(({ k, l }) => (
-            <TouchableOpacity
-              key={k}
-              onPress={() => setDishFilter(k)}
-              activeOpacity={0.78}
-            >
-              {dishFilter === k ? (
-                <ImageBackground source={ASSETS.wood} style={s.toggleBtnActive} imageStyle={s.toggleBtnImg} resizeMode="cover">
-                  <View style={s.toggleBtnOverlay}>
-                    <Text style={s.toggleTextActive}>{l}</Text>
+            <View style={s.pillDivider} />
+
+            {/* Dish Type Options */}
+            {[
+              { k: 'all',       l: '🍽️ Tất cả' },
+              { k: 'soup',      l: '🥣 Canh' },
+              { k: 'main_dish', l: '🍖 Món mặn' },
+            ].map(({ k, l }) => (
+              <TouchableOpacity
+                key={k}
+                onPress={() => setDishFilter(k)}
+                activeOpacity={0.78}
+              >
+                <ImageBackground 
+                  source={dishFilter === k ? ASSETS.wood : ASSETS.paper} 
+                  style={[s.pillBtn, dishFilter === k ? s.pillBtnActive : null]} 
+                  imageStyle={s.pillBtnImg} 
+                  resizeMode="cover"
+                >
+                  <View style={dishFilter === k ? s.pillOverlayActive : s.pillOverlayInactive}>
+                    <Text style={dishFilter === k ? s.pillTextActive : s.pillText}>{l}</Text>
                   </View>
                 </ImageBackground>
-              ) : (
-                <ImageBackground source={ASSETS.paper} style={s.toggleBtn} imageStyle={s.toggleBtnImg} resizeMode="cover">
-                  <View style={s.toggleBtnOverlayInactive}>
-                    <Text style={s.toggleText}>{l}</Text>
-                  </View>
-                </ImageBackground>
-              )}
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* ── Search CTA ── */}
-        <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+        <View style={{ marginHorizontal: 24, marginTop: 16 }}>
           <WoodButton
             title={isDirty ? '✨ Tìm lại với bộ lọc mới' : '🔍 Tìm món cho tôi'}
             onPress={goSearch}
@@ -439,7 +528,7 @@ const s = StyleSheet.create({
   // ── Header
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    paddingHorizontal: 22, paddingTop: 58, paddingBottom: 8,
+    paddingHorizontal: 24, paddingTop: 60, paddingBottom: 12,
   },
   locationLabel: {
     fontFamily: 'Caveat_400Regular', fontSize: 15,
@@ -481,8 +570,8 @@ const s = StyleSheet.create({
 
   // ── Wood metric row
   woodRow: {
-    flexDirection: 'row', gap: 8,
-    marginHorizontal: 16, marginTop: 8,
+    flexDirection: 'row', gap: 12,
+    marginHorizontal: 24, marginTop: 12,
   },
   woodCell: {
     flex: 1, borderRadius: 16, overflow: 'hidden',
@@ -496,13 +585,20 @@ const s = StyleSheet.create({
     alignItems: 'center', paddingVertical: 14, paddingHorizontal: 6,
   },
   woodIcon:  { fontSize: 20, marginBottom: 5 },
+  woodValRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
   woodVal: {
     fontFamily: 'Nunito_700Bold', fontSize: 18,
-    color: C.woodDeep, lineHeight: 22,
+    color: C.woodDark, lineHeight: 22,
   },
   woodUnit: {
-    fontFamily: 'Nunito_400Regular', fontSize: 11,
-    color: C.wood,
+    fontFamily: 'Nunito_600SemiBold', fontSize: 11,
+    color: C.woodLight,
+    marginLeft: 2,
+    marginTop: 1,
   },
   woodLabel: {
     fontFamily: 'Caveat_400Regular', fontSize: 13,
@@ -519,7 +615,7 @@ const s = StyleSheet.create({
   },
   paperCardImg:   { borderRadius: 18, opacity: 0.88 },
   paperCardInner: { backgroundColor: 'rgba(255,255,255,0.22)', padding: 14 },
-  cardSpacing:    { marginTop: 8 },
+  cardSpacing:    { marginTop: 16, marginHorizontal: 24 },
 
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardLabel: {
@@ -530,33 +626,123 @@ const s = StyleSheet.create({
     fontFamily: 'Nunito_700Bold', fontSize: 13,
     color: C.text,
   },
+  metricReadoutRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  metricReadoutLabel: {
+    fontFamily: 'Caveat_400Regular',
+    fontSize: 14,
+    color: C.textLight,
+  },
+  metricReadoutValue: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 15,
+    color: C.text,
+  },
+  metricScaleTrack: {
+    position: 'relative',
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(92,58,30,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(141,110,99,0.18)',
+    overflow: 'visible',
+  },
+  metricScaleFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  metricScaleThumb: {
+    position: 'absolute', top: '50%', width: 22, height: 22,
+    marginTop: -11, marginLeft: -11,
+    borderRadius: 12, backgroundColor: '#FFFFFF',
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15, shadowRadius: 5, elevation: 4,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  metricScaleThumbInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  metricScaleTicks: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingHorizontal: 1,
+  },
+  metricScaleTick: {
+    width: 1,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(141,110,99,0.35)',
+  },
+  metricScaleLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  metricScaleLabel: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 11,
+    color: C.textLight,
+  },
+  metricContainer: {
+    marginTop: 8,
+  },
+  metricPrefix: {
+    fontFamily: 'Nunito_600SemiBold', 
+    fontSize: 13,
+  },
+  statusBadge: {
+    paddingHorizontal: 12, 
+    paddingVertical: 4,
+    borderRadius: 14, 
+    borderWidth: 0.5,
+  },
 
   // ── Season chip
   seasonChip: {
-    alignSelf: 'center', marginTop: 10,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 20, borderWidth: 1, borderColor: C.borderLight,
-    paddingHorizontal: 16, paddingVertical: 7,
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8, shadowRadius: 6, elevation: 2,
+    alignSelf: 'center', 
+    marginTop: 16, 
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 24, 
+    borderWidth: 1, 
+    borderColor: 'rgba(0,0,0,0.04)',
+    paddingHorizontal: 18, 
+    paddingVertical: 8,
+    // Sụbtle shadow for high-end look
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   seasonText: {
-    fontFamily: 'Caveat_700Bold', fontSize: 15,
+    fontFamily: 'Caveat_700Bold', 
+    fontSize: 16,
     color: C.textMid,
+    letterSpacing: 0.3,
   },
 
   // ── Divider
   divider: {
     height: 1, backgroundColor: C.borderLight,
-    marginHorizontal: 16, marginVertical: 16,
-    opacity: 0.5,
+    marginHorizontal: 24, marginVertical: 20,
+    opacity: 0.4,
   },
 
   // ── Challenge
-  challengeBorder: { borderColor: C.accentAmber },
+  challengeBorder: { borderColor: C.amber },
   challengeEyebrow: {
     fontFamily: 'Nunito_700Bold', fontSize: 10,
-    color: C.accentAmber, letterSpacing: 1, textTransform: 'uppercase',
+    color: C.amber, letterSpacing: 1, textTransform: 'uppercase',
   },
   challengeTitle: {
     fontFamily: 'Nunito_600SemiBold', fontSize: 14,
@@ -576,7 +762,7 @@ const s = StyleSheet.create({
   // ── Badge
   badge: {
     backgroundColor: C.primary, borderRadius: 12,
-    paddingHorizontal: 8, paddingVertical: 3, marginRight: 6,
+    paddingHorizontal: 8, paddingVertical: 3, marginRight: 8,
   },
   badgeText: {
     fontFamily: 'Nunito_700Bold', fontSize: 12, color: '#FFFFFF',
@@ -584,39 +770,103 @@ const s = StyleSheet.create({
 
   // ── Chevron
   rowCenter: { flexDirection: 'row', alignItems: 'center' },
+  cardTrailingIcon: {
+    marginLeft: 12,
+    paddingRight: 4,
+  },
 
-  // ── Toggle buttons
-  toggleRow: {
-    flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, gap: 8,
+  // ── Selection Toggles (Pill style)
+  filtersContainer: {
+    marginTop: 24,
+    marginBottom: 8,
   },
-  toggleBtn: {
-    flex: 1, borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1, borderColor: C.border,
+  filtersEyebrow: {
+    fontFamily: 'Nunito_700Bold', 
+    fontSize: 12, 
+    color: C.textLight, 
+    letterSpacing: 1.2, 
+    textTransform: 'uppercase',
+    marginHorizontal: 24,
+    marginBottom: 12,
+  },
+  filtersScroll: {
+    flexGrow: 0,
+  },
+  filtersScrollContent: {
+    paddingHorizontal: 24,
+    gap: 10,
+    alignItems: 'center',
+  },
+  pillBtn: {
+    borderRadius: 24, 
+    overflow: 'hidden',
+    borderWidth: 1, 
+    borderColor: C.borderLight,
     shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8, shadowRadius: 6, elevation: 3,
+    shadowOpacity: 0.6, shadowRadius: 4, elevation: 2,
+    minWidth: 90,
   },
-  toggleBtnActive: {
-    flex: 1, borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1.5, borderColor: C.textMid,
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1, shadowRadius: 8, elevation: 5,
+  pillBtnActive: {
+    borderWidth: 1.5, 
+    borderColor: C.woodDark,
+    shadowOpacity: 0.9, shadowRadius: 6, elevation: 4,
   },
-  toggleBtnImg: { borderRadius: 16 },
-  toggleBtnOverlay: {
-    backgroundColor: 'rgba(92,58,30,0.12)',
-    paddingVertical: 11, alignItems: 'center',
+  pillBtnImg: { 
+    borderRadius: 24 
   },
-  toggleBtnOverlayInactive: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingVertical: 11, alignItems: 'center',
+  pillOverlayInactive: {
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    paddingVertical: 12, paddingHorizontal: 16,
+    alignItems: 'center', justifyContent: 'center',
   },
-  toggleText: {
-    fontFamily: 'Nunito_600SemiBold', fontSize: 13,
+  pillOverlayActive: {
+    backgroundColor: 'rgba(92,58,30,0.18)',
+    paddingVertical: 12, paddingHorizontal: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  pillContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pillText: {
+    fontFamily: 'Nunito_600SemiBold', 
+    fontSize: 14,
     color: C.textMid,
   },
-  toggleTextActive: {
-    fontFamily: 'Nunito_700Bold', fontSize: 13,
-    color: C.text,
+  pillTextActive: {
+    fontFamily: 'Nunito_700Bold', 
+    fontSize: 14,
+    color: C.woodDark,
+  },
+  pillDivider: {
+    width: 1, 
+    height: 24, 
+    backgroundColor: C.borderLight, 
+    marginHorizontal: 2,
+  },
+  filterFlagBase: {
+    width: 22,
+    height: 16,
+    borderRadius: 5,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(92,58,30,0.10)',
+    marginRight: 8,
+    flexShrink: 0,
+  },
+  filterFlagGlobal: {
+    backgroundColor: C.accentBlue,
+  },
+  filterFlagVN: {
+    backgroundColor: '#C53B2B',
+  },
+  filterFlagStar: {
+    color: '#F7CE46',
+    fontSize: 8,
+    lineHeight: 9,
+    marginTop: -1,
   },
 });
 

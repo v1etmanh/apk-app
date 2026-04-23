@@ -3,6 +3,86 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Animated }
 import { Ionicons } from '@expo/vector-icons';
 import { C } from '../../theme';
 
+const FlagMark = ({ code }) => {
+  if (!code) return null;
+
+  if (code === 'GLOBAL') {
+    return (
+      <View style={[st.flagBase, st.flagGlobal]}>
+        <Ionicons name="earth" size={12} color="#FFFFFF" />
+      </View>
+    );
+  }
+
+  if (code === 'VN') {
+    return (
+      <View style={[st.flagBase, st.flagVN]}>
+        <Text style={st.flagSymbol}>★</Text>
+      </View>
+    );
+  }
+
+  if (code === 'JP') {
+    return (
+      <View style={[st.flagBase, st.flagJP]}>
+        <View style={st.flagJPDot} />
+      </View>
+    );
+  }
+
+  if (code === 'TH') {
+    return (
+      <View style={[st.flagBase, st.flagFrame]}>
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#C73B3B' }]} />
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#FFFFFF' }]} />
+        <View style={[st.flagStripe, { flex: 2, backgroundColor: '#243C8F' }]} />
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#FFFFFF' }]} />
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#C73B3B' }]} />
+      </View>
+    );
+  }
+
+  if (code === 'IT') {
+    return (
+      <View style={[st.flagBase, st.flagFrame, st.flagVertical]}>
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#2F8F46' }]} />
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#F7F4EA' }]} />
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#C94646' }]} />
+      </View>
+    );
+  }
+
+  if (code === 'KR') {
+    return (
+      <View style={[st.flagBase, st.flagJP]}>
+        <View style={st.flagKRCircle}>
+          <View style={st.flagKRTop} />
+          <View style={st.flagKRBottom} />
+        </View>
+      </View>
+    );
+  }
+
+  if (code === 'US') {
+    return (
+      <View style={[st.flagBase, st.flagFrame]}>
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#C94646' }]} />
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#F7F4EA' }]} />
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#C94646' }]} />
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#F7F4EA' }]} />
+        <View style={[st.flagStripe, { flex: 1, backgroundColor: '#C94646' }]} />
+        <View style={st.flagCanton} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[st.flagBase, st.flagFallback]}>
+      <Text style={st.flagFallbackText}>{code}</Text>
+    </View>
+  );
+};
+
 const WoodPicker = ({ selectedValue, onValueChange, items, placeholder }) => {
   const [visible, setVisible] = useState(false);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -24,7 +104,8 @@ const WoodPicker = ({ selectedValue, onValueChange, items, placeholder }) => {
   return (
     <>
       <TouchableOpacity style={st.triggerContainer} activeOpacity={0.7} onPress={openPicker}>
-        <Text style={st.triggerText} numberOfLines={1}>{displayText}</Text>
+        {selectedItem?.flagCode ? <FlagMark code={selectedItem.flagCode} /> : null}
+        <Text style={[st.triggerText, selectedItem?.flagCode && st.textWithFlag]} numberOfLines={1}>{displayText}</Text>
         <Ionicons name="chevron-down" size={18} color={C.woodDark} />
       </TouchableOpacity>
 
@@ -54,9 +135,12 @@ const WoodPicker = ({ selectedValue, onValueChange, items, placeholder }) => {
                       closePicker();
                     }}
                   >
-                    <Text style={[st.optionText, isSelected && st.optionTextSelected]}>
-                      {item.label}
-                    </Text>
+                    <View style={st.optionMain}>
+                      {item.flagCode ? <FlagMark code={item.flagCode} /> : null}
+                      <Text style={[st.optionText, item.flagCode && st.textWithFlag, isSelected && st.optionTextSelected]}>
+                        {item.label}
+                      </Text>
+                    </View>
                     {isSelected && <Ionicons name="checkmark-circle" size={24} color={C.accentGreen} />}
                   </TouchableOpacity>
                 );
@@ -84,11 +168,14 @@ const st = StyleSheet.create({
     width: '100%',
   },
   triggerText: {
-    fontFamily: 'PatrickHand_400Regular',
-    fontSize: 18,
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 15,
     color: C.text,
     flex: 1,
     marginRight: 6,
+  },
+  textWithFlag: {
+    marginLeft: 10,
   },
   overlay: {
     flex: 1,
@@ -135,6 +222,13 @@ const st = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 24,
   },
+  optionMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+    marginRight: 12,
+  },
   optionBorder: {
     borderBottomWidth: 1,
     borderColor: C.borderLight,
@@ -143,13 +237,87 @@ const st = StyleSheet.create({
     backgroundColor: C.parchmentDark,
   },
   optionText: {
-    fontFamily: 'PatrickHand_400Regular',
-    fontSize: 20,
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 16,
     color: C.textMid,
+    flexShrink: 1,
   },
   optionTextSelected: {
     color: C.text,
-    fontFamily: 'PatrickHand_400Regular',
+    fontFamily: 'Nunito_700Bold',
+  },
+  flagBase: {
+    width: 26,
+    height: 18,
+    borderRadius: 6,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(92,58,33,0.10)',
+    flexShrink: 0,
+  },
+  flagFrame: {
+    backgroundColor: '#FFFFFF',
+  },
+  flagVertical: {
+    flexDirection: 'row',
+  },
+  flagStripe: {
+    width: '100%',
+  },
+  flagGlobal: {
+    backgroundColor: C.accentBlue,
+  },
+  flagVN: {
+    backgroundColor: '#C53B2B',
+  },
+  flagJP: {
+    backgroundColor: '#F8F6F1',
+  },
+  flagJPDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#C94646',
+  },
+  flagKRCircle: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    overflow: 'hidden',
+    transform: [{ rotate: '-28deg' }],
+  },
+  flagKRTop: {
+    flex: 1,
+    backgroundColor: '#D24B4B',
+  },
+  flagKRBottom: {
+    flex: 1,
+    backgroundColor: '#3259B7',
+  },
+  flagCanton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 10,
+    height: 10,
+    borderTopLeftRadius: 5,
+    backgroundColor: '#28458F',
+  },
+  flagFallback: {
+    backgroundColor: C.woodLight,
+  },
+  flagFallbackText: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 8,
+    color: '#FFFFFF',
+  },
+  flagSymbol: {
+    color: '#F7CE46',
+    fontSize: 9,
+    lineHeight: 10,
+    marginTop: -1,
   },
 });
 

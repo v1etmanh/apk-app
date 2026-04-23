@@ -34,10 +34,26 @@ const scoreColor = (score) => {
 };
 
 const LOADING_MSGS = [
-  'Đang tìm món ngon cho bạn...',
-  'Phân tích thời tiết hôm nay...',
-  'Chọn món phù hợp khẩu vị...',
-  'Sắp có gợi ý rồi nhé! 🍜',
+  {
+    eyebrow: 'ĐỀ XUẤT HÔM NAY',
+    title: 'Đang tuyển chọn món dành cho bạn',
+    detail: 'Hệ thống đang đối chiếu thời tiết, khẩu vị và nguyên liệu hiện có.',
+  },
+  {
+    eyebrow: 'PHÂN TÍCH NGỮ CẢNH',
+    title: 'Đọc vị thời tiết và nhịp ăn hôm nay',
+    detail: 'Ưu tiên những món hợp thời điểm, dễ ăn và đúng nhu cầu hiện tại.',
+  },
+  {
+    eyebrow: 'CÁ NHÂN HÓA GỢI Ý',
+    title: 'Tinh chỉnh theo khẩu vị riêng của bạn',
+    detail: 'Bộ lọc đang cân bằng sở thích, thời gian nấu và mức chi phí mong muốn.',
+  },
+  {
+    eyebrow: 'SẮP HOÀN TẤT',
+    title: 'Một danh sách gợi ý đẹp và hợp lý đang tới',
+    detail: 'Chỉ thêm một chút nữa để hiện ra những lựa chọn đáng thử nhất.',
+  },
 ];
 
 // ── Loading screen ────────────────────────────────────────────────────────────
@@ -57,8 +73,10 @@ const LoadingView = () => {
           resizeMode="contain"
         />
         <ImageBackground source={ASSETS.wood} style={s.loadingCard} imageStyle={{ borderRadius: 20, opacity: 0.88 }} resizeMode="cover">
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 20, padding: 20, alignItems: 'center' }}>
-            <Text style={s.loadingText}>{LOADING_MSGS[idx]}</Text>
+          <View style={s.loadingCardInner}>
+            <Text style={s.loadingEyebrow}>{LOADING_MSGS[idx].eyebrow}</Text>
+            <Text style={s.loadingText}>{LOADING_MSGS[idx].title}</Text>
+            <Text style={s.loadingDetail}>{LOADING_MSGS[idx].detail}</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
               {LOADING_MSGS.map((_, i) => (
                 <View key={i} style={{
@@ -116,8 +134,15 @@ const TopCard = ({ item, onPress }) => {
           <View style={s.topBody}>
             <Text style={s.topTitle} numberOfLines={2}>{item.title}</Text>
             <View style={s.chipRow}>
-              <MetaChip icon={<Ionicons name="time-outline" size={11} />} label={`${item.cook_time_min}p`} />
-              <MetaChip variant="accent" icon={<Ionicons name="star" size={11} />} label={`${(item.final_score * 100).toFixed(0)}%`} />
+              <MetaChip 
+                icon={<Ionicons name="time-outline" size={11} color={C.textMid}/>} 
+                label={`${item.cook_time_min}p`} 
+              />
+              <MetaChip 
+                variant="accent" 
+                icon={<Ionicons name="star" size={11} color={C.accentGreen}/>} 
+                label={`${(item.final_score * 100).toFixed(0)}%`} 
+              />
               {item.nation && (
                 <MetaChip label={item.nation} />
               )}
@@ -158,14 +183,22 @@ const ListRow = ({ item, onPress }) => (
         {/* Content */}
         <View style={s.rowContent}>
           <Text style={s.rowTitle} numberOfLines={1}>{item.title}</Text>
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 4, alignItems: 'center' }}>
-            <Text style={s.rowMeta}>
-              <Ionicons name="time-outline" size={11} /> {item.cook_time_min}p
-            </Text>
-            <Text style={[s.rowMeta, { color: scoreColor(item.final_score), fontFamily: 'Nunito_700Bold' }]}>
-              <Ionicons name="star" size={11} /> {(item.final_score * 100).toFixed(0)}%
-            </Text>
-            {item.nation && <Text style={s.rowMeta}>{item.nation}</Text>}
+          <View style={s.rowMetaRow}>
+            <View style={s.rowMetaItem}>
+              <Ionicons name="time-outline" size={11} color={C.textLight} />
+              <Text style={s.rowMetaText}>{item.cook_time_min}p</Text>
+            </View>
+            <View style={[s.rowMetaItem, { backgroundColor: 'rgba(56, 176, 122, 0.08)', paddingHorizontal: 6, borderRadius: 6 }]}>
+              <Ionicons name="star" size={11} color={C.accentGreen} />
+              <Text style={[s.rowMetaText, { color: C.accentGreen, fontFamily: 'Nunito_700Bold' }]}>
+                {(item.final_score * 100).toFixed(0)}%
+              </Text>
+            </View>
+            {item.nation && (
+              <View style={s.rowMetaItem}>
+                <Text style={s.rowMetaText}>{item.nation}</Text>
+              </View>
+            )}
           </View>
           {item.explanation?.[0] && (
             <Text style={s.rowHint} numberOfLines={1}>{item.explanation[0]}</Text>
@@ -234,11 +267,9 @@ const RecommendScreen = ({ navigation, route }) => {
 
   const weather = searchParams?.weather;
   const weatherPill = weather ? `${weather.temperature}°C · ${weather.condition || ''}` : null;
-  const filterPill = [
-    searchParams?.cuisine_scope === 'global' ? '🌍 Toàn cầu' : '🇻🇳 Việt Nam',
-    searchParams?.dish_type_filter === 'soup'      ? '🥣 Canh' :
-    searchParams?.dish_type_filter === 'main_dish' ? '🍖 Món mặn' : '🍽️ Tất cả',
-  ].join(' · ');
+  const cuisineLabel = searchParams?.cuisine_scope === 'global' ? 'Toàn cầu' : 'Việt Nam';
+  const typeLabel = searchParams?.dish_type_filter === 'soup'      ? 'Canh' :
+                    searchParams?.dish_type_filter === 'main_dish' ? 'Món mặn' : 'Tất cả';
 
   if (isLoading) {
     return (
@@ -276,10 +307,38 @@ const RecommendScreen = ({ navigation, route }) => {
         {/* Context pills */}
         <View style={s.pillRow}>
           {weatherPill && (
-            <MetaChip icon={<Ionicons name="sunny-outline" size={12}/>} label={weatherPill} />
+            <MetaChip 
+              icon={<Ionicons name="sunny-outline" size={13} color={C.accentGold}/>} 
+              label={weatherPill}
+              style={s.headerChip}
+            />
           )}
-          <MetaChip label={filterPill} />
-          <MetaChip variant="accent" label={`${dishes.length} gợi ý`} />
+          <MetaChip 
+            icon={
+              searchParams?.cuisine_scope === 'global'
+                ? <Ionicons name="earth" size={12} color={C.accentBlue} />
+                : <Ionicons name="flag" size={12} color={C.accentRed} />
+            }
+            label={cuisineLabel} 
+            style={s.headerChip}
+          />
+          <MetaChip 
+            icon={
+              searchParams?.dish_type_filter === 'soup'
+                ? <Ionicons name="water-outline" size={12} color={C.accentBlue} />
+                : searchParams?.dish_type_filter === 'main_dish'
+                  ? <Ionicons name="restaurant-outline" size={12} color={C.amber} />
+                  : <Ionicons name="grid-outline" size={12} color={C.textMid} />
+            }
+            label={typeLabel} 
+            style={s.headerChip}
+          />
+          <View style={{ flex: 1 }} />
+          <MetaChip 
+            variant="accent" 
+            label={`${dishes.length} gợi ý`} 
+            style={s.resultChip}
+          />
         </View>
       </ImageBackground>
 
@@ -299,7 +358,7 @@ const RecommendScreen = ({ navigation, route }) => {
 
             <ScrollView
               horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingLeft: 16, paddingRight: 8, gap: 12, paddingBottom: 4 }}
+              contentContainerStyle={{ paddingLeft: 24, paddingRight: 12, gap: 16, paddingBottom: 8 }}
             >
               {dishes.slice(0, 3).map(item => (
                 <TopCard
@@ -384,8 +443,22 @@ const s = StyleSheet.create({
 
   // Pills
   pillRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
-    paddingHorizontal: 16, paddingBottom: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 24, paddingBottom: 16, paddingTop: 4,
+  },
+  headerChip: {
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderColor: 'rgba(92,58,30,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  resultChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(56, 176, 122, 0.12)',
+    borderColor: 'rgba(56, 176, 122, 0.25)',
   },
 
   // Offline
@@ -411,23 +484,46 @@ const s = StyleSheet.create({
     shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1, shadowRadius: 10, elevation: 4,
   },
+  loadingCardInner: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 20,
+    paddingHorizontal: 22,
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  loadingEyebrow: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 10,
+    color: C.textLight,
+    letterSpacing: 1.4,
+    marginBottom: 8,
+  },
   loadingText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 16,
+    fontFamily: 'Nunito_700Bold', fontSize: 19,
     color: C.text, textAlign: 'center',
+    lineHeight: 25,
+  },
+  loadingDetail: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 13,
+    color: C.textMid,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginTop: 8,
   },
 
   // Top card
   topCard: {
-    width: 220, borderRadius: 22, overflow: 'hidden',
-    borderWidth: 1, borderColor: C.border,
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 1, shadowRadius: 12, elevation: 6,
+    width: 240, borderRadius: 24, overflow: 'hidden',
+    borderWidth: 1, borderColor: C.borderLight,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1, shadowRadius: 14, elevation: 6,
   },
   topCardFirst: {
-    width: 240, borderWidth: 1.5, borderColor: C.border, // Or C.accentGold based on spec
+    width: 260, borderWidth: 1.5, borderColor: 'rgba(200,134,10,0.3)',
   },
-  topCardImg: { borderRadius: 22, opacity: 0.88 },
-  topImgWrap: { height: 148, position: 'relative' },
+  topCardImg: { borderRadius: 24, opacity: 0.88 },
+  topImgWrap: { height: 160, position: 'relative' },
   topImg:     { width: '100%', height: '100%' },
 
   rankStamp: {
@@ -447,23 +543,35 @@ const s = StyleSheet.create({
   boostText: {
     fontFamily: 'Nunito_700Bold', fontSize: 10, color: '#FFFFFF',
   },
-  topBody: { padding: 14 },
+  topBody: { 
+    padding: 18,
+    minHeight: 180, // Ensures consistent body height for description/chips
+    justifyContent: 'flex-start',
+  },
   topTitle: {
-    fontFamily: 'Nunito_700Bold', fontSize: 15,
-    color: C.text, lineHeight: 20,
+    fontFamily: 'Nunito_700Bold', fontSize: 16,
+    color: C.text, lineHeight: 22,
+    height: 44, // Fixed height for exactly 2 lines of text
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+    alignItems: 'center',
   },
   topHint: {
-    fontFamily: 'Caveat_400Regular', fontSize: 13,
-    color: C.textMid, marginTop: 8, lineHeight: 18,
+    fontFamily: 'Caveat_400Regular', fontSize: 14,
+    color: C.textMid, marginTop: 12, lineHeight: 18,
   },
 
   // List row
   row: {
-    marginHorizontal: 16, marginBottom: 8,
-    borderRadius: 18, overflow: 'hidden',
-    borderWidth: 1, borderColor: C.border,
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1, shadowRadius: 8, elevation: 3,
+    marginHorizontal: 24, marginBottom: 12,
+    borderRadius: 20, overflow: 'hidden',
+    borderWidth: 1, borderColor: C.borderLight,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1, shadowRadius: 10, elevation: 3,
   },
   rowImg2:  { borderRadius: 18, opacity: 0.88 },
   rowInner: {
@@ -480,28 +588,39 @@ const s = StyleSheet.create({
   rowRankText: {
     fontFamily: 'Nunito_700Bold', fontSize: 10, color: '#FFFFFF',
   },
-  rowContent: { flex: 1, paddingHorizontal: 12, paddingVertical: 10 },
+  rowContent: { flex: 1, paddingHorizontal: 16, paddingVertical: 14 },
   rowTitle: {
-    fontFamily: 'Nunito_700Bold', fontSize: 14, color: C.text,
+    fontFamily: 'Nunito_700Bold', fontSize: 15, color: C.text,
   },
-  rowMeta: {
-    fontFamily: 'Nunito_400Regular', fontSize: 11, color: C.textMid,
+  rowMetaRow: {
+    flexDirection: 'row', 
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 6,
+  },
+  rowMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  rowMetaText: {
+    fontFamily: 'Nunito_600SemiBold', fontSize: 12, color: C.textMid,
   },
   rowHint: {
-    fontFamily: 'Caveat_400Regular', fontSize: 13,
-    color: C.textSecondary, marginTop: 3,
+    fontFamily: 'Caveat_400Regular', fontSize: 14,
+    color: C.textSecondary, marginTop: 6,
   },
 
   // Load more / retry
   loadMoreBtn: {
-    marginHorizontal: 16, marginTop: 8,
-    borderRadius: 18, overflow: 'hidden',
-    borderWidth: 1, borderColor: C.border,
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1, shadowRadius: 6, elevation: 3,
+    marginHorizontal: 24, marginTop: 12,
+    borderRadius: 20, overflow: 'hidden',
+    borderWidth: 1, borderColor: C.borderLight,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1, shadowRadius: 8, elevation: 3,
   },
   loadMoreText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 14, color: C.text,
+    fontFamily: 'Nunito_700Bold', fontSize: 15, color: C.text,
   },
   retryBtn: {
     borderRadius: 18, overflow: 'hidden',
