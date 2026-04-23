@@ -85,6 +85,8 @@ const SessionCard = ({ item, index, onPress }) => {
   const fade  = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(24)).current;
   const scale = useRef(new Animated.Value(1)).current;
+  // Dynamic height measured from actual layout — fixes WobblyBorder cross-border bug
+  const [cardH, setCardH] = useState(0);
 
   useEffect(() => {
     Animated.parallel([
@@ -95,7 +97,6 @@ const SessionCard = ({ item, index, onPress }) => {
 
   const { label, sub } = formatDate(item.created_at);
   const timeStr = new Date(item.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-  const cardH = item.province ? 130 : 114;
 
   const handlePressIn  = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start();
   const handlePressOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true }).start();
@@ -109,8 +110,10 @@ const SessionCard = ({ item, index, onPress }) => {
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         style={st.card}
+        onLayout={(e) => setCardH(e.nativeEvent.layout.height)}
       >
-        <WobblyBorder width={CARD_W} height={cardH} />
+        {/* WobblyBorder uses real measured height — no more border overflow */}
+        {cardH > 0 && <WobblyBorder width={CARD_W} height={cardH} />}
 
         {/* Date row */}
         <View style={st.cardHeader}>
@@ -129,7 +132,7 @@ const SessionCard = ({ item, index, onPress }) => {
           <Text style={st.locationText}>📍 {item.province}</Text>
         )}
 
-        {/* Chips */}
+        {/* Chips — paddingRight leaves space for the arrow badge */}
         <View style={st.chipRow}>
           <View style={[st.chip, { backgroundColor: '#D4E8F5' }]}>
             <Text style={[st.chipText, { color: '#3A6B8A' }]}>
@@ -143,9 +146,8 @@ const SessionCard = ({ item, index, onPress }) => {
               </Text>
             </View>
           )}
-          {/* Dish name previews */}
           {item.dishes.slice(0, 1).map((d, i) => (
-            <View key={i} style={[st.chip, { backgroundColor: C.paperDeep }]}>
+            <View key={i} style={[st.chip, { backgroundColor: C.paperDeep, flexShrink: 1, maxWidth: CARD_W * 0.45 }]}>
               <Text style={[st.chipText, { color: C.inkLight }]} numberOfLines={1}>
                 {d.title}
               </Text>
@@ -169,6 +171,7 @@ const SessionCard = ({ item, index, onPress }) => {
 const HistoryScreen = ({ navigation }) => {
   const [sessions, setSessions] = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [statsSize, setStatsSize] = useState({ width: 0, height: 0 });
 
   // Cat bob animation
   const catBob   = useRef(new Animated.Value(0)).current;
@@ -259,12 +262,37 @@ const HistoryScreen = ({ navigation }) => {
       </ImageBackground>
 
       {/* ── Stats card ── */}
-      <View style={st.statsCard}>
-        <WobblyBorder width={CARD_W} height={100} color={C.wood} sw={2} />
+      <View
+        style={st.statsCard}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          if (
+            width > 0 &&
+            height > 0 &&
+            (width !== statsSize.width || height !== statsSize.height)
+          ) {
+            setStatsSize({ width, height });
+          }
+        }}
+      >
+        {/* Border follows the measured card size and stays inset from content edges. */}
+        {statsSize.width > 0 && statsSize.height > 0 && (
+          <View style={st.statsBorderLayer}>
+            <WobblyBorder
+              width={statsSize.width - 12}
+              height={statsSize.height - 12}
+              color={C.wood}
+              sw={2}
+            />
+          </View>
+        )}
 
         <View style={st.statItem}>
           <Text style={st.statEmoji}>📋</Text>
-          <Text style={st.statNum}>{sessions.length}</Text>
+          <View style={st.statValueRow}>
+            <Text style={st.statNum}>{sessions.length}</Text>
+            <Text style={st.statUnit}>lần</Text>
+          </View>
           <Text style={st.statLabel}>Lần gợi ý</Text>
         </View>
 
@@ -277,7 +305,10 @@ const HistoryScreen = ({ navigation }) => {
 
         <View style={st.statItem}>
           <Text style={st.statEmoji}>😋</Text>
-          <Text style={[st.statNum, { color: '#5A9E6A' }]}>{totalEaten}</Text>
+          <View style={st.statValueRow}>
+            <Text style={[st.statNum, { color: '#5A9E6A' }]}>{totalEaten}</Text>
+            <Text style={st.statUnit}>món</Text>
+          </View>
           <Text style={st.statLabel}>Món đã ăn</Text>
         </View>
       </View>
@@ -355,15 +386,22 @@ const st = StyleSheet.create({
   statsCard:     { flexDirection: 'row', alignItems: 'center',
                    backgroundColor: C.white, borderRadius: 24,
                    marginHorizontal: 16, marginTop: 14, marginBottom: 8,
-                   paddingVertical: 18, paddingHorizontal: 20,
+                   minHeight: 130,
+                   paddingVertical: 22, paddingHorizontal: 18,
                    shadowColor: C.woodDark, shadowOffset: { width: 2, height: 4 },
-                   shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
-  statItem:      { flex: 1, alignItems: 'center' },
+                   shadowOpacity: 0.1, shadowRadius: 6, elevation: 3,
+                   position: 'relative' },
+  statsBorderLayer: { position: 'absolute', left: 6, top: 6, zIndex: 0 },
+  statItem:      { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center',
+                   paddingHorizontal: 4, zIndex: 1 },
   statEmoji:     { fontSize: 22, marginBottom: 4 },
-  statNum:       { fontFamily: 'Patrick Hand', fontSize: 30, color: C.ink, lineHeight: 34 },
+  statNum:       { fontFamily: 'Patrick Hand', fontSize: 32, color: C.ink, lineHeight: 36 },
+  statValueRow:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center',
+                   minHeight: 38 },
+  statUnit:      { fontFamily: 'Nunito', fontSize: 12, color: C.inkLight, marginTop: 6, marginLeft: 3, fontWeight: '700' },
   statLabel:     { fontFamily: 'Nunito', fontSize: 12, color: C.inkLight,
-                   fontWeight: '600', marginTop: 2 },
-  statCenter:    { alignItems: 'center', paddingHorizontal: 12 },
+                   fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  statCenter:    { width: 38, alignItems: 'center', zIndex: 1 },
   statPaw:       { fontSize: 14, opacity: 0.5 },
   statLine:      { width: 1, height: 28, backgroundColor: C.dashed, marginVertical: 3 },
 

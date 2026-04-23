@@ -1,245 +1,226 @@
-import React, { useRef, useEffect } from 'react';
+import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, ImageBackground, Animated, Dimensions,
+  Dimensions, ImageBackground
 } from 'react-native';
-import Svg, { Path, Circle, Ellipse, Line } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { Scales } from 'phosphor-react-native/lib/module/icons/Scales';
+import { Ruler } from 'phosphor-react-native/lib/module/icons/Ruler';
+import { ChartBar } from 'phosphor-react-native/lib/module/icons/ChartBar';
+import { Person } from 'phosphor-react-native/lib/module/icons/Person';
+import { PersonSimpleRun } from 'phosphor-react-native/lib/module/icons/PersonSimpleRun';
+import { Warning } from 'phosphor-react-native/lib/module/icons/Warning';
+import { ForkKnife } from 'phosphor-react-native/lib/module/icons/ForkKnife';
+import { CaretRight } from 'phosphor-react-native/lib/module/icons/CaretRight';
+import { PawPrint } from 'phosphor-react-native/lib/module/icons/PawPrint';
+import { Plus } from 'phosphor-react-native/lib/module/icons/Plus';
 import { useAppStore } from '../store/useAppStore';
 
-// ─── Design Tokens ────────────────────────────────────────────────
-const C = {
-  paper:     '#F5EDD6',
-  paperDeep: '#EDE0C4',
-  paperMid:  '#F0E4C8',
-  ink:       '#3D2B1F',
-  inkLight:  '#7B5B3A',
-  wood:      '#C8A97E',
-  woodDark:  '#9B7355',
-  woodDeep:  '#7A5535',
-  dashed:    '#C4B49A',
-  white:     '#FFFEF9',
-  skyBlue:   '#A8CEDF',
-  mint:      '#A8D5B5',
-  amber:     '#E8C547',
-  rose:      '#E8A598',
-  statBlue:  '#6BAED6',
-  statGreen: '#74C476',
-  statAmber: '#E8A020',
-  statRed:   '#D45F5F',
-};
-const { width: SW } = Dimensions.get('window');
+import { C } from '../theme';
+import ScreenBackground from '../components/ui/ScreenBackground';
+import SectionHeader from '../components/ui/SectionHeader';
 
-// ─── Labels ───────────────────────────────────────────────────────
+const { width: SW } = Dimensions.get('window');
+const ASSETS = {
+  paper: require('../assets/textures/paper_cream.png'),
+  wood: require('../assets/textures/wood_light.png'),
+};
+
 const DIET_LABEL     = { omnivore:'Ăn tất cả', vegetarian:'Chay', vegan:'Thuần chay', pescatarian:'Ăn cá' };
 const ACTIVITY_LABEL = { sedentary:'Ít vận động', lightly_active:'Nhẹ nhàng', moderately_active:'Vừa phải', very_active:'Nhiều vận động' };
-const GENDER_ICON    = { male:'👨', female:'👩', other:'🧑' };
 
-// ─── Wobbly SVG Border ────────────────────────────────────────────
-const WobblyBorder = ({ width, height, color = C.dashed, sw = 1.8, dash = '5,4' }) => {
-  const r = 18, w = width, h = height;
-  const p = `M${r},3 Q${w*.5},1 ${w-r},4 Q${w-3},3 ${w-3},${r} Q${w-1},${h*.5} ${w-3},${h-r} Q${w-2},${h-2} ${w-r+2},${h-3} Q${w*.5},${h-1} ${r-1},${h-3} Q2,${h-2} 3,${h-r} Q1,${h*.5} 3,${r} Q2,2 ${r},3 Z`;
-  return (
-    <Svg width={w} height={h} style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Path d={p} fill="none" stroke={color} strokeWidth={sw}
-        strokeDasharray={dash} strokeLinecap="round"/>
-    </Svg>
-  );
-};
-
-// ─── Section divider ──────────────────────────────────────────────
-const SectionDivider = ({ label }) => (
-  <View style={st.sectionRow}>
-    <View style={st.sectionLine}/>
-    <View style={st.sectionBadge}>
-      <Text style={st.sectionText}>✦ {label} ✦</Text>
-    </View>
-    <View style={st.sectionLine}/>
-  </View>
+const ProfileAvatarMark = () => (
+  <Svg width={52} height={52} viewBox="0 0 48 48" fill="none">
+    <Circle cx="24" cy="24" r="24" fill="rgba(139,94,60,0.06)" />
+    <Path
+      d="M24 11.5C19.86 11.5 16.5 14.86 16.5 19C16.5 23.14 19.86 26.5 24 26.5C28.14 26.5 31.5 23.14 31.5 19C31.5 14.86 28.14 11.5 24 11.5Z"
+      fill="#CDA06D"
+    />
+    <Path
+      d="M13.5 37.2C15.91 32.62 19.52 30.25 24 30.25C28.48 30.25 32.09 32.62 34.5 37.2"
+      stroke="#8B5E3C"
+      strokeWidth="3"
+      strokeLinecap="round"
+    />
+    <Path
+      d="M24 13.25C20.83 13.25 18.25 15.83 18.25 19C18.25 22.17 20.83 24.75 24 24.75C27.17 24.75 29.75 22.17 29.75 19C29.75 15.83 27.17 13.25 24 13.25Z"
+      stroke="#8B5E3C"
+      strokeWidth="2.5"
+    />
+    <Path
+      d="M17.25 35.75C19.2 33.35 21.43 32.25 24 32.25C26.57 32.25 28.8 33.35 30.75 35.75"
+      stroke="#CDA06D"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    />
+  </Svg>
 );
 
-// ─── Stat Card ────────────────────────────────────────────────────
-const StatCard = ({ label, value, unit, color, emoji }) => (
-  <View style={st.statCard}>
-    <WobblyBorder width={(SW - 56) / 3} height={88} color={color} sw={2}/>
-    <Text style={st.statEmoji}>{emoji}</Text>
-    <Text style={[st.statValue, { color }]}>{value}</Text>
-    {unit ? <Text style={[st.statUnit, { color }]}>{unit}</Text> : null}
-    <Text style={st.statLabel}>{label}</Text>
-  </View>
-);
-
-// ─── Menu Item ────────────────────────────────────────────────────
-const MenuItem = ({ icon, iconBg, label, sub, onPress, isLast }) => (
-  <>
-    <TouchableOpacity style={st.menuRow} onPress={onPress} activeOpacity={0.75}>
-      {/* Icon stamp */}
-      <View style={[st.menuIconWrap, { backgroundColor: iconBg || C.paperDeep }]}>
-        <Text style={st.menuIcon}>{icon}</Text>
+const WoodStatCard = ({ label, value, unit, hasValue, IconComponent, accentColor = 'rgba(255,220,150,0.18)' }) => (
+  <ImageBackground
+    source={ASSETS.wood}
+    style={st.woodCell}
+    imageStyle={st.woodCellImg}
+    resizeMode="cover"
+  >
+    <View style={st.woodCellOverlay}>
+      {/* Icon + label badge */}
+      <View style={[st.woodIconBadge, { backgroundColor: accentColor }]}>
+        <IconComponent weight="fill" size={16} color="rgba(255,248,225,0.85)" />
+        <Text style={st.woodLabel} numberOfLines={1}>{label.toUpperCase()}</Text>
       </View>
+      {/* Divider */}
+      <View style={st.woodDivider} />
+      {/* Value */}
+      {hasValue ? (
+        <View style={st.woodValCol}>
+          <Text
+            style={st.woodVal}
+            adjustsFontSizeToFit
+            numberOfLines={1}
+            minimumFontScale={0.4}
+          >
+            {value}
+          </Text>
+          {unit ? <Text style={st.woodUnit}>{unit}</Text> : null}
+        </View>
+      ) : (
+        <View style={st.woodAddRow}>
+          <Plus weight="bold" size={12} color="#FDF5E6" />
+          <Text style={st.woodAddText}>Thêm</Text>
+        </View>
+      )}
+    </View>
+  </ImageBackground>
+);
 
+const MenuItem = ({ IconComponent, iconBg, label, sub, onPress, isLast }) => (
+  <>
+    <TouchableOpacity 
+      style={st.menuRow} 
+      onPress={onPress} 
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${sub || ''}`}
+    >
+      <View style={[st.menuIconWrap, { backgroundColor: iconBg }]}>
+        <IconComponent weight="fill" size={20} color="#FFFFFF" />
+      </View>
       <View style={st.menuTextWrap}>
-        <Text style={st.menuLabel}>{label}</Text>
+        <Text style={st.menuLabel} numberOfLines={1}>{label}</Text>
         {sub ? <Text style={st.menuSub} numberOfLines={1}>{sub}</Text> : null}
       </View>
-
-      {/* Arrow */}
-      <Svg width={20} height={20} viewBox="0 0 20 20">
-        <Path d="M7 5 L13 10 L7 15" stroke={C.dashed} strokeWidth={2}
-          strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      </Svg>
+      <CaretRight weight="bold" size={16} color="#D1D1D6" style={{ marginRight: 4 }} />
     </TouchableOpacity>
-
-    {/* Wavy divider between items */}
-    {!isLast && (
-      <Svg width={SW - 56} height={8} style={st.menuDividerSvg}>
-        <Path
-          d={`M0,4 Q${(SW-56)*0.2},1 ${(SW-56)*0.4},4 Q${(SW-56)*0.6},7 ${(SW-56)*0.8},4 Q${(SW-56)*0.9},2 ${SW-56},4`}
-          fill="none" stroke={C.dashed} strokeWidth={1} strokeDasharray="3,3"/>
-      </Svg>
-    )}
+    {!isLast && <View style={st.menuDivider} />}
   </>
 );
 
-// ─── Animated Avatar ──────────────────────────────────────────────
-const Avatar = ({ gender }) => {
-  const bob = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.loop(Animated.sequence([
-      Animated.timing(bob, { toValue: -6, duration: 1200, useNativeDriver: false }),
-      Animated.timing(bob, { toValue:  0, duration: 1200, useNativeDriver: false }),
-    ])).start();
-  }, []);
-
+const Avatar = () => {
   return (
-    <Animated.View style={[st.avatarWrap, { transform: [{ translateY: bob }] }]}>
-      {/* Outer glow ring */}
-      <View style={st.avatarGlow}/>
-      {/* Wood ring */}
-      <View style={st.avatarRing}>
+    <View style={st.avatarWrap}>
+      <View style={st.avatarOuterRing}>
         <View style={st.avatarInner}>
-          <Text style={st.avatarEmoji}>{GENDER_ICON[gender] || '👤'}</Text>
+          <ProfileAvatarMark />
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
 };
 
-// ─── Main ─────────────────────────────────────────────────────────
 const ProfileScreen = ({ navigation }) => {
   const { profile, latestMetrics } = useAppStore();
+  const insets = useSafeAreaInsets();
 
-  // BMI
-  let bmi = null, bmiColor = C.statBlue, bmiLabel = '–';
+  let bmi = null, bmiLabel = '–';
   if (latestMetrics?.height_cm && latestMetrics?.weight_kg) {
     const h = latestMetrics.height_cm / 100;
     bmi = (latestMetrics.weight_kg / (h * h)).toFixed(1);
-    if      (bmi < 18.5) { bmiColor = C.statBlue;  bmiLabel = 'Thiếu cân'; }
-    else if (bmi < 25)   { bmiColor = C.statGreen;  bmiLabel = 'Bình thường'; }
-    else if (bmi < 30)   { bmiColor = C.statAmber;  bmiLabel = 'Thừa cân'; }
-    else                 { bmiColor = C.statRed;     bmiLabel = 'Béo phì'; }
+    if (latestMetrics?.weight_kg / (h * h) < 18.5) { bmiLabel = 'Thiếu cân'; }
+    else if (latestMetrics?.weight_kg / (h * h) < 25)   { bmiLabel = 'Bình thường'; }
+    else if (latestMetrics?.weight_kg / (h * h) < 30)   { bmiLabel = 'Thừa cân'; }
+    else                 { bmiLabel = 'Béo phì'; }
+  } else {
+    bmiLabel = 'BMI';
   }
 
   const menuItems = [
     {
-      icon: '👤', iconBg: '#D4EDF7', label: 'Thông tin cá nhân',
-      sub: profile ? `${profile.age} tuổi · ${DIET_LABEL[profile.diet_type] || ''}` : 'Chưa có dữ liệu',
+      IconComponent: Person, iconBg: '#007AFF', label: 'Thông tin cá nhân',
+      sub: profile ? `${profile.age} tuổi · ${DIET_LABEL[profile.diet_type] || ''}` : 'Chưa thiết lập',
       onPress: () => navigation.getParent()?.navigate('EditPersonal'),
     },
     {
-      icon: '⚖️', iconBg: '#D4EDC4', label: 'Chỉ số cơ thể',
-      sub: latestMetrics ? `${latestMetrics.weight_kg} kg · BMI ${bmi}` : 'Chưa có dữ liệu',
+      IconComponent: Scales, iconBg: '#34C759', label: 'Chỉ số cơ thể',
+      sub: latestMetrics ? `${latestMetrics.weight_kg} kg · BMI ${bmi}` : 'Chưa thiết lập',
       onPress: () => navigation.getParent()?.navigate('BodyMetrics'),
     },
     {
-      icon: '⚠️', iconBg: '#F5E0C4', label: 'Dị ứng & Chế độ ăn',
+      IconComponent: Warning, iconBg: '#FF9500', label: 'Dị ứng & Chế độ ăn',
       sub: 'Quản lý thực phẩm cần tránh',
       onPress: () => navigation.getParent()?.navigate('Allergy'),
     },
     {
-      icon: '👅', iconBg: '#F0D4ED', label: 'Khẩu vị của tôi',
+      IconComponent: ForkKnife, iconBg: '#FF3B30', label: 'Khẩu vị của tôi',
       sub: 'Sở thích hương vị cá nhân',
       onPress: () => navigation.getParent()?.navigate('TasteProfile'),
     },
   ];
 
   return (
-    <ImageBackground
-      source={require('../assets/textures/paper_cream.png')}
-      style={st.root} resizeMode="cover"
-    >
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent/>
+    <ScreenBackground texture="paper" edges={[]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[st.scroll, { paddingTop: insets.top + 24 }]}>
+        
+        {/* ── Header / Profile Info ── */}
+        <View style={st.headerSection}>
+          <Avatar />
+          <Text style={st.userName}>
+            {profile?.age ? `${profile.age} tuổi` : 'Chưa thiết lập'}
+          </Text>
 
-      {/* ── Sky watercolor hero ── */}
-      <ImageBackground
-        source={require('../assets/textures/sky_watercolor.png')}
-        style={st.hero} resizeMode="cover"
-        imageStyle={{ opacity: 0.55 }}
-      >
-        {/* Decorative floating circles */}
-        <View style={[st.deco, { width: 90, height: 90, top: 20, right: 24, opacity: 0.12 }]}/>
-        <View style={[st.deco, { width: 55, height: 55, top: 60, left: 10,  opacity: 0.10 }]}/>
-        <View style={[st.deco, { width: 40, height: 40, bottom: 30, right: 60, opacity: 0.08 }]}/>
-
-        {/* Avatar */}
-        <Avatar gender={profile?.gender}/>
-
-        {/* Age */}
-        <Text style={st.heroAge}>
-          {profile?.age ? `${profile.age} tuổi` : 'Chưa thiết lập'}
-        </Text>
-
-        {/* Diet + Activity pills */}
-        <View style={st.heroPills}>
-          {profile?.diet_type && (
-            <View style={st.heroPill}>
-              <Text style={st.heroPillText}>
-                🍽 {DIET_LABEL[profile.diet_type]}
-              </Text>
-            </View>
-          )}
-          {profile?.activity_level && (
-            <View style={[st.heroPill, { backgroundColor: 'rgba(168,213,181,0.65)' }]}>
-              <Text style={st.heroPillText}>
-                🏃 {ACTIVITY_LABEL[profile.activity_level]}
-              </Text>
-            </View>
-          )}
+          <View style={st.heroPills}>
+            {profile?.diet_type && (
+              <View style={st.heroPill}>
+                <ForkKnife weight="fill" size={14} color="#8B5E3C" />
+                <Text style={st.heroPillText}>{DIET_LABEL[profile.diet_type]}</Text>
+              </View>
+            )}
+            {profile?.activity_level && (
+              <View style={st.heroPill}>
+                <PersonSimpleRun weight="fill" size={14} color="#8B5E3C" />
+                <Text style={st.heroPillText}>{ACTIVITY_LABEL[profile.activity_level] || ACTIVITY_LABEL['lightly_active']}</Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        {/* Wavy bottom edge */}
-        <Svg width={SW} height={24} style={st.wave}>
-          <Path
-            d={`M0,8 Q${SW*.13},22 ${SW*.27},10 Q${SW*.41},0 ${SW*.55},12 Q${SW*.69},22 ${SW*.83},9 Q${SW*.91},2 ${SW},10 L${SW},24 L0,24 Z`}
-            fill={C.paper}/>
-        </Svg>
-      </ImageBackground>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
-
-        {/* ── Stats row ── */}
+        {/* ── Stats Row ── */}
         <View style={st.statsRow}>
-          <StatCard
-            emoji="⚖️" label="Cân nặng"
+          <WoodStatCard
+            IconComponent={Scales} label="Cân nặng"
             value={latestMetrics?.weight_kg ?? '–'} unit="kg"
-            color={C.statBlue}
+            hasValue={Boolean(latestMetrics?.weight_kg)}
+            accentColor="rgba(100,180,255,0.2)"
           />
-          <StatCard
-            emoji="📏" label="Chiều cao"
+          <WoodStatCard
+            IconComponent={Ruler} label="Chiều cao"
             value={latestMetrics?.height_cm ?? '–'} unit="cm"
-            color={C.woodDark}
+            hasValue={Boolean(latestMetrics?.height_cm)}
+            accentColor="rgba(160,220,130,0.2)"
           />
-          <StatCard
-            emoji="💡" label={bmiLabel}
+          <WoodStatCard
+            IconComponent={ChartBar} label={bmiLabel}
             value={bmi ?? '–'} unit=""
-            color={bmiColor}
+            hasValue={Boolean(bmi)}
+            accentColor="rgba(255,180,100,0.22)"
           />
         </View>
 
-        {/* ── Menu section ── */}
-        <SectionDivider label="hồ sơ của tôi"/>
+        {/* ── Settings Menu ── */}
+        <SectionHeader title="Thiết lập ⚙️🛠️" style={st.sectionHeader} titleStyle={st.sectionTitle} />
 
-        <View style={st.menuCard}>
-          <WobblyBorder width={SW - 32} height={menuItems.length * 73} color={C.wood} sw={2}/>
+        <View style={st.menuGroup}>
           {menuItems.map((item, i) => (
             <MenuItem
               key={item.label}
@@ -249,93 +230,149 @@ const ProfileScreen = ({ navigation }) => {
           ))}
         </View>
 
-        {/* ── Footer cat paw ── */}
         <View style={st.footer}>
-          <Text style={st.footerPaw}>🐾 🐾</Text>
+          <PawPrint weight="fill" size={24} color={C.border} style={{ opacity: 0.6, marginRight: 8 }} />
+          <PawPrint weight="fill" size={24} color={C.border} style={{ opacity: 0.3 }} />
         </View>
 
-        <View style={{ height: 36 }}/>
+        <View style={{ height: 40 }}/>
       </ScrollView>
-    </ImageBackground>
+    </ScreenBackground>
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────
 const st = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.paper },
+  scroll: { paddingHorizontal: 16 },
 
-  // ── Hero ──
-  hero:         { paddingTop: 52, paddingBottom: 0, alignItems: 'center',
-                  backgroundColor: C.skyBlue, overflow: 'hidden' },
-  deco:         { position: 'absolute', borderRadius: 999,
-                  backgroundColor: C.woodDark },
-  wave:         { marginTop: 8 },
-
+  // ── Header Section ──
+  headerSection: { alignItems: 'center', marginBottom: 28 },
+  
   // ── Avatar ──
-  avatarWrap:   { marginBottom: 10, alignItems: 'center', justifyContent: 'center' },
-  avatarGlow:   { position: 'absolute', width: 106, height: 106, borderRadius: 53,
-                  backgroundColor: 'rgba(200,169,126,0.25)' },
-  avatarRing:   { width: 92, height: 92, borderRadius: 46,
-                  backgroundColor: C.wood, justifyContent: 'center', alignItems: 'center',
-                  shadowColor: C.woodDeep, shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
-  avatarInner:  { width: 78, height: 78, borderRadius: 39,
-                  backgroundColor: C.white, justifyContent: 'center', alignItems: 'center' },
-  avatarEmoji:  { fontSize: 44 },
+  avatarWrap: { marginBottom: 16 },
+  avatarOuterRing: { 
+    width: 100, height: 100, borderRadius: 50,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 
+  },
+  avatarInner: { 
+    width: 92, height: 92, borderRadius: 46,
+    backgroundColor: '#FDFBFA', 
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: C.borderLight
+  },
 
-  // ── Hero text ──
-  heroAge:      { fontFamily: 'Patrick Hand', fontSize: 30, color: C.ink },
-  heroPills:    { flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 4,
-                  flexWrap: 'wrap', justifyContent: 'center', paddingHorizontal: 20 },
-  heroPill:     { backgroundColor: 'rgba(200,169,126,0.55)', borderRadius: 9999,
-                  paddingHorizontal: 14, paddingVertical: 6 },
-  heroPillText: { fontFamily: 'Nunito', fontSize: 13, color: C.ink, fontWeight: '700' },
+  // ── User Name & Pills ──
+  userName: { fontFamily: 'Nunito_700Bold', fontSize: 24, color: C.text, marginBottom: 14, textAlign: 'center' },
+  heroPills: { flexDirection: 'row', gap: 10, justifyContent: 'center', flexWrap: 'wrap', paddingHorizontal: 20 },
+  heroPill: { 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 999,
+    paddingHorizontal: 14, paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
+    borderWidth: 1, borderColor: C.borderLight
+  },
+  heroPillText: { fontFamily: 'Nunito_600SemiBold', fontSize: 13, color: C.textMid },
 
-  // ── Scroll ──
-  scroll: { paddingHorizontal: 16, paddingTop: 10 },
+  // ── Stats Row (Dark Wood) ──
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 32 },
+  woodCell: {
+    flex: 1,
+    height: 118,
+    borderRadius: 18, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(160,120,74,0.3)',
+    shadowColor: '#2A1500',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18, shadowRadius: 12, elevation: 7,
+  },
+  woodCellImg: { borderRadius: 18, opacity: 0.88 },
+  woodCellOverlay: {
+    backgroundColor: 'rgba(15,7,2,0.32)',
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingTop: 11,
+    paddingBottom: 13,
+    justifyContent: 'space-between',
+  },
+  woodIconBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+  },
+  woodDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,240,200,0.12)',
+    marginVertical: 7,
+    marginHorizontal: -2,
+  },
+  woodLabel: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 10,
+    color: '#FDF5E6',
+    opacity: 0.85,
+    letterSpacing: 0.6,
+  },
+  woodValCol: {
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+  },
+  woodVal: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 26,
+    color: '#FFF9EB',
+    letterSpacing: -0.5,
+    lineHeight: 32,
+  },
+  woodUnit: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 10,
+    color: '#FDF5E6',
+    opacity: 0.55,
+    marginTop: 1,
+    letterSpacing: 0.3,
+  },
+  woodAddRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingBottom: 4 },
+  woodAddText: { fontFamily: 'Nunito_700Bold', fontSize: 13, color: '#FDF5E6' },
 
-  // ── Stats row ──
-  statsRow:     { flexDirection: 'row', gap: 8, marginBottom: 8, marginTop: 4 },
-  statCard:     { flex: 1, backgroundColor: C.white, borderRadius: 18,
-                  paddingVertical: 12, alignItems: 'center',
-                  shadowColor: C.woodDark, shadowOffset: { width: 1, height: 3 },
-                  shadowOpacity: 0.09, shadowRadius: 5, elevation: 2 },
-  statEmoji:    { fontSize: 16, marginBottom: 2 },
-  statValue:    { fontFamily: 'Patrick Hand', fontSize: 22, lineHeight: 26 },
-  statUnit:     { fontFamily: 'Nunito', fontSize: 11, fontWeight: '700', opacity: 0.75 },
-  statLabel:    { fontFamily: 'Nunito', fontSize: 11, color: C.inkLight,
-                  fontWeight: '600', marginTop: 3, textAlign: 'center' },
+  // ── Section Header ──
+  sectionHeader: { marginBottom: 12, paddingHorizontal: 4 },
+  sectionTitle: { fontFamily: 'Nunito_700Bold', fontSize: 20, color: C.text },
 
-  // ── Section divider ──
-  sectionRow:   { flexDirection: 'row', alignItems: 'center',
-                  marginTop: 16, marginBottom: 12 },
-  sectionLine:  { flex: 1, height: 1, backgroundColor: C.dashed },
-  sectionBadge: { backgroundColor: C.paperDeep, borderRadius: 9999,
-                  paddingHorizontal: 14, paddingVertical: 5, marginHorizontal: 8 },
-  sectionText:  { fontFamily: 'Patrick Hand', fontSize: 14,
-                  color: C.inkLight, letterSpacing: 1 },
-
-  // ── Menu card ──
-  menuCard:     { backgroundColor: C.white, borderRadius: 22,
-                  paddingVertical: 4, paddingHorizontal: 16,
-                  shadowColor: C.woodDark, shadowOffset: { width: 2, height: 4 },
-                  shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
-
-  // ── Menu item ──
-  menuRow:      { flexDirection: 'row', alignItems: 'center',
-                  paddingVertical: 14 },
-  menuIconWrap: { width: 44, height: 44, borderRadius: 14,
-                  justifyContent: 'center', alignItems: 'center' },
-  menuIcon:     { fontSize: 22 },
-  menuTextWrap: { flex: 1, marginLeft: 12 },
-  menuLabel:    { fontFamily: 'Patrick Hand', fontSize: 17, color: C.ink },
-  menuSub:      { fontFamily: 'Nunito', fontSize: 12, color: C.inkLight,
-                  fontWeight: '600', marginTop: 2 },
-  menuDividerSvg: { marginLeft: 4, marginBottom: 2 },
+  // ── iOS Style Menu Group ──
+  menuGroup: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06, shadowRadius: 12, elevation: 3,
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)'
+  },
+  menuRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    minHeight: 68
+  },
+  menuIconWrap: { 
+    width: 36, height: 36, 
+    borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  menuTextWrap: { flex: 1, marginLeft: 14, justifyContent: 'center' },
+  menuLabel: { fontFamily: 'Nunito_700Bold', fontSize: 17, color: C.text, marginBottom: 2 },
+  menuSub: { fontFamily: 'Nunito_600SemiBold', fontSize: 13, color: '#8E8E93' },
+  menuDivider: { height: 1, backgroundColor: '#F2F2F7', marginLeft: 66 },
 
   // ── Footer ──
-  footer:       { alignItems: 'center', paddingTop: 20 },
-  footerPaw:    { fontSize: 20, opacity: 0.4 },
+  footer: { flexDirection: 'row', justifyContent: 'center', paddingTop: 40 },
 });
 
 export default ProfileScreen;

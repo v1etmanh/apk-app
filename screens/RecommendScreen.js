@@ -4,13 +4,6 @@ import {
   Image, ActivityIndicator, ImageBackground, StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  useFonts,
-  Nunito_400Regular,
-  Nunito_600SemiBold,
-  Nunito_700Bold,
-} from '@expo-google-fonts/nunito';
-import { Caveat_400Regular, Caveat_700Bold } from '@expo-google-fonts/caveat';
 import { api } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
 import {
@@ -19,56 +12,48 @@ import {
   getRecentDishIds, loadSessions, loadDishesBySession,
 } from '../utils/database';
 import LottieView from 'lottie-react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { C } from '../theme';
+import ScreenBackground from '../components/ui/ScreenBackground';
+import PaperCard from '../components/ui/PaperCard';
+import SectionHeader from '../components/ui/SectionHeader';
+import MetaChip from '../components/ui/MetaChip';
 
 // ── Assets ────────────────────────────────────────────────────────────────────
 const ASSETS = {
-  sky:   require('../assets/textures/sky_watercolor.png'),
   wood:  require('../assets/textures/wood_light.png'),
   paper: require('../assets/textures/paper_cream.png'),
-  line:require('../assets/textures/notebook_lines.png'),
-};
-
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const T = {
-  brown:        '#5C3A1E',
-  brownMid:     '#7A4E2D',
-  brownLight:   '#A0784A',
-  brownSoft:    'rgba(92,58,30,0.10)',
-  brownBorder:  'rgba(92,58,30,0.18)',
-  brownBorder2: 'rgba(92,58,30,0.30)',
-  cream:        '#F5EDD8',
-  creamDark:    '#EDE0C4',
-  gold:         '#C8860A',
-  goldSoft:     'rgba(200,134,10,0.15)',
-  goldBorder:   'rgba(200,134,10,0.40)',
-  green:        '#4A7C59',
-  greenSoft:    'rgba(74,124,89,0.15)',
-  orange:       '#C8601A',
-  red:          '#B84040',
-  sky:          '#7AABCA',
-  textPrimary:  '#3D2410',
-  textSecondary:'#7A5A3A',
-  textMuted:    'rgba(92,58,30,0.45)',
-  white:        '#FFFFFF',
-  white80:      'rgba(255,255,255,0.80)',
-  white60:      'rgba(255,255,255,0.60)',
-  white30:      'rgba(255,255,255,0.30)',
-  shadow:       'rgba(92,58,30,0.20)',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const scoreColor = (score) => {
   const p = score * 100;
-  if (p >= 85) return T.green;
-  if (p >= 70) return T.gold;
-  return T.brownLight;
+  if (p >= 85) return C.accentGreen || '#4A7C59';
+  if (p >= 70) return C.accentGold || '#C8860A';
+  return C.textSecondary || '#A0784A';
 };
 
 const LOADING_MSGS = [
-  'Đang tìm món ngon cho bạn...',
-  'Phân tích thời tiết hôm nay...',
-  'Chọn món phù hợp khẩu vị...',
-  'Sắp có gợi ý rồi nhé! 🍜',
+  {
+    eyebrow: 'ĐỀ XUẤT HÔM NAY',
+    title: 'Đang tuyển chọn món dành cho bạn',
+    detail: 'Hệ thống đang đối chiếu thời tiết, khẩu vị và nguyên liệu hiện có.',
+  },
+  {
+    eyebrow: 'PHÂN TÍCH NGỮ CẢNH',
+    title: 'Đọc vị thời tiết và nhịp ăn hôm nay',
+    detail: 'Ưu tiên những món hợp thời điểm, dễ ăn và đúng nhu cầu hiện tại.',
+  },
+  {
+    eyebrow: 'CÁ NHÂN HÓA GỢI Ý',
+    title: 'Tinh chỉnh theo khẩu vị riêng của bạn',
+    detail: 'Bộ lọc đang cân bằng sở thích, thời gian nấu và mức chi phí mong muốn.',
+  },
+  {
+    eyebrow: 'SẮP HOÀN TẤT',
+    title: 'Một danh sách gợi ý đẹp và hợp lý đang tới',
+    detail: 'Chỉ thêm một chút nữa để hiện ra những lựa chọn đáng thử nhất.',
+  },
 ];
 
 // ── Loading screen ────────────────────────────────────────────────────────────
@@ -79,8 +64,7 @@ const LoadingView = () => {
     return () => clearInterval(t);
   }, []);
   return (
-    <ImageBackground source={ASSETS.sky} style={{ flex: 1 }} resizeMode="cover">
-      <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.30)' }} />
+    <ScreenBackground texture="sky">
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <LottieView
           source={require('../assets/animations/food around the city.json')}
@@ -89,36 +73,27 @@ const LoadingView = () => {
           resizeMode="contain"
         />
         <ImageBackground source={ASSETS.wood} style={s.loadingCard} imageStyle={{ borderRadius: 20, opacity: 0.88 }} resizeMode="cover">
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 20, padding: 20, alignItems: 'center' }}>
-            <Text style={s.loadingText}>{LOADING_MSGS[idx]}</Text>
+          <View style={s.loadingCardInner}>
+            <Text style={s.loadingEyebrow}>{LOADING_MSGS[idx].eyebrow}</Text>
+            <Text style={s.loadingText}>{LOADING_MSGS[idx].title}</Text>
+            <Text style={s.loadingDetail}>{LOADING_MSGS[idx].detail}</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
               {LOADING_MSGS.map((_, i) => (
                 <View key={i} style={{
                   width: i === idx ? 20 : 6, height: 6, borderRadius: 3,
-                  backgroundColor: i === idx ? T.brown : T.brownSoft,
+                  backgroundColor: i === idx ? C.text : 'rgba(92,58,30,0.10)',
                   borderWidth: i === idx ? 0 : 0.5,
-                  borderColor: T.brownBorder,
+                  borderColor: C.border,
                 }} />
               ))}
             </View>
           </View>
         </ImageBackground>
       </View>
-    </ImageBackground>
+    </ScreenBackground>
   );
 };
 
-// ── Paper wrapper ─────────────────────────────────────────────────────────────
-const PaperCard = ({ children, style, borderColor }) => (
-  <ImageBackground
-    source={ASSETS.wood}
-    style={[s.paperCard, style, borderColor && { borderColor }]}
-    imageStyle={s.paperCardImg}
-    resizeMode="cover"
-  >
-    <View style={s.paperCardInner}>{children}</View>
-  </ImageBackground>
-);
 
 // ── Top dish card (rank 1–3, horizontal scroll) ───────────────────────────────
 const TopCard = ({ item, onPress }) => {
@@ -136,7 +111,7 @@ const TopCard = ({ item, onPress }) => {
           <View style={s.topImgWrap}>
             {item.image_url
               ? <Image source={{ uri: item.image_url }} style={s.topImg} resizeMode="cover" />
-              : <View style={[s.topImg, { backgroundColor: T.brownSoft, justifyContent: 'center', alignItems: 'center' }]}>
+              : <View style={[s.topImg, { backgroundColor: C.surfaceAlt, justifyContent: 'center', alignItems: 'center' }]}>
                   <Text style={{ fontSize: 44 }}>🍜</Text>
                 </View>}
 
@@ -157,21 +132,22 @@ const TopCard = ({ item, onPress }) => {
 
           {/* Body */}
           <View style={s.topBody}>
-            <Text style={s.topTitle} numberOfLines={2}>{item.title}</Text>
-            <View style={s.chipRow}>
-              <View style={s.chip}>
-                <Text style={s.chipText}>⏱ {item.cook_time_min}p</Text>
+            <View style={s.topPrimaryInfo}>
+              <Text style={s.topTitle} numberOfLines={2}>{item.title}</Text>
+              <View style={s.chipRow}>
+                <MetaChip 
+                  icon={<Ionicons name="time-outline" size={11} color={C.textMid}/>} 
+                  label={`${item.cook_time_min}p`} 
+                />
+                <MetaChip 
+                  variant="accent" 
+                  icon={<Ionicons name="star" size={11} color={C.accentGreen}/>} 
+                  label={`${(item.final_score * 100).toFixed(0)}%`} 
+                />
+                {item.nation && (
+                  <MetaChip label={item.nation} />
+                )}
               </View>
-              <View style={[s.chip, { backgroundColor: T.greenSoft, borderColor: 'rgba(74,124,89,0.30)' }]}>
-                <Text style={[s.chipText, { color: T.green, fontFamily: 'Nunito_700Bold' }]}>
-                  ★ {(item.final_score * 100).toFixed(0)}%
-                </Text>
-              </View>
-              {item.nation && (
-                <View style={s.chip}>
-                  <Text style={s.chipText}>{item.nation}</Text>
-                </View>
-              )}
             </View>
             {item.explanation?.[0] && (
               <Text style={s.topHint} numberOfLines={2}>{item.explanation[0]}</Text>
@@ -197,7 +173,7 @@ const ListRow = ({ item, onPress }) => (
         <View style={s.rowImgWrap}>
           {item.image_url
             ? <Image source={{ uri: item.image_url }} style={s.rowImg} resizeMode="cover" />
-            : <View style={[s.rowImg, { backgroundColor: T.brownSoft, justifyContent: 'center', alignItems: 'center' }]}>
+            : <View style={[s.rowImg, { backgroundColor: C.surfaceAlt, justifyContent: 'center', alignItems: 'center' }]}>
                 <Text style={{ fontSize: 24 }}>🍜</Text>
               </View>}
           {/* Rank pill on image */}
@@ -209,19 +185,29 @@ const ListRow = ({ item, onPress }) => (
         {/* Content */}
         <View style={s.rowContent}>
           <Text style={s.rowTitle} numberOfLines={1}>{item.title}</Text>
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 4, alignItems: 'center' }}>
-            <Text style={s.rowMeta}>⏱ {item.cook_time_min}p</Text>
-            <Text style={[s.rowMeta, { color: scoreColor(item.final_score), fontFamily: 'Nunito_700Bold' }]}>
-              ★ {(item.final_score * 100).toFixed(0)}%
-            </Text>
-            {item.nation && <Text style={s.rowMeta}>{item.nation}</Text>}
+          <View style={s.rowMetaRow}>
+            <View style={s.rowMetaItem}>
+              <Ionicons name="time-outline" size={11} color={C.textLight} />
+              <Text style={s.rowMetaText}>{item.cook_time_min}p</Text>
+            </View>
+            <View style={[s.rowMetaItem, { backgroundColor: 'rgba(56, 176, 122, 0.08)', paddingHorizontal: 6, borderRadius: 6 }]}>
+              <Ionicons name="star" size={11} color={C.accentGreen} />
+              <Text style={[s.rowMetaText, { color: C.accentGreen, fontFamily: 'Nunito_700Bold' }]}>
+                {(item.final_score * 100).toFixed(0)}%
+              </Text>
+            </View>
+            {item.nation && (
+              <View style={s.rowMetaItem}>
+                <Text style={s.rowMetaText}>{item.nation}</Text>
+              </View>
+            )}
           </View>
           {item.explanation?.[0] && (
             <Text style={s.rowHint} numberOfLines={1}>{item.explanation[0]}</Text>
           )}
         </View>
 
-        <Text style={s.rowChevron}>›</Text>
+        <Ionicons name="chevron-forward" size={20} color={C.textLight} style={{ paddingRight: 12 }} />
       </View>
     </ImageBackground>
   </TouchableOpacity>
@@ -230,17 +216,12 @@ const ListRow = ({ item, onPress }) => (
 // ─────────────────────────────────────────────────────────────────────────────
 const RecommendScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
-  const { searchParams } = route.params || {};
+  const { searchParams = {} } = route.params || {};
   const [dishes, setDishes]        = useState([]);
   const [isLoading, setIsLoading]  = useState(true);
   const [visibleCount, setVisible] = useState(10);
   const [error, setError]          = useState(null);
   const { setCurrentSessionId }    = useAppStore();
-
-  const [fontsLoaded] = useFonts({
-    Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold,
-    Caveat_400Regular, Caveat_700Bold,
-  });
 
   useEffect(() => { fetchRecommendations(); }, []);
 
@@ -276,13 +257,15 @@ const RecommendScreen = ({ navigation, route }) => {
   };
 
   const persistSession = async (result, params) => {
+    const safeParams = params || {};
     try {
       const sid = await saveSession({
         created_at: new Date().toISOString(),
-        lat: params.lat, lon: params.lon,
-        province: params.location?.province || '',
-        cuisine_scope: params.cuisine_scope,
-        basket_skipped: params.market_basket?.is_skipped ? 1 : 0,
+        lat: safeParams.lat ?? null,
+        lon: safeParams.lon ?? null,
+        province: safeParams.location?.province || '',
+        cuisine_scope: safeParams.cuisine_scope || '',
+        basket_skipped: safeParams.market_basket?.is_skipped ? 1 : 0,
       });
       setCurrentSessionId(sid);
       if (result.ranked_dishes?.length) {
@@ -299,11 +282,9 @@ const RecommendScreen = ({ navigation, route }) => {
 
   const weather = searchParams?.weather;
   const weatherPill = weather ? `${weather.temperature}°C · ${weather.condition || ''}` : null;
-  const filterPill = [
-    searchParams?.cuisine_scope === 'global' ? '🌍 Toàn cầu' : '🇻🇳 Việt Nam',
-    searchParams?.dish_type_filter === 'soup'      ? '🥣 Canh' :
-    searchParams?.dish_type_filter === 'main_dish' ? '🍖 Món mặn' : '🍽️ Tất cả',
-  ].join(' · ');
+  const cuisineLabel = searchParams?.cuisine_scope === 'global' ? 'Toàn cầu' : 'Việt Nam';
+  const typeLabel = searchParams?.dish_type_filter === 'soup'      ? 'Canh' :
+                    searchParams?.dish_type_filter === 'main_dish' ? 'Món mặn' : 'Tất cả';
 
   if (isLoading) {
     return (
@@ -316,8 +297,7 @@ const RecommendScreen = ({ navigation, route }) => {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <ImageBackground source={ASSETS.sky} style={{ flex: 1 }} resizeMode="cover">
-      <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.28)' }} />
+    <ScreenBackground texture="sky" edges={['bottom']}>
       <StatusBar barStyle="dark-content" />
 
       {/* ── Header (paper strip) ── */}
@@ -328,28 +308,64 @@ const RecommendScreen = ({ navigation, route }) => {
         resizeMode="cover"
       >
         <View style={s.headerInner}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-            <Text style={s.backText}>← Quay lại</Text>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={[s.headerAction, s.backBtn]}
+            activeOpacity={0.78}
+            accessibilityRole="button"
+            accessibilityLabel="Quay lai"
+          >
+            <Ionicons name="chevron-back" size={18} color={C.textMid} />
+            <Text style={s.backText}> Quay lại</Text>
           </TouchableOpacity>
           <Text style={s.headerTitle}>Gợi ý món ăn</Text>
-          <TouchableOpacity onPress={fetchRecommendations} style={s.refreshBtn}>
-            <Text style={s.refreshText}>Làm mới</Text>
+          <TouchableOpacity
+            onPress={fetchRecommendations}
+            style={[s.headerAction, s.refreshBtn]}
+            activeOpacity={0.78}
+            accessibilityRole="button"
+            accessibilityLabel="Lam moi goi y mon an"
+          >
+            <Ionicons name="refresh" size={17} color={C.accentGold} />
+            <Text style={s.refreshText}> Làm mới</Text>
           </TouchableOpacity>
         </View>
 
         {/* Context pills */}
         <View style={s.pillRow}>
           {weatherPill && (
-            <View style={s.pill}>
-              <Text style={s.pillText}>☀️ {weatherPill}</Text>
-            </View>
+            <MetaChip 
+              icon={<Ionicons name="sunny-outline" size={13} color={C.accentGold}/>} 
+              label={weatherPill}
+              style={s.headerChip}
+            />
           )}
-          <View style={s.pill}>
-            <Text style={s.pillText}>{filterPill}</Text>
-          </View>
-          <View style={[s.pill, { backgroundColor: T.greenSoft, borderColor: 'rgba(74,124,89,0.25)' }]}>
-            <Text style={[s.pillText, { color: T.green }]}>🍽️ {dishes.length} gợi ý</Text>
-          </View>
+          <MetaChip 
+            icon={
+              searchParams?.cuisine_scope === 'global'
+                ? <Ionicons name="earth" size={12} color={C.accentBlue} />
+                : <Ionicons name="flag" size={12} color={C.accentRed} />
+            }
+            label={cuisineLabel} 
+            style={s.headerChip}
+          />
+          <MetaChip 
+            icon={
+              searchParams?.dish_type_filter === 'soup'
+                ? <Ionicons name="water-outline" size={12} color={C.accentBlue} />
+                : searchParams?.dish_type_filter === 'main_dish'
+                  ? <Ionicons name="restaurant-outline" size={12} color={C.amber} />
+                  : <Ionicons name="grid-outline" size={12} color={C.textMid} />
+            }
+            label={typeLabel} 
+            style={s.headerChip}
+          />
+          <View style={{ flex: 1 }} />
+          <MetaChip 
+            variant="accent" 
+            label={`${dishes.length} gợi ý`} 
+            style={s.resultChip}
+          />
         </View>
       </ImageBackground>
 
@@ -365,12 +381,11 @@ const RecommendScreen = ({ navigation, route }) => {
         {/* ── Top 3 horizontal scroll ── */}
         {dishes.length > 0 && (
           <>
-            <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>✨ Gợi ý hàng đầu</Text>
-            </View>
+            <SectionHeader title="✨ Gợi ý hàng đầu" />
+
             <ScrollView
               horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingLeft: 16, paddingRight: 8, gap: 12, paddingBottom: 4 }}
+              contentContainerStyle={{ paddingLeft: 24, paddingRight: 12, gap: 16, paddingBottom: 8 }}
             >
               {dishes.slice(0, 3).map(item => (
                 <TopCard
@@ -386,9 +401,7 @@ const RecommendScreen = ({ navigation, route }) => {
         {/* ── List rows rank 4+ ── */}
         {dishes.length > 3 && (
           <View style={{ marginTop: 16 }}>
-            <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>Gợi ý khác</Text>
-            </View>
+            <SectionHeader title="Gợi ý khác" />
             {dishes.slice(3, visibleCount).map(item => (
               <ListRow
                 key={item.dish_id || item.rank}
@@ -427,7 +440,7 @@ const RecommendScreen = ({ navigation, route }) => {
           </View>
         )}
       </ScrollView>
-    </ImageBackground>
+    </ScreenBackground>
   );
 };
 
@@ -435,101 +448,147 @@ const RecommendScreen = ({ navigation, route }) => {
 const s = StyleSheet.create({
   // Header
   header: {
-    borderBottomWidth: 1, borderBottomColor: T.brownBorder,
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 3 },
+    borderBottomWidth: 1, borderBottomColor: C.borderLight,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 1, shadowRadius: 8, elevation: 4,
   },
   headerInner: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 10,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    position: 'relative',
   },
-  backBtn:    { paddingVertical: 4, paddingRight: 12 },
+  headerAction: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(92,58,30,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.42)',
+  },
+  backBtn: {
+    paddingLeft: 10,
+    paddingRight: 12,
+  },
   backText: {
-    fontFamily: 'Nunito_600SemiBold', fontSize: 14, color: T.brownMid,
+    fontFamily: 'Nunito_700Bold', fontSize: 13, color: C.textMid,
   },
   headerTitle: {
-    fontFamily: 'Nunito_700Bold', fontSize: 17, color: T.textPrimary,
+    position: 'absolute',
+    left: 112,
+    right: 112,
+    bottom: 20,
+    textAlign: 'center',
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 18,
+    color: C.text,
   },
-  refreshBtn:  { paddingVertical: 4, paddingLeft: 12 },
+  refreshBtn: {
+    paddingLeft: 12,
+    paddingRight: 12,
+  },
   refreshText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 13, color: T.gold,
+    fontFamily: 'Nunito_700Bold', fontSize: 13, color: C.accentGold,
   },
 
   // Pills
   pillRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
-    paddingHorizontal: 16, paddingBottom: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 24, paddingBottom: 16, paddingTop: 4,
   },
-  pill: {
-    backgroundColor: T.brownSoft,
-    borderWidth: 0.5, borderColor: T.brownBorder,
-    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+  headerChip: {
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderColor: 'rgba(92,58,30,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
   },
-  pillText: {
-    fontFamily: 'Caveat_400Regular', fontSize: 13, color: T.textSecondary,
+  resultChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(56, 176, 122, 0.12)',
+    borderColor: 'rgba(56, 176, 122, 0.25)',
   },
 
   // Offline
   offlineBanner: {
     backgroundColor: 'rgba(200,134,10,0.12)',
     paddingHorizontal: 16, paddingVertical: 8,
-    borderBottomWidth: 0.5, borderBottomColor: T.goldBorder,
+    borderBottomWidth: 0.5, borderBottomColor: C.border,
   },
   offlineText: {
-    fontFamily: 'Nunito_600SemiBold', fontSize: 12, color: T.gold,
+    fontFamily: 'Nunito_600SemiBold', fontSize: 12, color: C.accentGold,
   },
 
   // Section
-  sectionHeader: { paddingHorizontal: 16, marginTop: 16, marginBottom: 10 },
   sectionTitle: {
-    fontFamily: 'Nunito_700Bold', fontSize: 17, color: T.textPrimary,
+    fontFamily: 'Nunito_700Bold', fontSize: 17, color: C.text,
   },
 
   // Loading card
   loadingCard: {
     borderRadius: 20, overflow: 'hidden', marginTop: 12,
     marginHorizontal: 32,
-    borderWidth: 1, borderColor: T.brownBorder,
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 4 },
+    borderWidth: 1, borderColor: C.border,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1, shadowRadius: 10, elevation: 4,
+  },
+  loadingCardInner: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 20,
+    paddingHorizontal: 22,
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  loadingEyebrow: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 10,
+    color: C.textLight,
+    letterSpacing: 1.4,
+    marginBottom: 8,
   },
   loadingText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 16,
-    color: T.textPrimary, textAlign: 'center',
+    fontFamily: 'Nunito_700Bold', fontSize: 19,
+    color: C.text, textAlign: 'center',
+    lineHeight: 25,
   },
-
-  // Paper card base
-  paperCard: {
-    borderRadius: 18, overflow: 'hidden',
-    borderWidth: 1, borderColor: T.brownBorder,
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1, shadowRadius: 10, elevation: 4,
+  loadingDetail: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 13,
+    color: C.textMid,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginTop: 8,
   },
-  paperCardImg:   { borderRadius: 18, opacity: 0.88 },
-  paperCardInner: { backgroundColor: 'rgba(255,255,255,0.22)', padding: 14 },
 
   // Top card
   topCard: {
-    width: 220, borderRadius: 22, overflow: 'hidden',
-    borderWidth: 1, borderColor: T.brownBorder,
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 1, shadowRadius: 12, elevation: 6,
+    width: 240, borderRadius: 24, overflow: 'hidden',
+    borderWidth: 1, borderColor: C.borderLight,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1, shadowRadius: 14, elevation: 6,
   },
   topCardFirst: {
-    width: 240, borderWidth: 1.5, borderColor: T.goldBorder,
+    width: 260, borderWidth: 1.5, borderColor: 'rgba(200,134,10,0.3)',
   },
-  topCardImg: { borderRadius: 22, opacity: 0.88 },
-  topImgWrap: { height: 148, position: 'relative' },
+  topCardImg: { borderRadius: 24, opacity: 0.88 },
+  topImgWrap: { height: 160, position: 'relative' },
   topImg:     { width: '100%', height: '100%' },
 
   rankStamp: {
     position: 'absolute', top: 10, left: 10,
     borderRadius: 14, overflow: 'hidden',
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 1, shadowRadius: 4, elevation: 3,
   },
   rankText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 12, color: T.white,
+    fontFamily: 'Nunito_700Bold', fontSize: 12, color: '#FFFFFF',
   },
   boostBadge: {
     position: 'absolute', top: 10, right: 10,
@@ -537,34 +596,43 @@ const s = StyleSheet.create({
     borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3,
   },
   boostText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 10, color: T.white,
+    fontFamily: 'Nunito_700Bold', fontSize: 10, color: '#FFFFFF',
   },
-  topBody: { padding: 14 },
+  topBody: { 
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    height: 154,
+    justifyContent: 'space-between',
+  },
+  topPrimaryInfo: {
+    minHeight: 78,
+    justifyContent: 'flex-start',
+  },
   topTitle: {
-    fontFamily: 'Nunito_700Bold', fontSize: 15,
-    color: T.textPrimary, lineHeight: 20,
+    fontFamily: 'Nunito_700Bold', fontSize: 16,
+    color: C.text, lineHeight: 22,
+    minHeight: 44,
   },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 8 },
-  chip: {
-    backgroundColor: T.brownSoft,
-    borderWidth: 0.5, borderColor: T.brownBorder,
-    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3,
-  },
-  chipText: {
-    fontFamily: 'Nunito_600SemiBold', fontSize: 11, color: T.textSecondary,
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+    alignItems: 'center',
   },
   topHint: {
-    fontFamily: 'Caveat_400Regular', fontSize: 13,
-    color: T.textMuted, marginTop: 8, lineHeight: 18,
+    fontFamily: 'Caveat_400Regular', fontSize: 14,
+    color: C.textMid, marginTop: 12, lineHeight: 18,
   },
 
   // List row
   row: {
-    marginHorizontal: 16, marginBottom: 8,
-    borderRadius: 18, overflow: 'hidden',
-    borderWidth: 1, borderColor: T.brownBorder,
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1, shadowRadius: 8, elevation: 3,
+    marginHorizontal: 24, marginBottom: 12,
+    borderRadius: 20, overflow: 'hidden',
+    borderWidth: 1, borderColor: C.borderLight,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1, shadowRadius: 10, elevation: 3,
   },
   rowImg2:  { borderRadius: 18, opacity: 0.88 },
   rowInner: {
@@ -579,45 +647,52 @@ const s = StyleSheet.create({
     borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1,
   },
   rowRankText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 10, color: T.white,
+    fontFamily: 'Nunito_700Bold', fontSize: 10, color: '#FFFFFF',
   },
-  rowContent: { flex: 1, paddingHorizontal: 12, paddingVertical: 10 },
+  rowContent: { flex: 1, paddingHorizontal: 16, paddingVertical: 14 },
   rowTitle: {
-    fontFamily: 'Nunito_700Bold', fontSize: 14, color: T.textPrimary,
+    fontFamily: 'Nunito_700Bold', fontSize: 15, color: C.text,
   },
-  rowMeta: {
-    fontFamily: 'Nunito_400Regular', fontSize: 11, color: T.textMuted,
+  rowMetaRow: {
+    flexDirection: 'row', 
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 6,
+  },
+  rowMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  rowMetaText: {
+    fontFamily: 'Nunito_600SemiBold', fontSize: 12, color: C.textMid,
   },
   rowHint: {
-    fontFamily: 'Caveat_400Regular', fontSize: 13,
-    color: T.textSecondary, marginTop: 3,
-  },
-  rowChevron: {
-    fontFamily: 'Nunito_400Regular',
-    fontSize: 22, color: T.brownLight, paddingRight: 12,
+    fontFamily: 'Caveat_400Regular', fontSize: 14,
+    color: C.textSecondary, marginTop: 6,
   },
 
   // Load more / retry
   loadMoreBtn: {
-    marginHorizontal: 16, marginTop: 8,
-    borderRadius: 18, overflow: 'hidden',
-    borderWidth: 1, borderColor: T.brownBorder2,
-    shadowColor: T.shadow, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1, shadowRadius: 6, elevation: 3,
+    marginHorizontal: 24, marginTop: 12,
+    borderRadius: 20, overflow: 'hidden',
+    borderWidth: 1, borderColor: C.borderLight,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1, shadowRadius: 8, elevation: 3,
   },
   loadMoreText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 14, color: T.brown,
+    fontFamily: 'Nunito_700Bold', fontSize: 15, color: C.text,
   },
   retryBtn: {
     borderRadius: 18, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(160,120,74,0.40)',
   },
   retryText: {
-    fontFamily: 'Nunito_700Bold', fontSize: 15, color: T.white,
+    fontFamily: 'Nunito_700Bold', fontSize: 15, color: '#FFFFFF',
   },
   emptyMeta: {
     fontFamily: 'Caveat_400Regular', fontSize: 15,
-    color: T.textMuted, marginTop: 6,
+    color: C.textMid, marginTop: 6,
   },
 });
 

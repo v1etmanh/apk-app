@@ -1,58 +1,83 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Modal, Linking, Image, ActivityIndicator, StatusBar,
+  Modal, Linking, Image, ActivityIndicator, StatusBar, Animated, ImageBackground, Dimensions
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../services/api';
 import { saveFeedback, loadSessions } from '../utils/database';
-import { C, R, F, shadow } from '../theme';
+import { C, shadow } from '../theme';
+import MetaChip from '../components/ui/MetaChip';
+import PaperCard from '../components/ui/PaperCard';
+import SectionHeader from '../components/ui/SectionHeader';
+import ScreenBackground from '../components/ui/ScreenBackground';
+
+const { width } = Dimensions.get('window');
+const HERO_HEIGHT = 320;
+
+const ASSETS = {
+  wood: require('../assets/textures/wood_light.png'),
+  paper: require('../assets/textures/paper_cream.png'),
+};
+
+const explanationConfig = [
+  { key: "weather_reason", label: "Thời tiết", icon: "partly-sunny-outline", color: C.accentGold || '#C8860A' },
+  { key: "dish_match", label: "Phù hợp món", icon: "restaurant-outline", color: C.accentBlue || '#3498DB' },
+  { key: "nutrition_note", label: "Dinh dưỡng", icon: "leaf-outline", color: C.accentGreen || '#38B07A' },
+  { key: "ingredient_note", label: "Nguyên liệu", icon: "basket-outline", color: '#A78BFA' },
+  { key: "seasonal_note", label: "Mùa vụ", icon: "calendar-outline", color: '#EC4899' },
+  { key: "tags", label: "Đặc điểm", icon: "pricetag-outline", color: C.textMid },
+];
 
 const DishDetailScreen = ({ route, navigation }) => {
   const { dish } = route.params;
+  const insets = useSafeAreaInsets();
+  const scrollY = useRef(new Animated.Value(0)).current;
+
   const [ratingModalVisible, setRatingModalVisible] = useState(false);
   const [selectedRating, setSelectedRating]         = useState(0);
   const [ingredients, setIngredients]               = useState([]);
   const [loadingDetail, setLoadingDetail]           = useState(true);
 
   useEffect(() => { loadDetail(); }, []);
-const explanationList = []
+
   const loadDetail = async () => {
     try {
       const dishId = dish.dish_id || dish.id;
       if (!dishId) return;
       const res = await api.get(`/api/v1/dishes/${dishId}`);
       setIngredients(res.data.ingredients || []);
-      
     } catch (e) { console.error('loadDetail:', e); }
     finally { setLoadingDetail(false); }
   };
-const explanationConfig = [
-  { key: "weather_reason", label: "🌦️ Thời tiết" },
-  { key: "dish_match", label: "🍽️ Phù hợp món" },
-  { key: "nutrition_note", label: "🥗 Dinh dưỡng" },
-  { key: "ingredient_note", label: "🧄 Nguyên liệu" },
-  { key: "seasonal_note", label: "🌱 Mùa vụ" },
-   { key: "tags", label: "🏷️ Tags" },
-]
 
   const handleFeedback = async (action, rating = null) => {
     try {
       const sessions = await loadSessions(1);
       if (sessions.length > 0) {
-        await saveFeedback({ session_id:sessions[0].id, dish_id:dish.dish_id||dish.id,
-          action, rating, feedback_at:new Date().toISOString() });
+        await saveFeedback({
+          session_id: sessions[0].id, dish_id: dish.dish_id || dish.id,
+          action, rating, feedback_at: new Date().toISOString()
+        });
       }
       if (action === 'rated') setRatingModalVisible(false);
     } catch (e) { console.error('handleFeedback:', e); }
   };
 
-  const ScoreBar = ({ label, value, color='#4ADE80' }) => (
-    <View style={s.barRow}>
-      <Text style={s.barLabel}>{label}</Text>
-      <View style={s.barTrack}>
-        <View style={[s.barFill, { width:`${Math.min(100,Math.round((value||0)*100))}%`, backgroundColor:color }]} />
+  // Metric Card for Scores
+  const MetricCard = ({ label, value, color, icon }) => (
+    <View style={s.metricCard}>
+      <View style={[s.metricIconWrap, { backgroundColor: color + '15' }]}>
+        <Ionicons name={icon} size={16} color={color} />
       </View>
-      <Text style={s.barVal}>{Math.round((value||0)*100)}%</Text>
+      <View style={s.metricInfo}>
+        <Text style={s.metricLabel}>{label}</Text>
+        <View style={s.metricTrack}>
+          <View style={[s.metricFill, { width: `${Math.min(100, Math.round((value || 0) * 100))}%`, backgroundColor: color }]} />
+        </View>
+      </View>
+      <Text style={[s.metricVal, { color: color }]}>{Math.round((value || 0) * 100)}%</Text>
     </View>
   );
 
@@ -60,90 +85,156 @@ const explanationConfig = [
   const mainIngredients = ingredients.filter(i => i.is_main);
   const sideIngredients = ingredients.filter(i => !i.is_main);
 
+  // Header Animations
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, HERO_HEIGHT - 100, HERO_HEIGHT - 50],
+    outputRange: [0, 0, 1],
+    extrapolate: 'clamp',
+  });
+  
+  const heroScale = scrollY.interpolate({
+    inputRange: [-100, 0],
+    outputRange: [1.2, 1],
+    extrapolate: 'clamp',
+  });
+
   return (
-    <View style={{ flex:1, backgroundColor:'#FFFFF0' }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      {/* Nav — cố định ngoài ScrollView */}
-      <View style={s.navBar}>
-        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={s.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={s.navTitle} numberOfLines={1}>{dish.title}</Text>
-        <View style={{ width:44 }} />
-      </View>
-      <ScrollView style={s.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:40 }}>
-        {/* Hero */}
-        {dish.image_url
-          ? <Image source={{ uri:dish.image_url }} style={s.heroBanner} resizeMode="cover" />
-          : <View style={[s.heroBanner, { backgroundColor:'#EFF6FF', justifyContent:'center', alignItems:'center' }]}>
-              <Text style={{ fontSize:80 }}>🍜</Text>
+    <ImageBackground 
+      source={ASSETS.paper} 
+      style={s.container} 
+      resizeMode="cover"
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      
+      {/* ── Floating Header ────────────────────────────────────────── */}
+      <Animated.View style={[s.floatingHeader, { paddingTop: insets.top + 8, opacity: headerOpacity }]}>
+        <ImageBackground source={ASSETS.paper} style={StyleSheet.absoluteFill} imageStyle={{ opacity: 0.95 }} resizeMode="cover" />
+        <View style={s.headerInner}>
+          <Text style={s.headerTitle} numberOfLines={1}>{dish.title}</Text>
+        </View>
+      </Animated.View>
+      
+      {/* Back Button Overlay */}
+      <TouchableOpacity 
+        style={[s.backBtnOverlay, { top: insets.top + 8 }]} 
+        onPress={() => navigation.goBack()}
+        activeOpacity={0.8}
+      >
+        <View style={s.backBtnBlur}>
+          <Ionicons name="arrow-back" size={20} color={C.text} />
+        </View>
+      </TouchableOpacity>
+
+      <Animated.ScrollView 
+        showsVerticalScrollIndicator={false}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+        scrollEventThrottle={16}
+        contentContainerStyle={[
+          s.scrollContent,
+          { paddingBottom: 60 + insets.bottom }
+        ]}
+        style={s.scrollView}
+      >
+        {/* ── Hero Parallax ────────────────────────────────────────── */}
+        <Animated.View style={[s.heroContainer, { transform: [{ scale: heroScale }] }]}>
+          {dish.image_url ? (
+            <Image source={{ uri: dish.image_url }} style={s.heroImage} resizeMode="cover" />
+          ) : (
+            <View style={[s.heroImage, { backgroundColor: C.surfaceAlt, justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ fontSize: 80 }}>🍜</Text>
             </View>
-        }
+          )}
+          {/* Gradient Overlay for text readability */}
+          <View style={s.heroGradient} />
+        </Animated.View>
 
-        <View style={s.content}>
-          <Text style={s.title}>{dish.title}</Text>
-          <View style={s.metaRow}>
-            {[
-              `🌏 ${dish.nation || 'Việt Nam'}`,
-              `⏱ ${dish.cook_time_min} phút`,
-              `⭐ ${((dish.final_score||0)*100).toFixed(0)}%`,
-            ].map((t) => (
-              <View key={t} style={s.chip}><Text style={s.chipText}>{t}</Text></View>
-            ))}
+        {/* ── Content ──────────────────────────────────────────────── */}
+        <View style={s.contentContainer}>
+          
+          {/* ── Title & Meta Stats Card ── */}
+          <View style={s.titleCard}>
+            <ImageBackground source={ASSETS.paper} style={s.titleCardBg} imageStyle={{ borderRadius: 24, opacity: 0.95 }} resizeMode="cover">
+              <View style={s.titleCardInner}>
+                <Text style={s.mainTitle}>{dish.title}</Text>
+                <View style={s.metaChipsRow}>
+                  <MetaChip icon={<Ionicons name="time-outline" size={13} color={C.textMid}/>} label={`${dish.cook_time_min}p`} style={s.chipSpacing} />
+                  <MetaChip icon={<Ionicons name="earth" size={13} color={C.accentBlue}/>} label={dish.nation || 'Việt Nam'} style={s.chipSpacing} />
+                  <MetaChip variant="accent" icon={<Ionicons name="star" size={13} color={C.accentGreen}/>} label={`${((dish.final_score||0)*100).toFixed(0)}%`} style={s.chipSpacing} />
+                </View>
+              </View>
+            </ImageBackground>
           </View>
 
-          {/* Lý do gợi ý */}
+          {/* ── Why Recommended (Expert Note) ── */}
+          {dish.explanation && Object.keys(dish.explanation).length > 0 && (
+            <View style={s.section}>
+              <SectionHeader title="Ghi chú từ bếp" icon="document-text-outline" />
+              <PaperCard priority="primary" innerStyle={{ padding: 18 }}>
+                {explanationConfig.map(({ key, label, icon, color }) => {
+                  const value = dish?.explanation?.[key];
+                  if (!value) return null;
+                  return (
+                    <View key={key} style={s.noteRow}>
+                      <View style={[s.noteIconBox, { backgroundColor: color + '15' }]}>
+                        <Ionicons name={icon} size={14} color={color} />
+                      </View>
+                      <View style={s.noteTextWrap}>
+                        <Text style={[s.noteLabel, { color }]}>{label}</Text>
+                        <Text style={s.noteText}>{value}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </PaperCard>
+            </View>
+          )}
+
+          {/* ── Score Breakdown ── */}
           <View style={s.section}>
-         <Text style={s.sectionTitle}>🌟 Tại sao được gợi ý</Text>
-
-{explanationConfig.map(({ key, label }) => {
-  const value = dish?.explanation?.[key]
-  if (!value) return null
-
-  return (
-    <Text key={key} style={s.explanationItem}>
-      • {label}: {value}
-    </Text>
-  )
-})}
-
+            <SectionHeader title="Phân tích độ phù hợp" icon="analytics-outline" />
+            <PaperCard innerStyle={{ padding: 16, gap: 12 }}>
+              <MetricCard label="Tổng thể" value={dish.final_score} color={C.accentGreen || '#38B07A'} icon="checkmark-circle" />
+              {breakdown.hydration > 0 && <MetricCard label="Cấp nước" value={breakdown.hydration} color={C.accentBlue || '#3498DB'} icon="water" />}
+              {breakdown.warming   > 0 && <MetricCard label="Giữ ấm" value={breakdown.warming} color={C.accentGold || '#F59E0B'} icon="thermometer" />}
+              {breakdown.cooling   > 0 && <MetricCard label="Làm mát" value={breakdown.cooling} color="#2DD4BF" icon="snow" />}
+              {breakdown.boost     > 0 && <MetricCard label="Nguyên liệu có sẵn" value={breakdown.boost} color="#A78BFA" icon="basket" />}
+            </PaperCard>
           </View>
 
-          {/* Score */}
+          {/* ── Ingredients Pantry ── */}
           <View style={s.section}>
-            <Text style={s.sectionTitle}>📊 Điểm phù hợp</Text>
-            <ScoreBar label="Tổng thể"   value={dish.final_score}      color="#60A5FA" />
-            {breakdown.hydration > 0 && <ScoreBar label="Hydration"   value={breakdown.hydration} color="#0EA5E9" />}
-            {breakdown.warming   > 0 && <ScoreBar label="Giữ ấm"      value={breakdown.warming}   color="#FBBF24" />}
-            {breakdown.cooling   > 0 && <ScoreBar label="Làm mát"     value={breakdown.cooling}   color="#4ADE80" />}
-            {breakdown.boost     > 0 && <ScoreBar label="Nguyên liệu" value={breakdown.boost}     color="#A78BFA" />}
-          </View>
-
-          {/* Ingredients */}
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>🛒 Nguyên liệu</Text>
+            <SectionHeader title="Tủ nguyên liệu" icon="cart-outline" />
+            
             {loadingDetail ? (
-              <ActivityIndicator color="#60A5FA" style={{ marginVertical:12 }} />
+              <ActivityIndicator color={C.primary} style={{ marginVertical: 20 }} />
             ) : ingredients.length === 0 ? (
-              <Text style={s.noData}>Không có dữ liệu nguyên liệu 😅</Text>
+              <View style={s.emptyState}>
+                <Ionicons name="fast-food-outline" size={32} color={C.border} />
+                <Text style={s.emptyText}>Chưa có thông tin nguyên liệu</Text>
+              </View>
             ) : (
-              <>
+              <View style={s.pantryContainer}>
                 {mainIngredients.length > 0 && (
-                  <>
-                    <Text style={s.ingGroupTitle}>Nguyên liệu chính</Text>
+                  <View style={s.pantryGroup}>
+                    <Text style={s.pantryTitle}>Nguyên liệu chính</Text>
                     <View style={s.ingGrid}>
                       {mainIngredients.map(ing => (
-                        <View key={ing.id} style={s.ingChip}>
-                          <Text style={s.ingText}>{ing.name}</Text>
-                          {ing.quantity_g > 0 && <Text style={s.ingQty}>{ing.quantity_g}g</Text>}
+                        <View key={ing.id} style={s.ingChipMain}>
+                          <Text style={s.ingTextMain}>{ing.name}</Text>
+                          {ing.quantity_g > 0 && (
+                            <View style={s.ingQtyBadge}>
+                              <Text style={s.ingQtyText}>{ing.quantity_g}g</Text>
+                            </View>
+                          )}
                         </View>
                       ))}
                     </View>
-                  </>
+                  </View>
                 )}
+                
                 {sideIngredients.length > 0 && (
-                  <>
-                    <Text style={[s.ingGroupTitle, { marginTop:12 }]}>Gia vị & phụ liệu</Text>
+                  <View style={[s.pantryGroup, { marginTop: 16 }]}>
+                    <Text style={s.pantryTitle}>Gia vị & Phụ liệu</Text>
                     <View style={s.ingGrid}>
                       {sideIngredients.map(ing => (
                         <View key={ing.id} style={s.ingChipSide}>
@@ -151,158 +242,536 @@ const explanationConfig = [
                         </View>
                       ))}
                     </View>
-                  </>
+                  </View>
                 )}
-              </>
+              </View>
             )}
           </View>
 
-          {/* Serving suggestion */}
+          {/* ── Serving suggestion ── */}
           {dish.serving_suggestion ? (
             <View style={s.section}>
-              <Text style={s.sectionTitle}>🍽️ Gợi ý phục vụ</Text>
-              <Text style={s.bodyText}>{dish.serving_suggestion}</Text>
+              <SectionHeader title="Gợi ý thưởng thức" icon="restaurant-outline" />
+              <PaperCard innerStyle={{ padding: 16 }}>
+                <Text style={s.servingText}>{dish.serving_suggestion}</Text>
+              </PaperCard>
             </View>
           ) : null}
 
-          {/* Recipe link */}
+          {/* ── Recipe Link ── */}
           {dish.url ? (
-            <TouchableOpacity style={s.recipeBtn} onPress={() => Linking.openURL(dish.url)}>
-              <Text style={s.recipeBtnText}>📖 Xem công thức đầy đủ</Text>
+            <TouchableOpacity 
+              style={s.recipeBtn} 
+              activeOpacity={0.85}
+              onPress={() => Linking.openURL(dish.url)}
+            >
+              <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 16, opacity: 0.9 }} resizeMode="cover" />
+              <View style={s.recipeBtnInner}>
+                <Ionicons name="book-outline" size={20} color="#FFFFFF" />
+                <Text style={s.recipeBtnText}>Xem công thức đầy đủ</Text>
+                <Ionicons name="open-outline" size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
+              </View>
             </TouchableOpacity>
           ) : null}
 
-          {/* Feedback */}
-          <View style={s.section}>
-            <Text style={s.feedbackQ}>Bạn có muốn ăn món này không? 😋</Text>
+          {/* ── Feedback Actions ── */}
+          <View style={s.feedbackSection}>
+            <Text style={s.feedbackQuestion}>Quyết định của bạn hôm nay?</Text>
             <View style={s.feedbackRow}>
-              {[
-                { label:'😋 Đã ăn',  color:'#4ADE80', action:'eaten' },
-                { label:'⭐ Đánh giá', color:'#FBBF24', action:'rate' },
-                { label:'✕ Bỏ qua', color:'#F87171', action:'skipped' },
-              ].map(({ label, color, action }) => (
-                <TouchableOpacity key={label}
-                  style={[s.fbBtn, { backgroundColor:color }]}
-                  onPress={() => action==='rate' ? setRatingModalVisible(true) : handleFeedback(action)}>
-                  <Text style={s.fbBtnText}>{label}</Text>
-                </TouchableOpacity>
-              ))}
+              <TouchableOpacity 
+                style={[s.actionStamp, { borderColor: C.accentGreen, backgroundColor: C.accentGreen + '10' }]} 
+                activeOpacity={0.7}
+                onPress={() => handleFeedback('eaten')}
+              >
+                <View style={[s.actionIconBox, { backgroundColor: C.accentGreen }]}>
+                  <Ionicons name="checkmark-done" size={18} color="#FFF" />
+                </View>
+                <Text style={[s.actionStampText, { color: C.accentGreen }]}>Đã Ăn</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[s.actionStamp, { borderColor: C.accentGold || '#F59E0B', backgroundColor: (C.accentGold || '#F59E0B') + '10' }]} 
+                activeOpacity={0.7}
+                onPress={() => setRatingModalVisible(true)}
+              >
+                <View style={[s.actionIconBox, { backgroundColor: C.accentGold || '#F59E0B' }]}>
+                  <Ionicons name="star" size={18} color="#FFF" />
+                </View>
+                <Text style={[s.actionStampText, { color: C.accentGold || '#F59E0B' }]}>Đánh Giá</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[s.actionStamp, { borderColor: C.accentRed || '#E74C3C', backgroundColor: (C.accentRed || '#E74C3C') + '10' }]} 
+                activeOpacity={0.7}
+                onPress={() => handleFeedback('skipped')}
+              >
+                <View style={[s.actionIconBox, { backgroundColor: C.accentRed || '#E74C3C' }]}>
+                  <Ionicons name="close" size={18} color="#FFF" />
+                </View>
+                <Text style={[s.actionStampText, { color: C.accentRed || '#E74C3C' }]}>Bỏ Qua</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* ── Rating Modal ─────────────────────────────── */}
-      <Modal visible={ratingModalVisible} transparent animationType="fade"
-        onRequestClose={() => setRatingModalVisible(false)}>
+      <Modal visible={ratingModalVisible} transparent animationType="fade" onRequestClose={() => setRatingModalVisible(false)}>
         <View style={s.modalOverlay}>
-          <View style={s.modalCard}>
-            <Text style={s.modalTitle}>⭐ Đánh giá món ăn</Text>
-            <Text style={s.modalSub}>Bạn thấy {dish.title} thế nào?</Text>
-            <View style={s.starsRow}>
-              {[1,2,3,4,5].map(star => (
-                <TouchableOpacity key={star} onPress={() => setSelectedRating(star)}
-                  activeOpacity={0.7} style={s.starBtn}>
-                  <Text style={[s.starIcon, star <= selectedRating && s.starActive]}>
-                    {star <= selectedRating ? '⭐' : '☆'}
-                  </Text>
+          <ImageBackground source={ASSETS.paper} style={s.modalCard} imageStyle={{ borderRadius: 24, opacity: 0.98 }} resizeMode="cover">
+            <View style={s.modalInner}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Đánh giá món ăn</Text>
+                <TouchableOpacity onPress={() => setRatingModalVisible(false)} style={s.closeModalBtn}>
+                  <Ionicons name="close" size={24} color={C.textLight} />
                 </TouchableOpacity>
-              ))}
-            </View>
-            <View style={s.modalActions}>
-              <TouchableOpacity style={s.modalBtnCancel}
-                onPress={() => setRatingModalVisible(false)}>
-                <Text style={s.modalBtnCancelText}>Hủy</Text>
-              </TouchableOpacity>
+              </View>
+              
+              <Text style={s.modalSub}>Món "{dish.title}" hôm nay thế nào?</Text>
+              
+              <View style={s.starsRow}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <TouchableOpacity 
+                    key={star} 
+                    onPress={() => setSelectedRating(star)}
+                    activeOpacity={0.7} 
+                    style={[s.starBtn, selectedRating === star && s.starBtnActive]}
+                  >
+                    <Ionicons 
+                      name={star <= selectedRating ? "star" : "star-outline"} 
+                      size={32} 
+                      color={star <= selectedRating ? (C.accentGold || '#F59E0B') : C.border} 
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
               <TouchableOpacity
-                style={[s.modalBtnConfirm, selectedRating === 0 && { opacity:0.4 }]}
+                style={[s.modalConfirmBtn, selectedRating === 0 && { opacity: 0.5 }]}
                 disabled={selectedRating === 0}
-                onPress={() => handleFeedback('rated', selectedRating)}>
-                <Text style={s.modalBtnConfirmText}>Xác nhận</Text>
+                onPress={() => handleFeedback('rated', selectedRating)}
+                activeOpacity={0.8}
+              >
+                <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 18, opacity: 0.9 }} />
+                <Text style={s.modalConfirmText}>Gửi Đánh Giá</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </ImageBackground>
         </View>
       </Modal>
-    </View>
+    </ImageBackground>
   );
 };
 
 const s = StyleSheet.create({
-  container:       { flex:1, backgroundColor:'#FFFFF0' },
-  navBar:          { flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                     paddingHorizontal:16, paddingTop:52, paddingBottom:12,
-                     backgroundColor:'#FFFFFF', borderBottomWidth:1.5,
-                     borderBottomColor:'#E5E7EB', borderStyle:'dashed' },
-  backBtn:         { width:44, height:44, borderRadius:999, backgroundColor:'#EFF6FF',
-                     alignItems:'center', justifyContent:'center' },
-  backIcon:        { fontSize:22, color:'#60A5FA' },
-  navTitle:        { flex:1, textAlign:'center', fontSize:17, fontFamily:'Patrick Hand',
-                     color:'#1A291A', marginHorizontal:8 },
-  heroBanner:      { width:'100%', height:220 },
-  content:         { padding:20 },
-  title:           { fontSize:26, fontFamily:'Patrick Hand', color:'#1A291A',
-                     lineHeight:32, marginBottom:10 },
-  metaRow:         { flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:16 },
-  chip:            { backgroundColor:'#EFF6FF', paddingHorizontal:14, paddingVertical:6,
-                     borderRadius:999, borderWidth:1, borderColor:'rgba(96,165,250,0.4)' },
-  chipText:        { fontSize:14, color:'#60A5FA', fontFamily:'Nunito' },
-  section:         { marginBottom:20, backgroundColor:'#FFFFFF', borderRadius:16,
-                     padding:16, borderWidth:1.5, borderColor:'#E5E7EB',
-                     borderStyle:'dashed' },
-  sectionTitle:    { fontSize:17, fontFamily:'Patrick Hand', color:'#1A291A',
-                     marginBottom:12 },
-  explanationItem: { fontSize:15, color:'#4E6350', lineHeight:22,
-                     fontFamily:'Nunito', marginBottom:4 },
-  bodyText:        { fontSize:15, color:'#4E6350', lineHeight:22, fontFamily:'Nunito' },
-  noData:          { fontSize:14, color:'#8EA08E', fontFamily:'Nunito' },
-  barRow:          { flexDirection:'row', alignItems:'center', marginBottom:8 },
-  barLabel:        { width:80, fontSize:13, color:'#4E6350', fontFamily:'Nunito' },
-  barTrack:        { flex:1, height:10, backgroundColor:'#F0F4F0', borderRadius:999,
-                     overflow:'hidden', marginHorizontal:8 },
-  barFill:         { height:'100%', borderRadius:999 },
-  barVal:          { width:36, fontSize:12, color:'#8EA08E', fontFamily:'Nunito',
-                     textAlign:'right' },
-  ingGroupTitle:   { fontSize:14, fontFamily:'Nunito', fontWeight:'700',
-                     color:'#4E6350', marginBottom:8 },
-  ingGrid:         { flexDirection:'row', flexWrap:'wrap', gap:8 },
-  ingChip:         { flexDirection:'row', alignItems:'center', backgroundColor:'#EFF6FF',
-                     paddingHorizontal:12, paddingVertical:6, borderRadius:999,
-                     borderWidth:1, borderColor:'rgba(96,165,250,0.4)' },
-  ingText:         { fontSize:13, color:'#3B82F6', fontFamily:'Nunito' },
-  ingQty:          { fontSize:11, color:'#93C5FD', fontFamily:'Nunito', marginLeft:4 },
-  ingChipSide:     { backgroundColor:'#F8FAF7', paddingHorizontal:12, paddingVertical:6,
-                     borderRadius:999, borderWidth:1, borderColor:'#DEE8DE' },
-  ingTextSide:     { fontSize:13, color:'#4E6350', fontFamily:'Nunito' },
-  recipeBtn:       { backgroundColor:'#60A5FA', borderRadius:16, paddingVertical:14,
-                     alignItems:'center', marginBottom:20 },
-  recipeBtnText:   { fontSize:16, color:'#FFFFFF', fontFamily:'Patrick Hand' },
-  feedbackQ:       { fontSize:16, fontFamily:'Patrick Hand', color:'#1A291A',
-                     marginBottom:12, textAlign:'center' },
-  feedbackRow:     { flexDirection:'row', gap:10, justifyContent:'center' },
-  fbBtn:           { flex:1, paddingVertical:12, borderRadius:16,
-                     alignItems:'center', maxWidth:110 },
-  fbBtnText:       { fontSize:13, color:'#FFFFFF', fontFamily:'Nunito', fontWeight:'700' },
-  modalOverlay:      { flex:1, backgroundColor:'rgba(0,0,0,0.45)',
-                       justifyContent:'center', alignItems:'center', padding:24 },
-  modalCard:         { backgroundColor:'#FFFFFF', borderRadius:24, padding:28,
-                       width:'100%', alignItems:'center',
-                       borderWidth:1.5, borderColor:'#E5E7EB', borderStyle:'dashed' },
-  modalTitle:        { fontSize:22, fontFamily:'Patrick Hand', color:'#1A291A',
-                       marginBottom:6 },
-  modalSub:          { fontSize:15, fontFamily:'Nunito', color:'#4E6350',
-                       marginBottom:20, textAlign:'center' },
-  starsRow:          { flexDirection:'row', gap:8, marginBottom:24 },
-  starBtn:           { padding:4 },
-  starIcon:          { fontSize:36, color:'#D1D5DB' },
-  starActive:        { color:'#FBBF24' },
-  modalActions:      { flexDirection:'row', gap:12, width:'100%' },
-  modalBtnCancel:    { flex:1, paddingVertical:14, borderRadius:16, alignItems:'center',
-                       borderWidth:2, borderColor:'#60A5FA', borderStyle:'dashed' },
-  modalBtnCancelText:{ fontSize:15, color:'#60A5FA', fontFamily:'Patrick Hand' },
-  modalBtnConfirm:   { flex:1, paddingVertical:14, borderRadius:16, alignItems:'center',
-                       backgroundColor:'#60A5FA' },
-  modalBtnConfirmText:{ fontSize:15, color:'#FFFFFF', fontFamily:'Patrick Hand' },
+  container: { 
+    flex: 1, 
+    backgroundColor: C.bg, 
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  
+  // Floating Header
+  floatingHeader: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    zIndex: 100,
+    ...shadow(4),
+    borderBottomWidth: 1,
+    borderBottomColor: C.borderLight,
+  },
+  headerInner: {
+    height: 54,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 60,
+  },
+  headerTitle: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 17,
+    color: C.text,
+  },
+  
+  // Back Button Overlay
+  backBtnOverlay: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 101,
+    width: 44, height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backBtnBlur: {
+    width: 40, height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    ...shadow(2),
+  },
+
+  // Hero Section
+  heroContainer: {
+    height: HERO_HEIGHT,
+    width: '100%',
+    position: 'relative',
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+  },
+  heroGradient: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    height: 120,
+    backgroundColor: 'transparent',
+    // In standard RN, we simulate gradient with semi-transparent views if expo-linear-gradient is not imported.
+    // We'll use a simple dark overlay at the bottom.
+    borderBottomWidth: 60,
+    borderBottomColor: 'rgba(0,0,0,0.15)',
+    borderTopWidth: 60,
+    borderTopColor: 'transparent',
+  },
+
+  // Content
+  contentContainer: {
+    paddingHorizontal: 20,
+    marginTop: -40, // Pull up over the hero image
+  },
+
+  // Title Card
+  titleCard: {
+    borderRadius: 24,
+    ...shadow(6),
+    marginBottom: 24,
+  },
+  titleCardBg: {
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  titleCardInner: {
+    padding: 24,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  mainTitle: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 26,
+    color: C.text,
+    lineHeight: 34,
+    marginBottom: 16,
+  },
+  metaChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  chipSpacing: {
+    marginRight: 8,
+    marginBottom: 8,
+  },
+
+  // Sections
+  section: {
+    marginBottom: 24,
+  },
+
+  // Expert Notes
+  noteRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  noteIconBox: {
+    width: 32, height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    marginTop: 2,
+  },
+  noteTextWrap: {
+    flex: 1,
+  },
+  noteLabel: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  noteText: {
+    fontFamily: 'Patrick Hand', // Actually Lora Bold based on mapping
+    fontSize: 15,
+    color: C.textMid,
+    lineHeight: 22,
+  },
+
+  // Metrics
+  metricCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metricIconWrap: {
+    width: 36, height: 36,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  metricInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  metricLabel: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 14,
+    color: C.textMid,
+    marginBottom: 6,
+  },
+  metricTrack: {
+    height: 8,
+    backgroundColor: 'rgba(92,58,30,0.08)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  metricFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  metricVal: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 15,
+    width: 40,
+    textAlign: 'right',
+  },
+
+  // Pantry
+  pantryContainer: {
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+  },
+  pantryGroup: {
+    marginBottom: 8,
+  },
+  pantryTitle: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 13,
+    color: C.textLight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  ingGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  ingChipMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.surface,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(160,120,74,0.3)',
+    ...shadow(1),
+  },
+  ingTextMain: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 14,
+    color: C.text,
+  },
+  ingQtyBadge: {
+    backgroundColor: 'rgba(160,120,74,0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  ingQtyText: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 12,
+    color: C.woodLight || '#A67C52',
+  },
+  ingChipSide: {
+    backgroundColor: 'transparent',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  ingTextSide: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 13,
+    color: C.textMid,
+  },
+  emptyState: {
+    padding: 24,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    borderStyle: 'dashed',
+  },
+  emptyText: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 14,
+    color: C.textLight,
+    marginTop: 8,
+  },
+
+  // Serving Text
+  servingText: {
+    fontFamily: 'Nunito_400Regular',
+    fontSize: 15,
+    color: C.text,
+    lineHeight: 24,
+  },
+
+  // Recipe Button
+  recipeBtn: {
+    height: 56,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: 8,
+    marginBottom: 32,
+    ...shadow(4),
+  },
+  recipeBtnInner: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(92,58,30,0.6)',
+  },
+  recipeBtnText: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 16,
+    color: '#FFF',
+    marginLeft: 10,
+  },
+
+  // Feedback Stamps
+  feedbackSection: {
+    marginTop: 10,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    alignItems: 'center',
+  },
+  feedbackQuestion: {
+    fontFamily: 'Patrick Hand',
+    fontSize: 18,
+    color: C.text,
+    marginBottom: 20,
+  },
+  feedbackRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 10,
+  },
+  actionStamp: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 90,
+    height: 100,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+  },
+  actionIconBox: {
+    width: 44, height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    ...shadow(2),
+  },
+  actionStampText: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 13,
+    textTransform: 'uppercase',
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 24,
+    ...shadow(8),
+  },
+  modalInner: {
+    padding: 24,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 20,
+    color: C.text,
+  },
+  closeModalBtn: {
+    padding: 4,
+  },
+  modalSub: {
+    fontFamily: 'Nunito_400Regular',
+    fontSize: 15,
+    color: C.textMid,
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  starsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 32,
+  },
+  starBtn: {
+    padding: 4,
+    transform: [{ scale: 1 }],
+  },
+  starBtnActive: {
+    transform: [{ scale: 1.1 }],
+  },
+  modalConfirmBtn: {
+    height: 52,
+    borderRadius: 18,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 16,
+    color: '#FFF',
+    position: 'absolute',
+    zIndex: 2,
+  },
 });
 
 export default DishDetailScreen;

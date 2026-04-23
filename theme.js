@@ -2,44 +2,45 @@
 // Phong cách: tươi mát, gần gũi, hiện đại — phù hợp người Việt
 
 export const C = {
-  // Brand
-  primary:      '#38B07A',   // xanh lá tươi — brand chính
-  primaryLight: '#E7F5EE',
-  primaryDark:  '#25875C',
-  primaryMid:   '#2E9A6A',
+  // Brand - Scrapbook / Journal Theme
+  primary:      '#8B5E3C',   // Wood - main brand color
+  bg:           '#F5EDDC',   // Parchment - background color
+  amber:        '#F59E0B',   // Warm accent
 
-  // Weather / cool
-  teal:         '#1AA8C0',
-  tealLight:    '#DFF4F8',
+  // Additional Wood Tints
+  woodLight:    '#A67C52',
+  woodDark:     '#5C3A21',
 
-  // Food / warm
-  orange:       '#FF7640',
-  orangeLight:  '#FFF1EB',
-  amber:        '#F5A623',
-  amberLight:   '#FFF7E6',
+  // Additional Parchment Tints
+  parchmentLight: '#FFF8EA',
+  parchmentDark:  '#E6DCC3',
+
+  // Accent Colors
+  accentGreen:  '#38B07A',   // Used for "done/eaten" state
+  accentRed:    '#E74C3C',   // Used for warnings or deletions
+  accentBlue:   '#3498DB',   // Used for info 
 
   // Surfaces
-  bg:           '#F2F4F1',   // nền trang — trắng sage
   surface:      '#FFFFFF',
-  surfaceAlt:   '#F8FAF7',
+  surfaceAlt:   '#FDFBFA',
 
   // Text
-  text:         '#1A291A',   // chính
-  textMid:      '#4E6350',   // phụ
-  textLight:    '#8EA08E',   // hint / placeholder
+  text:         '#3E2723',   // Dark brown text for contrast on parchment
+  textMid:      '#5D4037',   // Medium brown
+  textLight:    '#8D6E63',   // Light brown hint/placeholder
 
   // Borders
-  border:       '#DEE8DE',
-  borderLight:  '#EEF4EE',
+  border:       '#D7CCC8',
+  borderLight:  '#EFEBE9',
 
   // Status
-  success:      '#2ECC71',
+  success:      '#38B07A',
   danger:       '#FF3B30',
-  warning:      '#F5A623',
+  warning:      '#F59E0B',
   info:         '#007AFF',
 
   // Shadow
-  shadow:       'rgba(20, 60, 30, 0.09)',
+  shadow:       'rgba(92, 58, 33, 0.15)', // Wood-tinted shadow
 };
 
 export const R = { sm: 8, md: 12, lg: 16, xl: 20, pill: 28, circle: 999 };

@@ -330,7 +330,7 @@ const SearchModal = ({ visible, onClose, allIngredients, selectedIds, onToggle, 
 };
 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
-const AllergyScreen = () => {
+const AllergyScreen = ({ navigation }) => {
   const { setAllergies: setStoreAllergies } = useAppStore();
   const [mode, setMode] = useState('category');
   const [categories, setCategories] = useState([]);
@@ -460,6 +460,17 @@ const AllergyScreen = () => {
       source={require('../assets/textures/wood_light.png')}
       style={st.root}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+
+      {/* Header with Back Button */}
+      <View style={st.headerBar}>
+        <TouchableOpacity
+          onPress={() => navigation?.goBack()}
+          style={st.backButton}
+          activeOpacity={0.7}
+        >
+          <Text style={st.backButtonText}>← Quay lại</Text>
+        </TouchableOpacity>
+      </View>
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
@@ -594,6 +605,28 @@ const AllergyScreen = () => {
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.woodLight },
+
+  // Header with Back Button
+  headerBar: {
+    paddingTop: Platform.OS === 'ios' ? 12 : 8,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
+  },
+  backButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignSelf: 'flex-start',
+  },
+  backButtonText: {
+    fontSize: 14,
+    fontFamily: 'Nunito_600SemiBold',
+    color: C.ink,
+  },
 
   // Banner
   bannerBg: {

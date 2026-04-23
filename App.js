@@ -6,6 +6,16 @@
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, StatusBar, View, Text, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFonts } from 'expo-font';
+import {
+  BeVietnamPro_400Regular,
+  BeVietnamPro_600SemiBold,
+  BeVietnamPro_700Bold,
+} from '@expo-google-fonts/be-vietnam-pro';
+import {
+  Lora_600SemiBold,
+  Lora_700Bold,
+} from '@expo-google-fonts/lora';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -99,6 +109,18 @@ const App = () => {
   const [authState,      setAuthState]      = useState('loading');
   const [appReady,       setAppReady]       = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [fontsLoaded] = useFonts({
+    Nunito: BeVietnamPro_400Regular,
+    'Nunito-Regular': BeVietnamPro_400Regular,
+    'Nunito-Bold': BeVietnamPro_700Bold,
+    Nunito_400Regular: BeVietnamPro_400Regular,
+    Nunito_600SemiBold: BeVietnamPro_600SemiBold,
+    Nunito_700Bold: BeVietnamPro_700Bold,
+    'Patrick Hand': Lora_700Bold,
+    'PatrickHand-Regular': Lora_700Bold,
+    Caveat_400Regular: Lora_600SemiBold,
+    Caveat_700Bold: Lora_700Bold,
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -131,6 +153,7 @@ const App = () => {
     } catch { return null; }
   };
   const initializeApp = async () => {
+    const startTime = Date.now();
     try {
      
       await initDB();

@@ -237,16 +237,18 @@ const TasteProfileScreen = ({ navigation }) => {
       <View style={st.page}>
 
         {/* ── Header ── */}
-        <View style={st.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={st.backBtn} activeOpacity={0.7}>
-            <Text style={st.backArrow}>‹</Text>
-          </TouchableOpacity>
-          <Text style={st.title}>Khẩu vị của tôi</Text>
-          <View style={{ width: 36 }} />
-        </View>
+        <View style={st.headerContainer}>
+          <View style={st.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={st.backBtn} activeOpacity={0.7}>
+              <Text style={st.backArrow}>← Quay lại</Text>
+            </TouchableOpacity>
+            <Text style={st.title}>Khẩu vị của tôi</Text>
+            <View style={{ width: 36 }} />
+          </View>
 
-        {/* thin rule under title */}
-        <View style={st.titleRule} />
+          {/* thin rule under title */}
+          <View style={st.titleRule} />
+        </View>
 
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled" contentContainerStyle={st.scroll}>
@@ -375,17 +377,39 @@ const st = StyleSheet.create({
   },
 
   // Header
+  headerContainer: {
+    backgroundColor: C.paper,
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.rule,
+    paddingBottom: 12,
+  },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingTop: Platform.OS === 'android' ? 44 : 56,
-    paddingHorizontal: 16, paddingBottom: 4,
+    paddingHorizontal: 16, paddingBottom: 12,
   },
-  backBtn:   { width: 36, height: 36, justifyContent: 'center' },
-  backArrow: { fontSize: 28, color: C.inkMid, fontWeight: '300', lineHeight: 32 },
+  backBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(92, 61, 30, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(92, 61, 30, 0.12)',
+    width: 'auto',
+    minWidth: 90,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backArrow: {
+    fontSize: 14,
+    fontFamily: 'Nunito_600SemiBold',
+    color: C.ink,
+    fontWeight: '600',
+  },
   title:     { fontSize: 24, fontFamily: 'Patrick Hand', color: C.ink, letterSpacing: 0.3 },
-  titleRule: { height: 1.5, backgroundColor: C.rule, marginHorizontal: 16, marginBottom: 12, opacity: 0.7 },
+  titleRule: { height: 1.5, backgroundColor: C.rule, marginHorizontal: 16, opacity: 0.5 },
 
-  scroll: { paddingHorizontal: 18, paddingTop: 4 },
+  scroll: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 24 },
 
   // Mode toggle
   modeRow: {

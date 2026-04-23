@@ -9,7 +9,9 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
     "@expo-google-fonts/caveat": "^0.4.2",
+    "@expo-google-fonts/lora": "^0.4.2",
     "@expo-google-fonts/nunito": "^0.4.2",
     "@lottiefiles/dotlottie-react": "^0.13.5",
     "@react-native-async-storage/async-storage": "~2.2.0",
@@ -31,6 +33,7 @@
     "expo-web-browser": "~15.0.10",
     "firebase": "^11.0.0",
     "lottie-react-native": "~7.3.1",
+    "phosphor-react-native": "^3.0.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
