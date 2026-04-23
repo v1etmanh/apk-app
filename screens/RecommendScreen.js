@@ -4,13 +4,6 @@ import {
   Image, ActivityIndicator, ImageBackground, StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  useFonts,
-  Nunito_400Regular,
-  Nunito_600SemiBold,
-  Nunito_700Bold,
-} from '@expo-google-fonts/nunito';
-import { Caveat_400Regular, Caveat_700Bold } from '@expo-google-fonts/caveat';
 import { api } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
 import {
@@ -236,11 +229,6 @@ const RecommendScreen = ({ navigation, route }) => {
   const [visibleCount, setVisible] = useState(10);
   const [error, setError]          = useState(null);
   const { setCurrentSessionId }    = useAppStore();
-
-  const [fontsLoaded] = useFonts({
-    Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold,
-    Caveat_400Regular, Caveat_700Bold,
-  });
 
   useEffect(() => { fetchRecommendations(); }, []);
 

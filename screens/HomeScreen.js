@@ -13,16 +13,6 @@ import {
   getWeatherCache, setWeatherCache, setSetting,
   getRecentDishIds, saveRecentDishesCache, loadRecentDishesCache,
 } from '../utils/database';
-import {
-  useFonts,
-  Nunito_400Regular,
-  Nunito_600SemiBold,
-  Nunito_700Bold,
-} from '@expo-google-fonts/nunito';
-import {
-  Caveat_400Regular,
-  Caveat_700Bold,
-} from '@expo-google-fonts/caveat';
 
 // ── Assets ────────────────────────────────────────────────────────────────────
 // Đặt các file texture vào thư mục assets/textures/ trong project của bạn
@@ -171,14 +161,6 @@ const HomeScreen = ({ navigation }) => {
   const [basketBadge, setBasketBadge]   = useState(0);
   const [challengeTitle, setChallengeTitle] = useState('');
   const isFirstRender = React.useRef(true);
-
-  const [fontsLoaded] = useFonts({
-    Nunito_400Regular,
-    Nunito_600SemiBold,
-    Nunito_700Bold,
-    Caveat_400Regular,
-    Caveat_700Bold,
-  });
 
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }

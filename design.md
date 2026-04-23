@@ -49,23 +49,23 @@ Notebook lines:      opacity 0.12 – 0.15
 
 | Font | Dùng cho | Cảm giác |
 |------|----------|----------|
-| **Patrick Hand** | Tiêu đề, badge, CTA, section title | Viết tay, thân thiện |
-| **Nunito** | Body text, chip label, date | Tròn trịa, dễ đọc |
+| **Lora** | Tiêu đề, badge, CTA, section title | Storybook, mềm mại, sang hơn nhưng vẫn ấm |
+| **Be Vietnam Pro** | Body text, chip label, date | Rõ ràng, hiện đại, cực ổn cho cả tiếng Việt và tiếng Anh |
 
 ### Scale
 
 ```
-dishTitle:    26px  Patrick Hand  color: #3D2B1F
-headerBadge:  22px  Patrick Hand  color: #4A3728
-sectionTitle: 19px  Patrick Hand  color: #3D2B1F
-streakText:   20px  Patrick Hand  color: #92400E
-ctaPrimaryText: 18px Patrick Hand bold
-bodyText:     15px  Nunito        color: #5C4A38  lineHeight: 23
-chipText:     13px  Nunito bold   color: #3D2B1F
-headerDate:   13px  Nunito        color: #8B7355
+dishTitle:    26px  Lora Bold             color: #3D2B1F
+headerBadge:  22px  Lora Bold             color: #4A3728
+sectionTitle: 19px  Lora SemiBold         color: #3D2B1F
+streakText:   20px  Lora SemiBold         color: #92400E
+ctaPrimaryText: 18px Lora Bold
+bodyText:     15px  Be Vietnam Pro        color: #5C4A38  lineHeight: 23
+chipText:     13px  Be Vietnam Pro Bold   color: #3D2B1F
+headerDate:   13px  Be Vietnam Pro        color: #8B7355
 ```
 
-> ⚠️ **Không bao giờ dùng**: Inter, Roboto, System font — chúng phá vỡ hoàn toàn vibe Ghibli.
+> ⚠️ **Không trộn nhiều family ngẫu nhiên**. Hệ mới dùng `Lora` cho display và `Be Vietnam Pro` cho body để đảm bảo đẹp và ổn định cho tiếng Việt lẫn tiếng Anh.
 
 ---
 

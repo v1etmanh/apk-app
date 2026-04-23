@@ -2,6 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { SafeAreaView, StatusBar, View, Text } from 'react-native';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFonts } from 'expo-font';
+import {
+  BeVietnamPro_400Regular,
+  BeVietnamPro_600SemiBold,
+  BeVietnamPro_700Bold,
+} from '@expo-google-fonts/be-vietnam-pro';
+import {
+  Lora_600SemiBold,
+  Lora_700Bold,
+} from '@expo-google-fonts/lora';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -108,6 +118,18 @@ const App = () => {
   const { profile, loadProfile, loadLatestMetrics, loadAllergies, initializeLocation,initializeMaxPrepTime,initializeCostPreference, initializeIngredients } = useAppStore();
   const [appReady, setAppReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [fontsLoaded] = useFonts({
+    Nunito: BeVietnamPro_400Regular,
+    'Nunito-Regular': BeVietnamPro_400Regular,
+    'Nunito-Bold': BeVietnamPro_700Bold,
+    Nunito_400Regular: BeVietnamPro_400Regular,
+    Nunito_600SemiBold: BeVietnamPro_600SemiBold,
+    Nunito_700Bold: BeVietnamPro_700Bold,
+    'Patrick Hand': Lora_700Bold,
+    'PatrickHand-Regular': Lora_700Bold,
+    Caveat_400Regular: Lora_600SemiBold,
+    Caveat_700Bold: Lora_700Bold,
+  });
 
   useEffect(() => {
     initializeApp();
@@ -137,7 +159,7 @@ const App = () => {
     }
   };
 
-  if (!appReady) {
+  if (!appReady || !fontsLoaded) {
     return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Loading...</Text></View>;
   }
 
