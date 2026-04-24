@@ -342,10 +342,10 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(245,237,220,0.92)',
   },
   mascotText: {
-    fontFamily: Platform.OS === 'ios' ? 'Patrick Hand' : 'PatrickHand-Regular',
-    fontSize: 14,
+    fontFamily: 'BeVietnamPro-Regular',
+    fontSize: 15,
     color: '#4A3728',
-    lineHeight: 20,
+    lineHeight: 22,
     flexShrink: 1,
     flexWrap: 'wrap',
   },
@@ -370,18 +370,18 @@ const s = StyleSheet.create({
   // Header
   emoji: { fontSize: 40, textAlign: 'center', marginBottom: 6 },
   title: {
-    fontFamily: Platform.OS === 'ios' ? 'Patrick Hand' : 'PatrickHand-Regular',
+    fontFamily: 'Lora-Bold',
     fontSize: 26,
     color: '#3D2B1F',
     textAlign: 'center',
     marginBottom: 6,
   },
   sub: {
-    fontFamily: Platform.OS === 'ios' ? 'Nunito' : 'Nunito-Regular',
-    fontSize: 14,
+    fontFamily: 'BeVietnamPro-Regular',
+    fontSize: 15,
     color: '#8B7355',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 23,
   },
   divider: {
     height: 1.5,
@@ -393,7 +393,7 @@ const s = StyleSheet.create({
 
   // Inputs
   label: {
-    fontFamily: Platform.OS === 'ios' ? 'Patrick Hand' : 'PatrickHand-Regular',
+    fontFamily: 'BeVietnamPro-Bold',
     fontSize: 15,
     color: '#5C4A38',
     marginBottom: 6,
@@ -411,7 +411,7 @@ const s = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Nunito' : 'Nunito-Regular',
+    fontFamily: 'BeVietnamPro-Regular',
     fontSize: 15,
     color: '#3D2B1F',
   },
@@ -421,7 +421,7 @@ const s = StyleSheet.create({
   // Forgot
   forgotBtn: { alignSelf: 'flex-end', marginTop: 6 },
   forgotText: {
-    fontFamily: Platform.OS === 'ios' ? 'Nunito' : 'Nunito-Regular',
+    fontFamily: 'BeVietnamPro-Regular',
     fontSize: 13,
     color: '#60A5FA',
     textDecorationLine: 'underline',
@@ -448,7 +448,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   ctaText: {
-    fontFamily: Platform.OS === 'ios' ? 'Patrick Hand' : 'PatrickHand-Regular',
+    fontFamily: 'Lora-Bold',
     fontSize: 18,
     color: '#fff',
     fontWeight: '700',
@@ -459,7 +459,7 @@ const s = StyleSheet.create({
   orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
   orLine: { flex: 1, height: 1, backgroundColor: '#C8A96E', opacity: 0.5 },
   orText: {
-    fontFamily: Platform.OS === 'ios' ? 'Nunito' : 'Nunito-Regular',
+    fontFamily: 'BeVietnamPro-Regular',
     fontSize: 13,
     color: '#8B7355',
     marginHorizontal: 10,
@@ -479,7 +479,7 @@ const s = StyleSheet.create({
   },
   googleIcon: { fontSize: 20 },
   googleText: {
-    fontFamily: Platform.OS === 'ios' ? 'Patrick Hand' : 'PatrickHand-Regular',
+    fontFamily: 'BeVietnamPro-Regular',
     fontSize: 16,
     color: '#5C4A38',
   },
@@ -493,12 +493,12 @@ const s = StyleSheet.create({
     flexWrap: 'wrap',
   },
   switchText: {
-    fontFamily: Platform.OS === 'ios' ? 'Nunito' : 'Nunito-Regular',
+    fontFamily: 'BeVietnamPro-Regular',
     fontSize: 14,
     color: '#8B7355',
   },
   switchLink: {
-    fontFamily: Platform.OS === 'ios' ? 'Patrick Hand' : 'PatrickHand-Regular',
+    fontFamily: 'Lora-SemiBold',
     fontSize: 14,
     color: '#60A5FA',
     textDecorationLine: 'underline',
@@ -506,7 +506,7 @@ const s = StyleSheet.create({
 
   // Footer
   footer: {
-    fontFamily: Platform.OS === 'ios' ? 'Nunito' : 'Nunito-Regular',
+    fontFamily: 'BeVietnamPro-Regular',
     fontSize: 13,
     color: 'rgba(245,237,220,0.7)',
     textAlign: 'center',

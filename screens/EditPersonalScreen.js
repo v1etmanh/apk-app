@@ -80,7 +80,12 @@ const ACTIVITY_OPTS = [{ key:'sedentary',         Icon: Armchair,         text:'
                        { key:'lightly_active',    Icon: PersonSimpleWalk, text:'Nhẹ nhàng'   },
                        { key:'moderately_active', Icon: PersonSimpleRun,  text:'Vừa phải'    },
                        { key:'very_active',       Icon: Lightning,        text:'Nhiều'       }];
-
+const HEALTH_OPTS = [
+  { key: 'none',          Icon: Sparkle,      text: 'Bình thường'  },
+  { key: 'diabetes',      Icon: FlowerLotus,  text: 'Tiểu đường'   },
+  { key: 'hypertension',  Icon: Lightning,    text: 'Huyết áp cao' },
+  { key: 'gout',          Icon: Scales,       text: 'Gout'         },
+];
 // ─── Wobbly border SVG (giả lập nét bút tay) ─────────────────────────────────
 const WobblyFrame = ({ width, height, color = C.border, strokeWidth = 2.5 }) => {
   const p = 6; // padding cho wobble
@@ -175,6 +180,14 @@ const EditPersonalScreen = ({ navigation }) => {
   const [activity, setActivity] = useState('moderately_active');
   const [saving, setSaving]     = useState(false);
   const { profile, setProfile } = useAppStore();
+  const [healthConditions, setHealthConditions] = useState([]);
+
+const toggleHealth = (key) => {
+  if (key === 'none') { setHealthConditions([]); return; }
+  setHealthConditions(prev =>
+    prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+  );
+};
   const lottieRef = useRef(null);
 
   useEffect(() => {
@@ -185,11 +198,14 @@ const EditPersonalScreen = ({ navigation }) => {
       setDietType(p.diet_type || 'omnivore');
       setGoal(p.dietary_goal || 'maintenance');
       setActivity(p.activity_level || 'moderately_active');
+      setHealthConditions(p.health_condition || []); 
     } else {
       loadProfileDB().then(r => {
         if (r) {
+          
           setAge(String(r.age || '25'));
           setGender(r.gender || 'female');
+          setHealthConditions(r.health_condition || []);
           setDietType(r.diet_type || 'omnivore');
           setGoal(r.dietary_goal || 'maintenance');
           setActivity(r.activity_level || 'moderately_active');
@@ -208,7 +224,9 @@ const EditPersonalScreen = ({ navigation }) => {
     lottieRef.current?.play();
     try {
       const now = new Date().toISOString();
-      const data = { age: ageNum, gender, diet_type: dietType, dietary_goal: goal, activity_level: activity, updated_at: now };
+      const data = { age: ageNum, gender, diet_type: dietType, dietary_goal: goal, activity_level: activity, 
+        health_condition: healthConditions,
+        updated_at: now };
       await saveProfileDB(data);
       setProfile({ id: 1, ...data, created_at: now });
       Alert.alert('Đã lưu ✓', 'Thông tin cá nhân đã được cập nhật.');
@@ -334,7 +352,24 @@ const EditPersonalScreen = ({ navigation }) => {
             <ChipGroup label="Mức vận động" Icon={PersonSimpleRun} options={ACTIVITY_OPTS} value={activity} onChange={setActivity} />
           </View>
         </NoteCard>
-
+<NoteCard style={st.cardSpacing}>
+  <View style={st.cardPad}>
+    <SectionLabel text="Tình trạng sức khoẻ" Icon={Sparkle} />
+    <View style={st.chips}>
+      {HEALTH_OPTS.map(o => (
+        <StampChip
+          key={o.key}
+          Icon={o.Icon}
+          text={o.text}
+          active={o.key === 'none'
+            ? healthConditions.length === 0
+            : healthConditions.includes(o.key)}
+          onPress={() => toggleHealth(o.key)}
+        />
+      ))}
+    </View>
+  </View>
+</NoteCard>
         {/* ── Save button (wood texture) ── */}
         <TouchableOpacity onPress={handleSave} disabled={saving} activeOpacity={0.82} style={st.saveBtnWrap}>
           <ImageBackground

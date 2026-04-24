@@ -56,7 +56,7 @@ const CAT_META = {
   'Đã chế biến':            { display: 'Đã chế biến',         emoji: '🥫' },
   processed_meat:       { display: 'Thịt chế biến',       emoji: '🌭' },
   'Dầu & Mỡ':              { display: 'Dầu & Mỡ',            emoji: '🫙' },
-  greens:               { display: 'Rau xanh',            emoji: '🥬' },
+  'Rong/Tảo':               { display: 'Rong tảo',            emoji: '🥬' },
   'Ngũ cốc & Tinh bột':               { display: 'Ngũ cốc',             emoji: '🌾' },
   leafy_greens:         { display: 'Rau lá',              emoji: '🥬' },
   marine_invertebrates: { display: 'Hải sản không xương', emoji: '🦑' },

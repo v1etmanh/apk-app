@@ -1,6 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Platform } from 'react-native';
+import LottieView from 'lottie-react-native';
 import { C } from '../../theme';
+
+const LAZY_CAT = require('../../assets/animations/Lazy cat.json');
 
 // On web, useNativeDriver causes silent failures → always false on web
 const ND = Platform.OS !== 'web';
@@ -356,34 +359,48 @@ const WeatherAnimationSprite = ({
 
   return (
     <View style={s.container}>
-      <View style={s.stageArea}>
-        {/* Particle effects behind icon */}
-        {(type === 'rainy')  && <RainParticles count={22} heavy={false} />}
-        {(type === 'stormy') && <RainParticles count={30} heavy={true} />}
-        {(type === 'snowy')  && <SnowParticles />}
-        {(type === 'foggy')  && <FogStreaks />}
-        {(type === 'sunny')  && <SunRays rayDeg={rayDeg} />}
+      {/* ── Icon row: mèo lười + thời tiết ── */}
+      <View style={s.iconRow}>
+        {/* Lazy Cat mascot — bên trái */}
+        <View style={s.catWrap}>
+          <LottieView
+            source={LAZY_CAT}
+            autoPlay
+            loop
+            style={[s.catLottie, { pointerEvents: 'none' }]}
+          />
+        </View>
 
-        {/* Aura ring */}
-        <Animated.View style={[s.ringLayer, { transform: [{ scale: ringScale }], opacity: ringOpacity }]} />
+        {/* Weather sprite — bên phải */}
+        <View style={s.stageArea}>
+          {/* Particle effects behind icon */}
+          {(type === 'rainy')  && <RainParticles count={22} heavy={false} />}
+          {(type === 'stormy') && <RainParticles count={30} heavy={true} />}
+          {(type === 'snowy')  && <SnowParticles />}
+          {(type === 'foggy')  && <FogStreaks />}
+          {(type === 'sunny')  && <SunRays rayDeg={rayDeg} />}
 
-        {/* Icon */}
-        <Animated.View
-          style={[
-            s.iconWrapper,
-            {
-              opacity,
-              transform: [
-                { translateY: floatY },
-                { scale },
-                { rotate: rotateDeg },
-              ],
-            },
-          ]}
-        >
-          {type === 'stormy' && <LightningFlash />}
-          <Text style={s.weatherIcon}>{icon}</Text>
-        </Animated.View>
+          {/* Aura ring */}
+          <Animated.View style={[s.ringLayer, { transform: [{ scale: ringScale }], opacity: ringOpacity }]} />
+
+          {/* Icon */}
+          <Animated.View
+            style={[
+              s.iconWrapper,
+              {
+                opacity,
+                transform: [
+                  { translateY: floatY },
+                  { scale },
+                  { rotate: rotateDeg },
+                ],
+              },
+            ]}
+          >
+            {type === 'stormy' && <LightningFlash />}
+            <Text style={s.weatherIcon}>{icon}</Text>
+          </Animated.View>
+        </View>
       </View>
 
       <View style={s.tempContainer}>
@@ -404,6 +421,23 @@ const s = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 24,
     gap: 12,
+  },
+  // ── Row chứa mèo + icon thời tiết ──
+  iconRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  // ── Lazy Cat ──
+  catWrap: {
+    width: 100,
+    height: 100,
+    marginBottom: -8,   // nhô xuống nhẹ cho sống động, giống mascot bubble
+  },
+  catLottie: {
+    width: '100%',
+    height: '100%',
   },
   stageArea: {
     width: 120,

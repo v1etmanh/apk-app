@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, Animated, Dimensions, ImageBackground,
 } from 'react-native';
+import LottieView from 'lottie-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import WoodPicker from '../components/ui/WoodPicker';
 import Svg, { Path } from 'react-native-svg';
@@ -27,6 +28,8 @@ import SectionHeader    from '../components/ui/SectionHeader';
 
 const { width: SW } = Dimensions.get('window');
 const CARD_W = SW - 32;
+
+const CATTR = require('../assets/animations/pets.json');
 
 // ─── PhosphorIcon ────────────────────────────────────────────────────────────
 const PhosphorIcon = ({ IconComponent, danger }) => (
@@ -208,13 +211,23 @@ const SettingsScreen = () => {
         {/* ── Header ── */}
         <ImageBackground
           source={require('../assets/textures/sky_watercolor.png')}
-          style={[st.header, { paddingTop: insets.top + 20 }]}
+          style={[st.header, { paddingTop: insets.top + 12 }]}
           resizeMode="cover"
           imageStyle={{ opacity: 0.45 }}
         >
+          {/* Mèo Cattr phía trên bánh răng */}
+          <LottieView
+            source={CATTR}
+            autoPlay
+            loop
+            style={[st.cattrLottie, { pointerEvents: 'none' }]}
+          />
+
+          {/* Bánh răng xoay */}
           <Animated.View style={{ transform: [{ rotate: gearDeg }], marginBottom: 6 }}>
             <GearSix weight="duotone" size={44} color={C.textMid} />
           </Animated.View>
+
           <Text style={st.headerTitle}>Cài đặt</Text>
           <Text style={st.headerSub}>Tuỳ chỉnh theo ý bạn nhé</Text>
           <Svg width={SW} height={22} style={st.headerWave}>
@@ -379,6 +392,7 @@ const st = StyleSheet.create({
 
   // ── Header ──
   header:      { alignItems: 'center', paddingBottom: 0, backgroundColor: 'rgba(52,152,219,0.15)' },
+  cattrLottie: { width: 140, height: 140, marginBottom: -8 },
   headerTitle: { fontFamily: 'Nunito_700Bold', fontSize: 30, color: C.text },
   headerSub:   { fontFamily: 'Nunito_600SemiBold', fontSize: 14, color: C.textLight, marginTop: 4, marginBottom: 10 },
   headerWave:  { marginTop: 2 },
