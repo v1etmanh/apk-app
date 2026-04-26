@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   FlatList, StatusBar, ImageBackground, Animated,
-  Dimensions,
+  Dimensions, Image,
 } from 'react-native';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
@@ -26,6 +26,87 @@ const C = {
 
 const { width: SW } = Dimensions.get('window');
 const CARD_W = SW - 32;
+
+// ─── Loading Screen — Cat Pookie Ghibli style ─────────────────────
+const LoadingScreen = () => {
+  const fadeAnim   = useRef(new Animated.Value(0)).current;
+  const dotAnim1   = useRef(new Animated.Value(0)).current;
+  const dotAnim2   = useRef(new Animated.Value(0)).current;
+  const dotAnim3   = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Fade in toàn bộ loading screen
+    Animated.timing(fadeAnim, {
+      toValue: 1, duration: 400, useNativeDriver: true,
+    }).start();
+
+    // Dots nhảy lần lượt — hiệu ứng "đang nghĩ"
+    const animateDot = (dot, delay) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(dot, { toValue: -8, duration: 320, delay, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0,  duration: 320, useNativeDriver: true }),
+          Animated.delay(480),
+        ])
+      ).start();
+
+    animateDot(dotAnim1, 0);
+    animateDot(dotAnim2, 180);
+    animateDot(dotAnim3, 360);
+  }, []);
+
+  return (
+    <Animated.View style={[st.loadingRoot, { opacity: fadeAnim }]}>
+      {/* Background texture giấy kem */}
+      <ImageBackground
+        source={require('../assets/textures/sky_watercolor.png')}
+        style={StyleSheet.absoluteFill}
+        resizeMode="cover"
+        imageStyle={{ opacity: 0.45 }}
+      />
+      {/* Overlay cream mờ */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(245,237,220,0.72)' }]} />
+
+      {/* Nội dung loading */}
+      <View style={st.loadingInner}>
+        {/* Cat Pookie Lottie */}
+        <View style={st.loadingCatWrap}>
+          <LottieView
+            source={require('../assets/animations/Cat Pookie.json')}
+            autoPlay
+            loop
+            style={[st.loadingCat, { pointerEvents: 'none' }]}
+          />
+        </View>
+
+        {/* Speech bubble kiểu Ghibli */}
+        <View style={st.loadingBubbleWrap}>
+          {/* Triangle chỉ lên con mèo */}
+          <View style={st.loadingBubbleTail} />
+          <View style={st.loadingBubble}>
+            <Text style={st.loadingBubbleText}>
+              Đang lục lịch sử{' '}
+              <Text style={{ opacity: 0.6 }}>ăn uống của bạn...</Text>
+            </Text>
+
+            {/* Dots nhảy */}
+            <View style={st.loadingDots}>
+              {[dotAnim1, dotAnim2, dotAnim3].map((dot, i) => (
+                <Animated.View
+                  key={i}
+                  style={[st.loadingDot, { transform: [{ translateY: dot }] }]}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* Caption nhỏ phía dưới */}
+        <Text style={st.loadingCaption}>🍜 Mèo đang nhớ lại những bữa ngon...</Text>
+      </View>
+    </Animated.View>
+  );
+};
 
 // ─── Format date ───────────────────────────────────────────────────
 const formatDate = (dateString) => {
@@ -85,7 +166,6 @@ const SessionCard = ({ item, index, onPress }) => {
   const fade  = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(24)).current;
   const scale = useRef(new Animated.Value(1)).current;
-  // Dynamic height measured from actual layout — fixes WobblyBorder cross-border bug
   const [cardH, setCardH] = useState(0);
 
   useEffect(() => {
@@ -112,10 +192,7 @@ const SessionCard = ({ item, index, onPress }) => {
         style={st.card}
         onLayout={(e) => setCardH(e.nativeEvent.layout.height)}
       >
-        {/* WobblyBorder uses real measured height — no more border overflow */}
         {cardH > 0 && <WobblyBorder width={CARD_W} height={cardH} />}
-
-        {/* Date row */}
         <View style={st.cardHeader}>
           <View style={st.dateBadge}>
             <Text style={st.dateLabel}>{label}</Text>
@@ -126,13 +203,9 @@ const SessionCard = ({ item, index, onPress }) => {
             <Text style={st.timeText}>{timeStr}</Text>
           </View>
         </View>
-
-        {/* Location */}
         {item.province && (
           <Text style={st.locationText}>📍 {item.province}</Text>
         )}
-
-        {/* Chips — paddingRight leaves space for the arrow badge */}
         <View style={st.chipRow}>
           <View style={[st.chip, { backgroundColor: '#D4E8F5' }]}>
             <Text style={[st.chipText, { color: '#3A6B8A' }]}>
@@ -154,8 +227,6 @@ const SessionCard = ({ item, index, onPress }) => {
             </View>
           ))}
         </View>
-
-        {/* Arrow */}
         <View style={st.arrowBadge}>
           <Svg width={16} height={16} viewBox="0 0 16 16">
             <Path d="M6 4 L10 8 L6 12" stroke={C.inkLight} strokeWidth={2}
@@ -173,9 +244,9 @@ const HistoryScreen = ({ navigation }) => {
   const [loading,  setLoading]  = useState(true);
   const [statsSize, setStatsSize] = useState({ width: 0, height: 0 });
 
-  // Cat bob animation
-  const catBob   = useRef(new Animated.Value(0)).current;
-  const catWiggle= useRef(new Animated.Value(0)).current;
+  // Cat bob animation (header mascot)
+  const catBob    = useRef(new Animated.Value(0)).current;
+  const catWiggle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadHistory();
@@ -225,7 +296,6 @@ const HistoryScreen = ({ navigation }) => {
   // ── List Header ──────────────────────────────────────────────────
   const ListHeader = () => (
     <View>
-      {/* ── Top header bar ── */}
       <ImageBackground
         source={require('../assets/textures/sky_watercolor.png')}
         style={st.topBar}
@@ -238,8 +308,6 @@ const HistoryScreen = ({ navigation }) => {
             <Text style={st.titleMain}>Lịch sử gợi ý</Text>
             <Text style={st.titleDesc}>Những lần app đã gợi ý món cho bạn 🍜</Text>
           </View>
-
-          {/* Calico cat mascot */}
           <Animated.View style={[
             st.catWrap,
             { transform: [{ translateY: catBob }, { rotate: catWiggle.interpolate({ inputRange: [-1, 1], outputRange: ['-3deg', '3deg'] }) }] }
@@ -247,12 +315,10 @@ const HistoryScreen = ({ navigation }) => {
             <LottieView
               source={require('../assets/animations/cat_calico.json')}
               autoPlay loop
-              style={{ width: 100, height: 100 }}
+              style={[{ width: 100, height: 100 }, { pointerEvents: 'none' }]}
             />
           </Animated.View>
         </View>
-
-        {/* Wavy bottom */}
         <Svg width={SW} height={20} style={st.wave}>
           <Path
             d={`M0,6 Q${SW*0.12},18 ${SW*0.25},8 Q${SW*0.38},0 ${SW*0.5},10 Q${SW*0.62},18 ${SW*0.76},7 Q${SW*0.88},0 ${SW},8 L${SW},20 L0,20 Z`}
@@ -261,32 +327,19 @@ const HistoryScreen = ({ navigation }) => {
         </Svg>
       </ImageBackground>
 
-      {/* ── Stats card ── */}
       <View
         style={st.statsCard}
         onLayout={(e) => {
           const { width, height } = e.nativeEvent.layout;
-          if (
-            width > 0 &&
-            height > 0 &&
-            (width !== statsSize.width || height !== statsSize.height)
-          ) {
+          if (width > 0 && height > 0 && (width !== statsSize.width || height !== statsSize.height))
             setStatsSize({ width, height });
-          }
         }}
       >
-        {/* Border follows the measured card size and stays inset from content edges. */}
         {statsSize.width > 0 && statsSize.height > 0 && (
           <View style={st.statsBorderLayer}>
-            <WobblyBorder
-              width={statsSize.width - 12}
-              height={statsSize.height - 12}
-              color={C.wood}
-              sw={2}
-            />
+            <WobblyBorder width={statsSize.width - 12} height={statsSize.height - 12} color={C.wood} sw={2} />
           </View>
         )}
-
         <View style={st.statItem}>
           <Text style={st.statEmoji}>📋</Text>
           <View style={st.statValueRow}>
@@ -295,14 +348,11 @@ const HistoryScreen = ({ navigation }) => {
           </View>
           <Text style={st.statLabel}>Lần gợi ý</Text>
         </View>
-
-        {/* Center divider with paw prints */}
         <View style={st.statCenter}>
           <Text style={st.statPaw}>🐾</Text>
           <View style={st.statLine} />
           <Text style={st.statPaw}>🐾</Text>
         </View>
-
         <View style={st.statItem}>
           <Text style={st.statEmoji}>😋</Text>
           <View style={st.statValueRow}>
@@ -313,7 +363,6 @@ const HistoryScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* ── Section label ── */}
       <View style={st.sectionRow}>
         <View style={st.sectionLine} />
         <View style={st.sectionBadge}>
@@ -330,12 +379,22 @@ const HistoryScreen = ({ navigation }) => {
       <LottieView
         source={require('../assets/animations/cat_orange.json')}
         autoPlay loop
-        style={{ width: 150, height: 150 }}
+        style={[{ width: 150, height: 150 }, { pointerEvents: 'none' }]}
       />
       <Text style={st.emptyTitle}>Chưa có lịch sử nào</Text>
       <Text style={st.emptyText}>Hãy để app gợi ý món ăn cho bạn nhé! 🍽️</Text>
     </View>
   );
+
+  // ── Render — loading intercepts toàn màn hình ────────────────────
+  if (loading) {
+    return (
+      <View style={{ flex: 1 }}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+        <LoadingScreen />
+      </View>
+    );
+  }
 
   return (
     <ImageBackground
@@ -344,7 +403,6 @@ const HistoryScreen = ({ navigation }) => {
       resizeMode="cover"
     >
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-
       <FlatList
         data={sessions}
         renderItem={({ item, index }) => (
@@ -358,7 +416,7 @@ const HistoryScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={st.list}
         ListHeaderComponent={<ListHeader />}
-        ListEmptyComponent={!loading && <EmptyState />}
+        ListEmptyComponent={<EmptyState />}
       />
     </ImageBackground>
   );
@@ -367,6 +425,83 @@ const HistoryScreen = ({ navigation }) => {
 // ─── Styles ────────────────────────────────────────────────────────
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.paper },
+
+  // ── Loading Screen ──
+  loadingRoot: {
+    flex: 1,
+    backgroundColor: C.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingInner: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  loadingCatWrap: {
+    // Không overflow:hidden — tránh clip lottie
+    marginBottom: 4,
+  },
+  loadingCat: {
+    width: 200,
+    height: 200,
+  },
+  loadingBubbleWrap: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  loadingBubbleTail: {
+    width: 0, height: 0,
+    borderLeftWidth: 10, borderRightWidth: 10, borderBottomWidth: 12,
+    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+    borderBottomColor: '#C8A96E',
+    marginBottom: -1,
+    alignSelf: 'center',
+    marginLeft: -40, // lệch trái cho giống mũi tên chỉ vào mèo
+  },
+  loadingBubble: {
+    backgroundColor: 'rgba(245,237,220,0.96)',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#C8A96E',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    alignItems: 'center',
+    // shadow nhẹ — KHÔNG overflow:hidden
+    shadowColor: '#8B5E3C',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  loadingBubbleText: {
+    fontFamily: 'Patrick Hand',
+    fontSize: 16,
+    color: '#4A3728',
+    textAlign: 'center',
+    lineHeight: 24,
+    flexShrink: 1,
+    flexWrap: 'wrap',
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    gap: 7,
+    marginTop: 10,
+    alignItems: 'flex-end',
+    height: 20,
+  },
+  loadingDot: {
+    width: 8, height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C8A96E',
+  },
+  loadingCaption: {
+    fontFamily: 'Nunito',
+    fontSize: 13,
+    color: '#8B7355',
+    marginTop: 20,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
 
   // ── Top bar ──
   topBar:        { backgroundColor: C.skyBlue, paddingTop: 56, paddingBottom: 0 },

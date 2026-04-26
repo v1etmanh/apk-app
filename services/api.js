@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { supabase } from '../store/suppabase'; // 👈 import supabase client
 
-const API_BASE_URL = 'http://192.168.30.246:5001';
+const API_BASE_URL = 'http://192.168.23.14:5001';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
