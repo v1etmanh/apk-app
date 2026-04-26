@@ -86,7 +86,7 @@ const PaperTape = ({ color = '#C8E6F5', style }) => (
 );
 
 // ─── Dish Card ─────────────────────────────────────────────────────
-const DishCard = ({ dish, fb, index }) => {
+const DishCard = ({ dish, fb, index, onPress }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
@@ -116,7 +116,11 @@ const DishCard = ({ dish, fb, index }) => {
       {/* Paper tape top decoration */}
       <PaperTape color={tapeColor} style={st.tapeTop} />
 
-      <View style={st.card}>
+      <TouchableOpacity
+        style={st.card}
+        onPress={onPress}
+        activeOpacity={0.82}
+      >
         <WobblyBorder width={SW - 32} height={action ? 110 : 86} />
 
         <View style={st.cardTop}>
@@ -141,8 +145,11 @@ const DishCard = ({ dish, fb, index }) => {
             </View>
           </View>
 
-          {/* Stamp badge */}
-          {action && <StampBadge action={action} />}
+          {/* Stamp badge hoặc chevron nếu chưa có action */}
+          {action
+            ? <StampBadge action={action} />
+            : <Text style={st.chevron}>›</Text>
+          }
         </View>
 
         {/* Star rating */}
@@ -155,7 +162,7 @@ const DishCard = ({ dish, fb, index }) => {
             ))}
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
@@ -326,10 +333,11 @@ const HistoryDetailScreen = ({ route, navigation }) => {
         ) : (
           dishes.map((dish, i) => (
             <DishCard
-              key={dish.dish_id || i}
+              key={dish.dish_id || dish.id || i}
               dish={dish}
               fb={feedback[dish.dish_id]}
               index={i}
+              onPress={() => navigation.navigate('DishDetail', { dish })}
             />
           ))
         )}
@@ -424,6 +432,9 @@ const st = StyleSheet.create({
   // ── Rating ──
   ratingRow:    { flexDirection: 'row', marginTop: 10, gap: 3, paddingLeft: 42 },
   star:         { fontSize: 18 },
+
+  // ── Chevron hint (khi card chưa có stamp) ──
+  chevron:      { fontSize: 22, color: COLORS.dashed, marginLeft: 8, marginTop: 2 },
 
   // ── Empty ──
   empty:        { alignItems: 'center', paddingVertical: 40 },
