@@ -43,7 +43,8 @@ import OnboardingWelcome       from './screens/onboarding/OnboardingWelcome';
 import OnboardingPersonal      from './screens/onboarding/OnboardingPersonal';
 import OnboardingAllergy       from './screens/onboarding/OnboardingAllergy';
 import OnboardingProfileScreen from './screens/onboarding/OnBoardTast';
-import ResetPasswordScreen      from './screens/ResetPasswordScreen';
+import RecommendScreen         from './screens/RecommendScreen';
+import ResetPasswordScreen     from './screens/ResetPasswordScreen';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
