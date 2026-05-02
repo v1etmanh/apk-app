@@ -10,8 +10,6 @@ import {
   Animated, Image, Alert,
 } from 'react-native';
 import { supabase } from '../store/suppabase';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 
 // ── Texture assets (đường dẫn theo project của bạn) ──────────────────────────
 const TEX = {
@@ -81,7 +79,9 @@ export default function LoginScreen() {
   const handleForgot = async () => {
     if (!email) { shake(); return; }
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'dailymate://reset-password',
+    });
     setLoading(false);
     if (error) {
       Alert.alert('Lỗi 😿', friendlyError(error.message));
@@ -95,23 +95,11 @@ export default function LoginScreen() {
   };
 
   const handleGoogle = async () => {
-    const redirectUrl = Linking.createURL('/');
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: redirectUrl },
-    });
-    if (error) { Alert.alert('Lỗi Google 😿', error.message); return; }
-    if (data?.url) {
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-      if (result.type === 'success') {
-        const params = Linking.parse(result.url);
-        const accessToken  = params.queryParams?.access_token;
-        const refreshToken = params.queryParams?.refresh_token;
-        if (accessToken) {
-          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-        }
-      }
-    }
+    // TODO: Chỉ test khi có APK build — Expo Go không support custom scheme
+    Alert.alert(
+      'Tính năng đang phát triển 🚧',
+      'Đăng nhập Google chỉ hoạt động trên bản APK. Vui lòng dùng Email/Password.',
+    );
   };
 
   const submit = mode === 'login' ? handleLogin

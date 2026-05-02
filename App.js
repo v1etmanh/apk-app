@@ -8,6 +8,7 @@ import { SafeAreaView, StatusBar, View, Text, StyleSheet, Image } from 'react-na
 import LottieView from 'lottie-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts } from 'expo-font';
+import * as Linking from 'expo-linking';
 import {
   BeVietnamPro_400Regular,
   BeVietnamPro_600SemiBold,
@@ -42,7 +43,7 @@ import OnboardingWelcome       from './screens/onboarding/OnboardingWelcome';
 import OnboardingPersonal      from './screens/onboarding/OnboardingPersonal';
 import OnboardingAllergy       from './screens/onboarding/OnboardingAllergy';
 import OnboardingProfileScreen from './screens/onboarding/OnBoardTast';
-import RecommendScreen         from './screens/RecommendScreen';
+import ResetPasswordScreen      from './screens/ResetPasswordScreen';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -216,6 +217,7 @@ const App = () => {
   const [authState,      setAuthState]      = useState('loading');
   const [appReady,       setAppReady]       = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showReset,      setShowReset]      = useState(false); // ← reset password flow
 
   const [fontsLoaded] = useFonts({
     // Be Vietnam Pro — body text
@@ -242,6 +244,45 @@ const App = () => {
       if (!session) setAppReady(false);
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  // ── Deep link handler: email confirm / reset password
+  useEffect(() => {
+    const handleDeepLink = async (url) => {
+      if (!url) return;
+
+      // PKCE flow (Google OAuth APK): ?code=XXX
+      const parsed = Linking.parse(url);
+      const code = parsed.queryParams?.code || null;
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(url);
+        if (error) console.error('exchangeCodeForSession error:', error.message);
+        return;
+      }
+
+      // Implicit flow: email confirm / reset password → #access_token=...
+      let accessToken  = null;
+      let refreshToken = null;
+      const hashPart = url.split('#')[1];
+      if (hashPart) {
+        const params = Object.fromEntries(new URLSearchParams(hashPart));
+        accessToken  = params.access_token  || null;
+        refreshToken = params.refresh_token || null;
+      }
+      if (!accessToken) {
+        accessToken  = parsed.queryParams?.access_token  || null;
+        refreshToken = parsed.queryParams?.refresh_token || null;
+      }
+      if (accessToken) {
+        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        // Nếu URL là reset-password → hiện màn hình đổi mật khẩu
+        if (url.includes('reset-password')) setShowReset(true);
+      }
+    };
+
+    Linking.getInitialURL().then(url => { if (url) handleDeepLink(url); });
+    const sub = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -290,6 +331,16 @@ const App = () => {
       <>
         <StatusBar barStyle="light-content" backgroundColor="#8B5E3C" />
         <LoginScreen />
+      </>
+    );
+  }
+
+  // Đã đăng nhập nhưng đang trong flow reset password
+  if (showReset) {
+    return (
+      <>
+        <StatusBar barStyle="light-content" backgroundColor="#8B5E3C" />
+        <ResetPasswordScreen onDone={() => setShowReset(false)} />
       </>
     );
   }
