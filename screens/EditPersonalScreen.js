@@ -43,7 +43,7 @@ import { IdentificationBadge } from 'phosphor-react-native/lib/module/icons/Iden
 import { BowlFood } from 'phosphor-react-native/lib/module/icons/BowlFood';
 import { Sparkle } from 'phosphor-react-native/lib/module/icons/Sparkle';
 
-import { loadProfile as loadProfileDB, saveProfile as saveProfileDB } from '../utils/database';
+import { loadProfileById, saveProfileMember } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
 
 const { width: SW } = Dimensions.get('window');
@@ -179,7 +179,7 @@ const EditPersonalScreen = ({ navigation }) => {
   const [goal, setGoal]         = useState('maintenance');
   const [activity, setActivity] = useState('moderately_active');
   const [saving, setSaving]     = useState(false);
-  const { profile, setProfile } = useAppStore();
+  const { profile, setProfile, activeProfileId } = useAppStore();
   const [healthConditions, setHealthConditions] = useState([]);
 
 const toggleHealth = (key) => {
@@ -191,6 +191,7 @@ const toggleHealth = (key) => {
   const lottieRef = useRef(null);
 
   useEffect(() => {
+    if (!activeProfileId) return;
     const p = profile;
     if (p) {
       setAge(String(p.age || '25'));
@@ -198,11 +199,10 @@ const toggleHealth = (key) => {
       setDietType(p.diet_type || 'omnivore');
       setGoal(p.dietary_goal || 'maintenance');
       setActivity(p.activity_level || 'moderately_active');
-      setHealthConditions(p.health_condition || []); 
+      setHealthConditions(p.health_condition || []);
     } else {
-      loadProfileDB().then(r => {
+      loadProfileById(activeProfileId).then(r => {
         if (r) {
-          
           setAge(String(r.age || '25'));
           setGender(r.gender || 'female');
           setHealthConditions(r.health_condition || []);
@@ -213,7 +213,7 @@ const toggleHealth = (key) => {
         }
       }).catch(console.error);
     }
-  }, []);
+  }, [activeProfileId]);
 
   const handleSave = async () => {
     const ageNum = parseInt(age);
@@ -224,11 +224,14 @@ const toggleHealth = (key) => {
     lottieRef.current?.play();
     try {
       const now = new Date().toISOString();
-      const data = { age: ageNum, gender, diet_type: dietType, dietary_goal: goal, activity_level: activity, 
+      const data = {
+        age: ageNum, gender, diet_type: dietType,
+        dietary_goal: goal, activity_level: activity,
         health_condition: healthConditions,
-        updated_at: now };
-      await saveProfileDB(data);
-      setProfile({ id: 1, ...data, created_at: now });
+        updated_at: now,
+      };
+      await saveProfileMember({ profileId: activeProfileId, ...data });
+      setProfile({ profileId: activeProfileId, ...data, created_at: now });
       Alert.alert('Đã lưu ✓', 'Thông tin cá nhân đã được cập nhật.');
       navigation.goBack();
     } catch (e) {

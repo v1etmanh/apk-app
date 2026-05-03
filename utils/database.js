@@ -458,6 +458,223 @@ export async function loadRecentDishesCache() {
   } catch (e) { console.warn('[DB] loadRecentDishesCache:', e); return []; }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// MULTI-PROFILE — Phase 1
+// Schema mới: device_profiles/{deviceId}/members/{profileId}
+//   ├─ (doc)       profile fields (displayName, relation, avatar, gender, ...)
+//   ├─ allergies/{key}
+//   └─ body_metrics/{id}
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ACTIVE_PROFILE_KEY = 'active_profile_id';
+
+// ── Ref helpers ──────────────────────────────────────────────────────────────
+function membersCol(deviceId)                   { return collection(firestore, 'device_profiles', deviceId, 'members'); }
+function memberRef(deviceId, profileId)         { return doc(firestore, 'device_profiles', deviceId, 'members', profileId); }
+function memberAllergiesCol(deviceId, profileId){ return collection(firestore, 'device_profiles', deviceId, 'members', profileId, 'allergies'); }
+function memberAllergyRef(deviceId, pid, key)   { return doc(firestore, 'device_profiles', deviceId, 'members', pid, 'allergies', key); }
+function memberMetricsCol(deviceId, profileId)  { return collection(firestore, 'device_profiles', deviceId, 'members', profileId, 'body_metrics'); }
+
+// ── Active profile ID ────────────────────────────────────────────────────────
+export async function getActiveProfileId() {
+  return await AsyncStorage.getItem(ACTIVE_PROFILE_KEY);
+}
+
+export async function setActiveProfileId(profileId) {
+  await AsyncStorage.setItem(ACTIVE_PROFILE_KEY, profileId);
+}
+
+// ── Load all profiles ────────────────────────────────────────────────────────
+export async function loadAllProfiles() {
+  try {
+    const id = await getDeviceId();
+    const snap = await withTimeoutFallback(getDocs(membersCol(id)), 6000, null);
+    if (!snap) return [];
+    return snap.docs.map(d => ({ profileId: d.id, ...d.data() }))
+      .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+  } catch (e) {
+    console.warn('[DB] loadAllProfiles:', e.message);
+    return [];
+  }
+}
+
+// ── Load 1 profile ───────────────────────────────────────────────────────────
+export async function loadProfileById(profileId) {
+  if (!profileId) return null;
+  try {
+    const id = await getDeviceId();
+    const snap = await withTimeoutFallback(getDoc(memberRef(id, profileId)), 5000, null);
+    return snap && snap.exists() ? { profileId: snap.id, ...snap.data() } : null;
+  } catch (e) {
+    console.warn('[DB] loadProfileById:', e.message);
+    return null;
+  }
+}
+
+// ── Save (upsert) profile member ─────────────────────────────────────────────
+export async function saveProfileMember(data) {
+  const { profileId, ...rest } = data;
+  if (!profileId) throw new Error('saveProfileMember: profileId required');
+  const id = await getDeviceId();
+  await setDoc(memberRef(id, profileId), {
+    ...rest,
+    updated_at: new Date().toISOString(),
+  }, { merge: true });
+}
+
+// ── Delete profile member ────────────────────────────────────────────────────
+export async function deleteProfileMember(profileId) {
+  const id = await getDeviceId();
+  // Xóa sub-collections allergies trước
+  const alSnap = await withTimeoutFallback(getDocs(memberAllergiesCol(id, profileId)), 5000, null);
+  const meSnap = await withTimeoutFallback(getDocs(memberMetricsCol(id, profileId)), 5000, null);
+  const dels = [];
+  if (alSnap) alSnap.docs.forEach(d => dels.push(deleteDoc(d.ref)));
+  if (meSnap) meSnap.docs.forEach(d => dels.push(deleteDoc(d.ref)));
+  await Promise.all(dels);
+  await deleteDoc(memberRef(id, profileId));
+}
+
+// ── Scoped Allergies ─────────────────────────────────────────────────────────
+export async function loadAllergiesForProfile(profileId) {
+  if (!profileId) return [];
+  const id = await getDeviceId();
+  const snap = await withTimeoutFallback(getDocs(memberAllergiesCol(id, profileId)), 5000, null);
+  if (!snap) return [];
+  return snap.docs.map(d => d.data());
+}
+
+export async function addAllergyForProfile(profileId, allergyKey, displayName) {
+  const id = await getDeviceId();
+  await setDoc(memberAllergyRef(id, profileId, allergyKey), {
+    allergy_key: allergyKey,
+    display_name: displayName,
+    added_at: new Date().toISOString(),
+  });
+}
+
+export async function removeAllergyForProfile(profileId, allergyKey) {
+  const id = await getDeviceId();
+  await deleteDoc(memberAllergyRef(id, profileId, allergyKey));
+}
+
+// ── Scoped Body Metrics ──────────────────────────────────────────────────────
+export async function loadLatestMetricsForProfile(profileId) {
+  if (!profileId) return null;
+  const id = await getDeviceId();
+  const q = query(memberMetricsCol(id, profileId), orderBy('measured_at', 'desc'), limit(1));
+  const snap = await withTimeoutFallback(getDocs(q), 5000, null);
+  if (!snap || snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+export async function saveBodyMetricsForProfile(profileId, data) {
+  if (!profileId) return null;
+  const id = await getDeviceId();
+  const ref = await addDoc(memberMetricsCol(id, profileId), {
+    ...data,
+    measured_at: data.measured_at || new Date().toISOString(),
+  });
+  return ref.id;
+}
+
+export async function loadAllMetricsForProfile(profileId, limitCount = 100) {
+  if (!profileId) return [];
+  const id = await getDeviceId();
+  const q = query(memberMetricsCol(id, profileId), orderBy('measured_at', 'desc'), limit(limitCount));
+  const snap = await withTimeoutFallback(getDocs(q), 6000, null);
+  if (!snap) return [];
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// ── Scoped Taste Profile ─────────────────────────────────────────────────────
+// Lưu khẩu vị vào device_profiles/{deviceId}/members/{profileId} (merge)
+export async function saveTasteProfileForProfile(profileId, { tasteProfile, hometownProvinceId, tasteMode }) {
+  if (!profileId) return;
+  const deviceId = await getDeviceId();
+  await setDoc(memberRef(deviceId, profileId), {
+    taste_profile:        tasteProfile,
+    hometown_province_id: hometownProvinceId ?? null,
+    taste_mode:           tasteMode,
+    taste_updated_at:     new Date().toISOString(),
+  }, { merge: true });
+}
+
+// Đọc khẩu vị từ member doc
+export async function loadTasteProfileForProfile(profileId) {
+  if (!profileId) return null;
+  const deviceId = await getDeviceId();
+  const snap = await withTimeoutFallback(getDoc(memberRef(deviceId, profileId)), 5000, null);
+  if (!snap || !snap.exists()) return null;
+  const data = snap.data();
+  return {
+    tasteProfile:       data.taste_profile       ?? null,
+    hometownProvinceId: data.hometown_province_id ?? null,
+    tasteMode:          data.taste_mode           ?? 'hometown',
+  };
+}
+
+// ── Migration: profiles/{deviceId} → device_profiles/{deviceId}/members/default ──
+export async function migrateExistingProfile() {
+  try {
+    const activeId = await getActiveProfileId();
+    if (activeId) return; // Đã migrate rồi, bỏ qua
+
+    const deviceId = await getDeviceId();
+
+    // 1. Đọc profile cũ
+    const oldSnap = await withTimeoutFallback(getDoc(profileRef(deviceId)), 5000, null);
+    const oldData = oldSnap && oldSnap.exists() ? oldSnap.data() : {};
+
+    // 2. Tạo profile "Bản thân" mới
+    const newProfileId = 'profile_' + Date.now().toString(36);
+    await setDoc(memberRef(deviceId, newProfileId), {
+      displayName:      oldData.name || 'Bản thân',
+      relation:         'self',
+      avatar:           '🧑',
+      isDefault:        true,
+      created_at:       new Date().toISOString(),
+      updated_at:       new Date().toISOString(),
+      // Copy personal info cũ
+      gender:           oldData.gender           || 'male',
+      birth_year:       oldData.birth_year       || null,
+      age:              oldData.age              || null,
+      dietary_goal:     oldData.dietary_goal     || 'maintenance',
+      diet_type:        oldData.diet_type        || 'omnivore',
+      activity_level:   oldData.activity_level   || 'moderately_active',
+      health_condition: oldData.health_condition || [],
+      taste_preference: oldData.taste_preference || [],
+    });
+
+    // 3. Copy allergies cũ sang profile mới
+    const oldAlSnap = await withTimeoutFallback(getDocs(allergiesCol(deviceId)), 5000, null);
+    if (oldAlSnap && !oldAlSnap.empty) {
+      await Promise.all(oldAlSnap.docs.map(d =>
+        setDoc(memberAllergyRef(deviceId, newProfileId, d.id), d.data())
+      ));
+    }
+
+    // 4. Set active profile
+    await setActiveProfileId(newProfileId);
+    if (__DEV__) console.log('[DB] Migration OK — profileId:', newProfileId);
+
+  } catch (e) {
+    // Migration fail → tạo profile trống vẫn hoạt động
+    console.warn('[DB] migrateExistingProfile error:', e.message);
+    try {
+      const fallbackId = 'profile_default';
+      const deviceId = await getDeviceId();
+      await setDoc(memberRef(deviceId, fallbackId), {
+        displayName: 'Bản thân', relation: 'self', avatar: '🧑',
+        isDefault: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }, { merge: true });
+      await setActiveProfileId(fallbackId);
+    } catch (e2) {
+      console.warn('[DB] fallback migration error:', e2.message);
+    }
+  }
+}
+
 // ─── db object — chỉ còn dùng bởi useAppStore (load profile/metrics/location)
 export const db = {
   getAllAsync: async (sql) => {

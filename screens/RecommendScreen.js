@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, ActivityIndicator, ImageBackground, StatusBar,
+  Image, ActivityIndicator, ImageBackground, StatusBar, Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../services/api';
@@ -18,6 +18,9 @@ import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard from '../components/ui/PaperCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import MetaChip from '../components/ui/MetaChip';
+import {
+  addDishToMealPlan, getMealPlan, getTodayDateStr,
+} from '../services/mealPlanService';
 
 // ── Assets ────────────────────────────────────────────────────────────────────
 const ASSETS = {
@@ -96,7 +99,7 @@ const LoadingView = () => {
 
 
 // ── Top dish card (rank 1–3, horizontal scroll) ───────────────────────────────
-const TopCard = ({ item, onPress }) => {
+const TopCard = ({ item, onPress, isAdded, onAddToMeal }) => {
   const isFirst = item.rank === 1;
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
@@ -152,6 +155,21 @@ const TopCard = ({ item, onPress }) => {
             {item.explanation?.[0] && (
               <Text style={s.topHint} numberOfLines={2}>{item.explanation[0]}</Text>
             )}
+            {/* ── Nút Thêm vào bữa ── */}
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); onAddToMeal(item); }}
+              style={[s.addMealBtn, isAdded && s.addMealBtnDone]}
+              activeOpacity={0.75}
+            >
+              <Ionicons
+                name={isAdded ? 'checkmark-circle' : 'add-circle-outline'}
+                size={14}
+                color={isAdded ? '#22C55E' : '#60A5FA'}
+              />
+              <Text style={[s.addMealText, isAdded && s.addMealTextDone]}>
+                {isAdded ? 'Đã thêm vào bữa' : 'Thêm vào bữa'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ImageBackground>
@@ -160,7 +178,7 @@ const TopCard = ({ item, onPress }) => {
 };
 
 // ── List row (rank 4+) ────────────────────────────────────────────────────────
-const ListRow = ({ item, onPress }) => (
+const ListRow = ({ item, onPress, isAdded, onAddToMeal }) => (
   <TouchableOpacity onPress={onPress} activeOpacity={0.82}>
     <ImageBackground
       source={ASSETS.paper}
@@ -205,6 +223,21 @@ const ListRow = ({ item, onPress }) => (
           {item.explanation?.[0] && (
             <Text style={s.rowHint} numberOfLines={1}>{item.explanation[0]}</Text>
           )}
+          {/* ── Nút Thêm vào bữa (row) ── */}
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation(); onAddToMeal(item); }}
+            style={[s.addMealBtnRow, isAdded && s.addMealBtnDone]}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name={isAdded ? 'checkmark-circle' : 'add-circle-outline'}
+              size={13}
+              color={isAdded ? '#22C55E' : '#60A5FA'}
+            />
+            <Text style={[s.addMealText, isAdded && s.addMealTextDone, { fontSize: 11 }]}>
+              {isAdded ? 'Đã thêm' : 'Thêm vào bữa'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <Ionicons name="chevron-forward" size={20} color={C.textLight} style={{ paddingRight: 12 }} />
@@ -221,7 +254,45 @@ const RecommendScreen = ({ navigation, route }) => {
   const [isLoading, setIsLoading]  = useState(true);
   const [visibleCount, setVisible] = useState(10);
   const [error, setError]          = useState(null);
-  const { setCurrentSessionId }    = useAppStore();
+  const { setCurrentSessionId, profile, activeProfileId }    = useAppStore();
+
+  // ── Meal plan state: set của dish_id đã thêm vào bữa hôm nay ──────────────
+  const [addedDishIds, setAddedDishIds] = useState(new Set());
+  // Toast feedback
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const [toastMsg, setToastMsg] = useState('');
+
+  // Load meal plan khi màn hình mount
+  useEffect(() => {
+    (async () => {
+      const plan = await getMealPlan(getTodayDateStr());
+      const ids = new Set(plan.items.flatMap(i => i.dishes.map(d => d.dish_id)));
+      setAddedDishIds(ids);
+    })();
+  }, []);
+
+  // Toast helper
+  const showToast = useCallback((msg) => {
+    setToastMsg(msg);
+    Animated.sequence([
+      Animated.timing(toastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.delay(1400),
+      Animated.timing(toastOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start();
+  }, [toastOpacity]);
+
+  // Handler thêm món vào bữa
+  const handleAddToMeal = useCallback(async (dish) => {
+    const profileInfo = {
+      profileId:   activeProfileId || 'default',
+      displayName: profile?.displayName || profile?.name || 'Bạn',
+      avatar:      profile?.avatar || '🧑',
+      relation:    profile?.relation || 'self',
+    };
+    await addDishToMealPlan(profileInfo, dish);
+    setAddedDishIds(prev => new Set([...prev, dish.dish_id]));
+    showToast(`✅ Đã thêm "${dish.title}" vào bữa hôm nay!`);
+  }, [profile, activeProfileId, showToast]);
 
   useEffect(() => { fetchRecommendations(); }, []);
 
@@ -319,16 +390,33 @@ const RecommendScreen = ({ navigation, route }) => {
             <Text style={s.backText}> Quay lại</Text>
           </TouchableOpacity>
           <Text style={s.headerTitle}>Gợi ý món ăn</Text>
-          <TouchableOpacity
-            onPress={fetchRecommendations}
-            style={[s.headerAction, s.refreshBtn]}
-            activeOpacity={0.78}
-            accessibilityRole="button"
-            accessibilityLabel="Lam moi goi y mon an"
-          >
-            <Ionicons name="refresh" size={17} color={C.accentGold} />
-            <Text style={s.refreshText}> Làm mới</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {/* Nút Bữa hôm nay */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ChosenDish')}
+              style={[s.headerAction, s.mealPlanBtn]}
+              activeOpacity={0.78}
+              accessibilityRole="button"
+              accessibilityLabel="Bua hom nay"
+            >
+              <Text style={s.mealPlanBtnText}>🍱</Text>
+              {addedDishIds.size > 0 && (
+                <View style={s.mealPlanBadge}>
+                  <Text style={s.mealPlanBadgeText}>{addedDishIds.size}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={fetchRecommendations}
+              style={[s.headerAction, s.refreshBtn]}
+              activeOpacity={0.78}
+              accessibilityRole="button"
+              accessibilityLabel="Lam moi goi y mon an"
+            >
+              <Ionicons name="refresh" size={17} color={C.accentGold} />
+              <Text style={s.refreshText}> Làm mới</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Context pills */}
@@ -391,6 +479,8 @@ const RecommendScreen = ({ navigation, route }) => {
                 <TopCard
                   key={item.dish_id || item.rank}
                   item={item}
+                  isAdded={addedDishIds.has(item.dish_id)}
+                  onAddToMeal={handleAddToMeal}
                   onPress={() => navigation.navigate('DishDetail', { dish: item })}
                 />
               ))}
@@ -406,6 +496,8 @@ const RecommendScreen = ({ navigation, route }) => {
               <ListRow
                 key={item.dish_id || item.rank}
                 item={item}
+                isAdded={addedDishIds.has(item.dish_id)}
+                onAddToMeal={handleAddToMeal}
                 onPress={() => navigation.navigate('DishDetail', { dish: item })}
               />
             ))}
@@ -440,6 +532,12 @@ const RecommendScreen = ({ navigation, route }) => {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Toast feedback ── */}
+      <Animated.View style={[s.toast, { opacity: toastOpacity }]} pointerEvents="none">
+        <Text style={s.toastText}>{toastMsg}</Text>
+      </Animated.View>
+
     </ScreenBackground>
   );
 };
@@ -693,6 +791,62 @@ const s = StyleSheet.create({
   emptyMeta: {
     fontFamily: 'Caveat_400Regular', fontSize: 15,
     color: C.textMid, marginTop: 6,
+  },
+
+  // ── Meal plan button (header) ─────────────────────────────────────────────
+  mealPlanBtn: {
+    paddingHorizontal: 12,
+    position: 'relative',
+  },
+  mealPlanBtnText: { fontSize: 18 },
+  mealPlanBadge: {
+    position: 'absolute', top: 4, right: 4,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#4ADE80',
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  mealPlanBadgeText: {
+    fontFamily: 'Nunito_700Bold', fontSize: 9, color: '#fff',
+  },
+
+  // ── Add to meal buttons ───────────────────────────────────────────────────
+  addMealBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 12, borderWidth: 1,
+    borderColor: '#60A5FA',
+    backgroundColor: 'rgba(96,165,250,0.08)',
+  },
+  addMealBtnDone: {
+    borderColor: '#22C55E',
+    backgroundColor: 'rgba(74,222,128,0.10)',
+  },
+  addMealBtnRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 10, borderWidth: 1,
+    borderColor: '#60A5FA',
+    backgroundColor: 'rgba(96,165,250,0.08)',
+  },
+  addMealText: {
+    fontFamily: 'Nunito_700Bold', fontSize: 12, color: '#60A5FA',
+  },
+  addMealTextDone: { color: '#22C55E' },
+
+  // ── Toast overlay ─────────────────────────────────────────────────────────
+  toast: {
+    position: 'absolute', bottom: 32, alignSelf: 'center',
+    backgroundColor: 'rgba(61,43,31,0.88)',
+    borderRadius: 20, paddingHorizontal: 20, paddingVertical: 12,
+    maxWidth: '85%',
+  },
+  toastText: {
+    fontFamily: 'Nunito_700Bold', fontSize: 13, color: '#F5EDDC', textAlign: 'center',
   },
 });
 

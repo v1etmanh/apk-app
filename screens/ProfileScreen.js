@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Dimensions, ImageBackground
+  Dimensions, ImageBackground, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Scales } from 'phosphor-react-native/lib/module/icons/Scales';
 import { Ruler } from 'phosphor-react-native/lib/module/icons/Ruler';
@@ -16,6 +17,7 @@ import { CaretRight } from 'phosphor-react-native/lib/module/icons/CaretRight';
 import { PawPrint } from 'phosphor-react-native/lib/module/icons/PawPrint';
 import { Plus } from 'phosphor-react-native/lib/module/icons/Plus';
 import { useAppStore } from '../store/useAppStore';
+import { deleteProfileMember } from '../utils/database';
 
 import { C } from '../theme';
 import ScreenBackground from '../components/ui/ScreenBackground';
@@ -130,8 +132,38 @@ const Avatar = () => {
 };
 
 const ProfileScreen = ({ navigation }) => {
-  const { profile, latestMetrics } = useAppStore();
+  const { profile, latestMetrics, profiles, activeProfileId, switchProfile, loadAllProfilesAction } = useAppStore();
   const insets = useSafeAreaInsets();
+
+  // Load profiles on focus
+  useFocusEffect(useCallback(() => { loadAllProfilesAction(); }, []));
+
+  // ── Handle long-press on member row ───────────────────────────────────────
+  const handleMemberLongPress = (p) => {
+    const isActive = p.profileId === activeProfileId;
+    const canDelete = profiles.length > 1;
+    const options = [
+      { text: 'Chỉnh sửa', onPress: () => navigation.getParent()?.navigate('AddEditProfile', { profileId: p.profileId }) },
+    ];
+    if (canDelete) {
+      options.push({
+        text: 'Xóa', style: 'destructive',
+        onPress: () => Alert.alert('Xóa thành viên', `Xóa "${p.displayName}"?`, [
+          { text: 'Hủy', style: 'cancel' },
+          { text: 'Xóa', style: 'destructive', onPress: async () => {
+            await deleteProfileMember(p.profileId);
+            if (isActive) {
+              const rest = profiles.filter(x => x.profileId !== p.profileId);
+              if (rest.length > 0) await switchProfile(rest[0].profileId);
+            }
+            await loadAllProfilesAction();
+          }},
+        ]),
+      });
+    }
+    options.push({ text: 'Đóng', style: 'cancel' });
+    Alert.alert(p.displayName || 'Thành viên', undefined, options);
+  };
 
   let bmi = null, bmiLabel = '–';
   if (latestMetrics?.height_cm && latestMetrics?.weight_kg) {
@@ -172,6 +204,51 @@ const ProfileScreen = ({ navigation }) => {
     <ScreenBackground texture="paper" edges={[]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[st.scroll, { paddingTop: insets.top + 24 }]}>
         
+        {/* ── Thành viên gia đình ── */}
+        <SectionHeader title="👨‍👩‍👦 Thành viên" style={st.sectionHeader} titleStyle={st.sectionTitle} />
+
+        <View style={st.memberGroup}>
+          {profiles.map((p) => {
+            const isActive = p.profileId === activeProfileId;
+            return (
+              <TouchableOpacity
+                key={p.profileId}
+                style={[st.memberRow, isActive && st.memberRowActive]}
+                activeOpacity={0.75}
+                onPress={() => !isActive && switchProfile(p.profileId)}
+                onLongPress={() => handleMemberLongPress(p)}
+              >
+                <View style={[st.memberAvatar, isActive && st.memberAvatarActive]}>
+                  <Text style={{ fontSize: 22 }}>{p.avatar || '🧑'}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[st.memberName, isActive && { color: C.primary }]} numberOfLines={1}>
+                    {p.displayName || 'Chưa đặt tên'}
+                  </Text>
+                  <Text style={st.memberSub} numberOfLines={1}>
+                    {({ self:'Bản thân', child:'Con', parent:'Cha/Mẹ', spouse:'Vợ/Chồng', sibling:'Anh/Chị/Em', other:'Khác' })[p.relation] || 'Khác'}
+                    {p.age ? ` · ${p.age} tuổi` : ''}
+                  </Text>
+                </View>
+                {isActive
+                  ? <View style={st.activePill}><Text style={st.activePillText}>✓ Active</Text></View>
+                  : <Text style={{ fontSize: 18, color: C.textLight }}>›</Text>
+                }
+              </TouchableOpacity>
+            );
+          })}
+
+          {/* Add new member */}
+          <TouchableOpacity
+            style={st.addMemberBtn}
+            activeOpacity={0.8}
+            onPress={() => navigation.getParent()?.navigate('AddEditProfile')}
+          >
+            <Text style={st.addMemberIcon}>＋</Text>
+            <Text style={st.addMemberText}>Thêm thành viên</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* ── Header / Profile Info ── */}
         <View style={st.headerSection}>
           <Avatar />
@@ -243,6 +320,57 @@ const ProfileScreen = ({ navigation }) => {
 
 const st = StyleSheet.create({
   scroll: { paddingHorizontal: 16 },
+
+  // ── Members Section ──
+  memberGroup: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06, shadowRadius: 12, elevation: 3,
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)',
+    marginBottom: 24,
+  },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F7',
+    minHeight: 64,
+    gap: 12,
+  },
+  memberRowActive: { backgroundColor: 'rgba(139,94,60,0.04)' },
+  memberAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FDFAF6',
+    borderWidth: 1.5,
+    borderColor: 'rgba(200,169,110,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  memberAvatarActive: { borderColor: C.primary, borderWidth: 2 },
+  memberName: { fontFamily: 'Nunito_700Bold', fontSize: 15, color: C.text, marginBottom: 2 },
+  memberSub:  { fontFamily: 'Nunito_600SemiBold', fontSize: 12, color: '#8E8E93' },
+  activePill: {
+    backgroundColor: C.primary, borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 4,
+  },
+  activePillText: { fontFamily: 'Nunito_700Bold', fontSize: 11, color: '#FFF8EA' },
+  addMemberBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F2F2F7',
+  },
+  addMemberIcon: { fontSize: 18, color: C.primary },
+  addMemberText: { fontFamily: 'Nunito_700Bold', fontSize: 15, color: C.primary },
 
   // ── Header Section ──
   headerSection: { alignItems: 'center', marginBottom: 28 },

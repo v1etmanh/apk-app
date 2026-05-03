@@ -1,6 +1,13 @@
 // store/useAppStore.js
 import { create } from 'zustand';
-import { loadProfile, loadLatestMetrics, loadAllergies, getSetting, loadAllIngredients } from '../utils/database';
+import {
+  loadProfile, loadLatestMetrics, loadAllergies, getSetting, loadAllIngredients,
+  // Multi-profile
+  getActiveProfileId, setActiveProfileId,
+  loadAllProfiles, loadProfileById, saveProfileMember,
+  loadAllergiesForProfile, loadLatestMetricsForProfile,
+  loadTasteProfileForProfile,
+} from '../utils/database';
 
 export const useAppStore = create((set, get) => ({
   profile:          null,
@@ -21,6 +28,10 @@ export const useAppStore = create((set, get) => ({
   hometownProvinceId:  null,   // int | null
   tasteMode:           'hometown', // 'manual' | 'hometown'
   provinces:           [],     // cache 63 tỉnh từ Firestore
+
+  // Multi-profile
+  profiles:        [],    // Array<ProfileMember>
+  activeProfileId: null,  // string | null
 
   // MarketBasket — giỏ nguyên liệu của phiên hiện tại
   marketBasket: {
@@ -55,6 +66,10 @@ export const useAppStore = create((set, get) => ({
   setTasteMode:        (mode)      => set({ tasteMode: mode }),
   setProvinces:        (list)      => set({ provinces: list }),
 
+  // Multi-profile setters
+  setProfiles:        (list) => set({ profiles: list }),
+  setActiveProfileId: (id)   => set({ activeProfileId: id }),
+
   setMarketBasket: (basket) => set({
     marketBasket: {
       selectedIngredients: basket.selectedIngredients ?? [],
@@ -67,9 +82,45 @@ export const useAppStore = create((set, get) => ({
     marketBasket: { selectedIngredients: [], isSkipped: true, boostStrategy: 'strict' },
   }),
 
+  // ── Multi-profile thunks ───────────────────────────────────────────────────
+  loadAllProfilesAction: async () => {
+    try {
+      const list = await loadAllProfiles();
+      set({ profiles: list });
+      return list;
+    } catch (e) { console.error('loadAllProfilesAction:', e); return []; }
+  },
+
+  switchProfile: async (profileId) => {
+    try {
+      await setActiveProfileId(profileId);
+      set({ activeProfileId: profileId });
+      // Reload data cho profile mới
+      const profileData = await loadProfileById(profileId);
+      if (profileData) set({ profile: profileData });
+      const [allergiesRaw, metrics, tasteData] = await Promise.all([
+        loadAllergiesForProfile(profileId),
+        loadLatestMetricsForProfile(profileId),
+        loadTasteProfileForProfile(profileId),
+      ]);
+      set({
+        allergies:     allergiesRaw.map(r => r.allergy_key),
+        latestMetrics: metrics,
+        // Reset taste về profile mới (null nếu chưa set)
+        tasteProfile:        tasteData?.tasteProfile       ?? null,
+        hometownProvinceId:  tasteData?.hometownProvinceId ?? null,
+        tasteMode:           tasteData?.tasteMode          ?? 'hometown',
+      });
+    } catch (e) { console.error('switchProfile:', e); }
+  },
+
+  // ── Core data loaders ──────────────────────────────────────────────────────
   loadProfile: async () => {
     try {
-      const profile = await loadProfile();
+      const activeId = get().activeProfileId;
+      const profile = activeId
+        ? await loadProfileById(activeId)
+        : await loadProfile();
       if (profile) set({ profile });
       return profile;
     } catch (e) { console.error('loadProfile:', e); return null; }
@@ -77,7 +128,10 @@ export const useAppStore = create((set, get) => ({
 
   loadLatestMetrics: async () => {
     try {
-      const metrics = await loadLatestMetrics();
+      const activeId = get().activeProfileId;
+      const metrics = activeId
+        ? await loadLatestMetricsForProfile(activeId)
+        : await loadLatestMetrics();
       if (metrics) set({ latestMetrics: metrics });
       return metrics;
     } catch (e) { console.error('loadLatestMetrics:', e); return null; }
@@ -85,7 +139,10 @@ export const useAppStore = create((set, get) => ({
 
   loadAllergies: async () => {
     try {
-      const rows = await loadAllergies();
+      const activeId = get().activeProfileId;
+      const rows = activeId
+        ? await loadAllergiesForProfile(activeId)
+        : await loadAllergies();
       const allergies = rows.map(r => r.allergy_key);
       set({ allergies });
       return allergies;
@@ -97,12 +154,13 @@ export const useAppStore = create((set, get) => ({
   // FIX (Logic): xóa console.log nhạy cảm, wrap __DEV__ nếu cần debug.
   initializeSettings: async () => {
     try {
-      const [lat, lon, province, cookTime, costPref] = await Promise.all([
+      const [lat, lon, province, cookTime, costPref, activeProfileId] = await Promise.all([
         getSetting('last_known_lat'),
         getSetting('last_known_lon'),
         getSetting('last_known_province'),
         getSetting('max_cook_time'),
         getSetting('cost_preference'),
+        getActiveProfileId(),
       ]);
 
       const location = {
@@ -117,8 +175,9 @@ export const useAppStore = create((set, get) => ({
 
       set({
         location,
-        maxPrepTime:    isNaN(parsedCookTime) ? 60 : parsedCookTime,
-        costPreference: isNaN(parsedCostPref) ? 2  : parsedCostPref,
+        maxPrepTime:     isNaN(parsedCookTime) ? 60 : parsedCookTime,
+        costPreference:  isNaN(parsedCostPref) ? 2  : parsedCostPref,
+        activeProfileId: activeProfileId || null,
       });
 
       if (__DEV__) {

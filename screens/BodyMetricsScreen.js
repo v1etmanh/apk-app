@@ -19,7 +19,10 @@ import {
 import Svg, { Path, Rect, Line, Circle } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
 
-import { loadAllMetrics, saveBodyMetrics } from '../utils/database';
+import {
+  loadAllMetricsForProfile,
+  saveBodyMetricsForProfile,
+} from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
 
 const { width: SW } = Dimensions.get('window');
@@ -134,14 +137,14 @@ const BodyMetricsScreen = ({ navigation }) => {
   const [height, setHeight]     = useState('');
   const [weight, setWeight]     = useState('');
   const [note, setNote]         = useState('');
-  const { latestMetrics, setLatestMetrics } = useAppStore();
+  const { latestMetrics, setLatestMetrics, activeProfileId } = useAppStore();
   const lottieRef = useRef(null);
 
-  useEffect(() => { loadMetrics(); }, []);
+  useEffect(() => { loadMetrics(); }, [activeProfileId]);
 
   const loadMetrics = async () => {
     try {
-      const result = await loadAllMetrics();
+      const result = await loadAllMetricsForProfile(activeProfileId);
       setMetrics(result);
       if (result.length > 0) {
         setLatestMetrics(result[0]);
@@ -157,7 +160,11 @@ const BodyMetricsScreen = ({ navigation }) => {
       Alert.alert('Ối! 😅', 'Chiều cao và cân nặng phải là số dương nhé!'); return;
     }
     try {
-      await saveBodyMetrics({ height_cm: h, weight_kg: w, measured_at: new Date().toISOString(), note: note || '' });
+      await saveBodyMetricsForProfile(activeProfileId, {
+        height_cm: h, weight_kg: w,
+        measured_at: new Date().toISOString(),
+        note: note || '',
+      });
       setNote('');
       await loadMetrics();
       lottieRef.current?.play();

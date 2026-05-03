@@ -6,7 +6,12 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
-import { loadAllergies, addAllergy, removeAllergy, loadAllIngredients } from '../utils/database';
+import {
+  loadAllergiesForProfile,
+  addAllergyForProfile,
+  removeAllergyForProfile,
+  loadAllIngredients,
+} from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
 
 const { width: SW } = Dimensions.get('window');
@@ -331,7 +336,7 @@ const SearchModal = ({ visible, onClose, allIngredients, selectedIds, onToggle, 
 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 const AllergyScreen = ({ navigation }) => {
-  const { setAllergies: setStoreAllergies } = useAppStore();
+  const { setAllergies: setStoreAllergies, activeProfileId } = useAppStore();
   const [mode, setMode] = useState('category');
   const [categories, setCategories] = useState([]);
   const [catLoading, setCatLoading] = useState(true);
@@ -340,7 +345,13 @@ const AllergyScreen = ({ navigation }) => {
   const [ingLoading, setIngLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
 
-  useEffect(() => { initData(); }, []);
+  // Re-run khi switch profile — reset toàn bộ state trước khi load mới
+  useEffect(() => {
+    setCategories([]);
+    setSelectedIngredients([]);
+    setCatLoading(true);
+    initData();
+  }, [activeProfileId]);
 
   useEffect(() => {
     if (mode === 'ingredient' && allIngredients.length === 0) {
@@ -376,7 +387,7 @@ const AllergyScreen = ({ navigation }) => {
     setCatLoading(true);
     try {
       const list = await fetchIngredients();
-      const rows = await loadAllergies();
+      const rows = await loadAllergiesForProfile(activeProfileId);
       const savedCatKeys = rows.filter(r => isNaN(Number(r.allergy_key))).map(r => r.allergy_key);
       const ingRows = rows.filter(r => !isNaN(Number(r.allergy_key)));
       setCategories(buildCategories(list, savedCatKeys));
@@ -406,8 +417,8 @@ const AllergyScreen = ({ navigation }) => {
     if (idx === -1) return;
     const isSelected = !categories[idx].selected;
     try {
-      if (isSelected) await addAllergy(key, categories[idx].display);
-      else await removeAllergy(key);
+      if (isSelected) await addAllergyForProfile(activeProfileId, key, categories[idx].display);
+      else            await removeAllergyForProfile(activeProfileId, key);
       const updated = categories.map((c, i) => i === idx ? { ...c, selected: isSelected } : c);
       setCategories(updated);
       syncStore(updated, selectedIngredients);
@@ -421,12 +432,12 @@ const AllergyScreen = ({ navigation }) => {
     const isSelected = !selectedIngredients.find(i => String(i.id) === idStr);
     try {
       if (isSelected) {
-        await addAllergy(idStr, item.name);
+        await addAllergyForProfile(activeProfileId, idStr, item.name);
         const updated = [...selectedIngredients, { id: idStr, name: item.name, name_en: item.name_en || '' }];
         setSelectedIngredients(updated);
         syncStore(categories, updated);
       } else {
-        await removeAllergy(idStr);
+        await removeAllergyForProfile(activeProfileId, idStr);
         const updated = selectedIngredients.filter(i => String(i.id) !== idStr);
         setSelectedIngredients(updated);
         syncStore(categories, updated);
@@ -434,11 +445,11 @@ const AllergyScreen = ({ navigation }) => {
     } catch (e) {
       Alert.alert('Ối!', 'Không thể cập nhật 😅');
     }
-  }, [selectedIngredients, categories]);
+  }, [selectedIngredients, categories, activeProfileId]);
 
   const removeIngredient = useCallback(async (idStr) => {
     try {
-      await removeAllergy(idStr);
+      await removeAllergyForProfile(activeProfileId, idStr);
       const updated = selectedIngredients.filter(i => String(i.id) !== idStr);
       setSelectedIngredients(updated);
       syncStore(categories, updated);

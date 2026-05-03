@@ -22,6 +22,7 @@ import LottieView from 'lottie-react-native';
 import { useAppStore } from '../store/useAppStore';
 import { getTasteProfile, saveTasteProfile, getProvinces, regionToTaste, DEFAULT_TASTE }
   from '../services/tasteProfileService';
+import { saveTasteProfileForProfile, loadTasteProfileForProfile } from '../utils/database';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -153,33 +154,63 @@ const TasteProfileScreen = ({ navigation }) => {
     tasteProfile: storeProfile, hometownProvinceId: storeHometownId,
     tasteMode: storeTasteMode, provinces: storeProvinces,
     setTasteProfile, setHometown, setTasteMode, setProvinces,
+    activeProfileId,
   } = useAppStore();
 
-  const [mode, setMode]             = useState(storeTasteMode ?? 'hometown');
-  const [taste, setTaste]           = useState(storeProfile ?? { ...DEFAULT_TASTE });
+  const [mode, setMode]                = useState(storeTasteMode ?? 'hometown');
+  const [taste, setTaste]              = useState(storeProfile ?? { ...DEFAULT_TASTE });
   const [selectedProvince, setSelProv] = useState(null);
-  const [provinces, setLocalProv]   = useState(storeProvinces ?? []);
-  const [search, setSearch]         = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [saving, setSaving]         = useState(false);
+  const [provinces, setLocalProv]      = useState(storeProvinces ?? []);
+  const [search, setSearch]            = useState('');
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [saving, setSaving]            = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
+  // ── Load danh sách tỉnh — chỉ 1 lần khi mount ────────────────────────────
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      setLoading(true);
+      setLoadingProvinces(true);
       try {
-        let list = storeProvinces?.length ? storeProvinces : await getProvinces();
+        const list = storeProvinces?.length ? storeProvinces : await getProvinces();
+        if (cancelled) return;
         setLocalProv(list);
         if (!storeProvinces?.length) setProvinces(list);
-        if (storeHometownId) {
-          const found = list.find(p => p.id === storeHometownId);
-          if (found) setSelProv(found);
-        }
-        if (storeProfile) setTaste(storeProfile);
       } catch (e) { console.error(e); }
-      finally { setLoading(false); }
+      finally { if (!cancelled) setLoadingProvinces(false); }
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, []);  // chỉ chạy 1 lần
+
+  // ── Load taste theo activeProfileId — chạy lại khi switch profile ─────────
+  useEffect(() => {
+    if (!activeProfileId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const profileTaste = await loadTasteProfileForProfile(activeProfileId);
+        if (cancelled) return;
+
+        const loadedTaste    = profileTaste?.tasteProfile       ?? storeProfile   ?? { ...DEFAULT_TASTE };
+        const loadedMode     = profileTaste?.tasteMode          ?? storeTasteMode ?? 'hometown';
+        const loadedHometown = profileTaste?.hometownProvinceId ?? storeHometownId ?? null;
+
+        setTaste(loadedTaste);
+        setMode(loadedMode);
+
+        if (loadedHometown) {
+          // provinces có thể chưa load xong — dùng storeProvinces hoặc FALLBACK nếu cần
+          const list = provinces.length ? provinces : (storeProvinces ?? []);
+          const found = list.find(p => p.id === loadedHometown);
+          if (found) setSelProv(found);
+          else setSelProv(null);
+        } else {
+          setSelProv(null);
+        }
+      } catch (e) { console.error('[TasteProfile] loadTaste:', e); }
+    })();
+    return () => { cancelled = true; };
+  }, [activeProfileId]);
 
   useEffect(() => {
     fadeAnim.setValue(0);
@@ -207,15 +238,20 @@ const TasteProfileScreen = ({ navigation }) => {
     if (total === 0) { Alert.alert('Chưa thiết lập', 'Chọn ít nhất một vị nhé.'); return; }
     setSaving(true);
     try {
+      // Cập nhật store
       setTasteProfile(taste);
       setHometown(selectedProvince?.id ?? null);
       setTasteMode(mode);
-      await saveTasteProfile('local_user', {
-        tasteProfile: taste, hometownProvinceId: selectedProvince?.id ?? null, tasteMode: mode,
+      // Lưu scoped theo activeProfileId — mỗi profile có khẩu vị riêng
+      await saveTasteProfileForProfile(activeProfileId, {
+        tasteProfile: taste,
+        hometownProvinceId: selectedProvince?.id ?? null,
+        tasteMode: mode,
       });
       Alert.alert('✅ Đã lưu', 'Khẩu vị đã được cập nhật!', [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (e) {
-      Alert.alert('Lưu cục bộ', 'Khẩu vị đã lưu trên máy.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      console.error('[TasteProfile] handleSave:', e);
+      Alert.alert('Lỗi', 'Không thể lưu khẩu vị. Thử lại nhé.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } finally { setSaving(false); }
   };
 
@@ -275,7 +311,20 @@ const TasteProfileScreen = ({ navigation }) => {
                   />
                 </View>
 
-                {loading
+                {/* Preview hiện NGAY dưới ô search khi đã chọn tỉnh */}
+                {selectedProvince && (
+                  <View style={st.previewBox}>
+                    <Text style={st.previewTitle}>
+                      📍 Khẩu vị vùng {selectedProvince.name}
+                    </Text>
+                    {selectedProvince.regional_flavor
+                      ? <Text style={st.previewFlavor}>{selectedProvince.regional_flavor}</Text>
+                      : null}
+                    <TasteBars taste={taste} />
+                  </View>
+                )}
+
+                {loadingProvinces
                   ? <ActivityIndicator style={{ marginTop: 24 }} color={C.stamp} />
                   : (
                     <FlatList
@@ -293,18 +342,6 @@ const TasteProfileScreen = ({ navigation }) => {
                       }
                     />
                   )}
-
-                {selectedProvince && (
-                  <View style={st.previewBox}>
-                    <Text style={st.previewTitle}>
-                      Khẩu vị vùng {selectedProvince.name}
-                    </Text>
-                    {selectedProvince.regional_flavor
-                      ? <Text style={st.previewFlavor}>{selectedProvince.regional_flavor}</Text>
-                      : null}
-                    <TasteBars taste={taste} />
-                  </View>
-                )}
               </View>
             )}
 

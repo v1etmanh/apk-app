@@ -19,6 +19,7 @@ import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard from '../components/ui/PaperCard';
 import WoodButton from '../components/ui/WoodButton';
 import WeatherAnimationSprite from '../components/ui/WeatherAnimationSprite';
+import ProfileSwitcherSheet from '../components/ProfileSwitcherSheet';
 import { Drop } from 'phosphor-react-native/lib/module/icons/Drop';
 import { Wind } from 'phosphor-react-native/lib/module/icons/Wind';
 import { Gauge } from 'phosphor-react-native/lib/module/icons/Gauge';
@@ -196,6 +197,7 @@ const HomeScreen = ({ navigation }) => {
   const [isDirty, setIsDirty]           = useState(false);
   const [basketBadge, setBasketBadge]   = useState(0);
   const [challengeTitle, setChallengeTitle] = useState('');
+  const [showSwitcher, setShowSwitcher] = useState(false);
   const isFirstRender = React.useRef(true);
 
   useEffect(() => {
@@ -207,6 +209,7 @@ const HomeScreen = ({ navigation }) => {
     profile, latestMetrics, setRankedDishes,
     location, setLocation, allergies, setCurrentSessionId,
     marketBasket, maxPrepTime, costPreference,
+    profiles, activeProfileId,
   } = useAppStore();
 
   useEffect(() => {
@@ -342,10 +345,38 @@ const HomeScreen = ({ navigation }) => {
               {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })}
             </Text>
           </View>
-          <TouchableOpacity style={s.profileBtn} onPress={() => navigation.navigate('Profile')}>
-            <Ionicons name="person-circle-outline" size={26} color={C.text} />
+
+          {/* Profile switcher button */}
+          <TouchableOpacity
+            style={s.profileSwitcherBtn}
+            activeOpacity={0.75}
+            onPress={() => setShowSwitcher(true)}
+          >
+            {(() => {
+              const active = profiles.find(p => p.profileId === activeProfileId);
+              return (
+                <>
+                  <Text style={s.profileSwitcherAvatar}>{active?.avatar || '🧑'}</Text>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={s.profileSwitcherName} numberOfLines={1}>
+                      {active?.displayName || 'Hồ sơ'}
+                    </Text>
+                    {profiles.length > 1 && (
+                      <Text style={s.profileSwitcherHint}>Đổi ▾</Text>
+                    )}
+                  </View>
+                </>
+              );
+            })()}
           </TouchableOpacity>
         </View>
+
+        {/* Profile switcher sheet */}
+        <ProfileSwitcherSheet
+          visible={showSwitcher}
+          onClose={() => setShowSwitcher(false)}
+          onAddNew={() => navigation.navigate('AddEditProfile')}
+        />
 
         {/* ── Main Temperature with Animated Weather Sprite ── */}
         {weatherData ? (
@@ -594,6 +625,34 @@ const s = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 1, shadowRadius: 6, elevation: 3,
+  },
+
+  // ── Profile Switcher Button ──
+  profileSwitcherBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(200,169,110,0.5)',
+    maxWidth: 150,
+    shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8, shadowRadius: 5, elevation: 2,
+  },
+  profileSwitcherAvatar: { fontSize: 20 },
+  profileSwitcherName: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 12,
+    color: C.text,
+    maxWidth: 80,
+  },
+  profileSwitcherHint: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 10,
+    color: C.textLight,
   },
 
   // ── Temperature

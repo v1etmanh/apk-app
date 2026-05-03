@@ -23,7 +23,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import { supabase } from './store/suppabase';
-import { initDB, setSetting } from './utils/database';
+import { initDB, setSetting, migrateExistingProfile } from './utils/database';
 import { useAppStore } from './store/useAppStore';
 import * as Location from 'expo-location';
 import LoginScreen             from './screens/LoginScreen';
@@ -45,6 +45,8 @@ import OnboardingAllergy       from './screens/onboarding/OnboardingAllergy';
 import OnboardingProfileScreen from './screens/onboarding/OnBoardTast';
 import RecommendScreen         from './screens/RecommendScreen';
 import ResetPasswordScreen     from './screens/ResetPasswordScreen';
+import AddEditProfileScreen    from './screens/AddEditProfileScreen';
+import ChosenDishScreen        from './screens/ChosenDishScreen';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -73,8 +75,9 @@ const MainTabs = () => (
   >
     <Tab.Screen name="Home"      component={HomeScreen}
       options={{ tabBarLabel: 'Trang chủ', tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused}/> }}/>
-    <Tab.Screen name="recommend" component={RecommendScreen}
-      options={{ tabBarLabel: 'Đề xuất',   tabBarIcon: ({ focused }) => <TabIcon emoji="💡" focused={focused}/> }}/>
+   
+    <Tab.Screen name="ChosenDish" component={ChosenDishScreen}
+      options={{ tabBarLabel: 'Bữa hôm nay', tabBarIcon: ({ focused }) => <TabIcon emoji="🍱" focused={focused}/> }}/>
     <Tab.Screen name="History"   component={HistoryScreen}
       options={{ tabBarLabel: 'Lịch sử',   tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused}/> }}/>
     <Tab.Screen name="Profile"   component={ProfileScreen}
@@ -213,6 +216,7 @@ const App = () => {
     loadProfile, loadLatestMetrics, loadAllergies,
     initializeLocation, initializeMaxPrepTime,
     initializeCostPreference, initializeIngredients,
+    initializeSettings, loadAllProfilesAction,
   } = useAppStore();
 
   const [authState,      setAuthState]      = useState('loading');
@@ -306,12 +310,19 @@ const App = () => {
   const initializeApp = async () => {
     try {
       await initDB();
-      await loadProfile();
-      await loadLatestMetrics();
-      await loadAllergies();
-      await initializeLocation();
+      // Migration: profile cũ → multi-profile schema (chỉ chạy 1 lần)
+      await migrateExistingProfile();
+      // Load settings (bao gồm activeProfileId)
+      await initializeSettings();
+      // Load data song song
+      await Promise.all([
+        loadProfile(),
+        loadLatestMetrics(),
+        loadAllergies(),
+        loadAllProfilesAction(),
+        initializeIngredients(),
+      ]);
       getUserLocation();
-      await initializeIngredients();
       const onboardingDone = await AsyncStorage.getItem('onboarding_done');
       setShowOnboarding(!onboardingDone);
       setAppReady(true);
@@ -366,6 +377,7 @@ const App = () => {
               <Stack.Screen name="CookingChallenge" component={CookingChallengeScreen}/>
               <Stack.Screen name="TasteProfile"     component={TasteProfileScreen}/>
               <Stack.Screen name="Recommend"        component={RecommendScreen}/>
+              <Stack.Screen name="AddEditProfile"   component={AddEditProfileScreen}/>
             </>
           )}
         </Stack.Navigator>
