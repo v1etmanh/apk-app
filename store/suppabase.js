@@ -17,7 +17,9 @@ export const supabase = createClient(
       storage: SecureStoreAdapter,
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: false, // BẮT BUỘC cho React Native — tắt web URL handler
+      detectSessionInUrl: false, // false = đúng cho RN, việc xử lý URL do App.js handleDeepLink đảm nhiệm
+      // NOTE: browser đóng/mở do WebBrowser.openAuthSessionAsync quản lý,
+      // KHÔNG phải do Supabase SDK — nên false ở đây là ĐÚNG
     },
   }
 )

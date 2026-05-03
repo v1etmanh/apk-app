@@ -291,68 +291,6 @@ const SettingsScreen = () => {
           />
         </PaperCard>
 
-        {/* ── Section: Hiển thị ── */}
-        <SectionHeader title="Hiển thị" />
-        <PaperCard containerStyle={st.cardWrapper}>
-          <SettingsRow
-            IconComponent={Globe}
-            iconBg="rgba(155,89,182,0.2)"
-            label="Ngôn ngữ"
-            control={
-              <WoodPicker
-                selectedValue={language}
-                onValueChange={handleLanguageChange}
-                items={[
-                  { label: 'Tiếng Việt', value: 'vi', flagCode: 'VN' },
-                  { label: 'English',    value: 'en', flagCode: 'US' },
-                ]}
-              />
-            }
-          />
-          <SettingsRow
-            IconComponent={Ruler}
-            iconBg="rgba(245,158,11,0.2)"
-            label="Đơn vị đo lường"
-            control={
-              <WoodPicker
-                selectedValue={unitSystem}
-                onValueChange={handleUnitChange}
-                items={[
-                  { label: 'Metric (kg, cm)',   value: 'metric'   },
-                  { label: 'Imperial (lb, ft)', value: 'imperial' },
-                ]}
-              />
-            }
-            isLast
-          />
-        </PaperCard>
-
-        {/* ── Section: Dữ liệu ── */}
-        <SectionHeader title="Dữ liệu" />
-        <PaperCard containerStyle={st.cardWrapper}>
-          <ActionRow
-            IconComponent={ArrowsClockwise}
-            iconBg="rgba(56,176,122,0.2)"
-            label="Đồng bộ nguyên liệu"
-            actionLabel="Làm mới"
-            onPress={syncIngredients}
-          />
-          <ActionRow
-            IconComponent={DownloadSimple}
-            iconBg="rgba(52,152,219,0.2)"
-            label="Xuất dữ liệu"
-            actionLabel="Xuất"
-            onPress={exportData}
-          />
-          <ActionRow
-            IconComponent={Trash}
-            label="Xóa lịch sử"
-            actionLabel="Xóa"
-            onPress={clearHistory}
-            danger
-            isLast
-          />
-        </PaperCard>
 
         {/* ── Section: Tài khoản ── */}
         <SectionHeader title="Tài khoản" />

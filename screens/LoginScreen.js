@@ -10,6 +10,11 @@ import {
   Animated, Image, Alert,
 } from 'react-native';
 import { supabase } from '../store/suppabase';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import * as Linking from 'expo-linking';
+
+WebBrowser.maybeCompleteAuthSession();
 
 // ── Texture assets (đường dẫn theo project của bạn) ──────────────────────────
 const TEX = {
@@ -79,8 +84,12 @@ export default function LoginScreen() {
   const handleForgot = async () => {
     if (!email) { shake(); return; }
     setLoading(true);
+    // Dùng Linking.createURL thay vì hardcode scheme
+    // Expo Go tunnel → exp://dasmg0-concop17-8081.exp.direct/--/reset-password
+    // Standalone build → dailymate://reset-password
+    const resetRedirect = Linking.createURL('reset-password');
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'dailymate://reset-password',
+      redirectTo: resetRedirect,
     });
     setLoading(false);
     if (error) {
@@ -95,11 +104,63 @@ export default function LoginScreen() {
   };
 
   const handleGoogle = async () => {
-    // TODO: Chỉ test khi có APK build — Expo Go không support custom scheme
-    Alert.alert(
-      'Tính năng đang phát triển 🚧',
-      'Đăng nhập Google chỉ hoạt động trên bản APK. Vui lòng dùng Email/Password.',
-    );
+    try {
+      // Expo Go không nhận custom scheme — phải dùng makeRedirectUri()
+      // Trong Expo Go: sẽ generate exp://... (khớp với exp://*/* trong Supabase)
+      // Trong standalone build: sẽ generate dailymate://... (khớp với dailymate://**)
+      const redirectUrl = AuthSession.makeRedirectUri({
+        path: 'auth/callback',
+      });
+      // tunnel → exp://dasmg0-concop17-8081.exp.direct/--/auth/callback  ✅ khớp exp://*/*
+      // LAN    → exp://192.168.1.19:8081/--/auth/callback
+      // build  → dailymate://auth/callback
+      console.log('[Google OAuth] redirectUrl:', redirectUrl);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error) { Alert.alert('Lỗi Google 😿', error.message); return; }
+      if (!data?.url) { Alert.alert('Lỗi Google 😿', 'Không lấy được URL đăng nhập.'); return; }
+
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.url,
+        redirectUrl,
+        { showInRecents: true }
+      );
+
+      if (result.type === 'success' && result.url) {
+        // Parse fragment tokens từ URL trả về (implicit flow)
+        const parsed = Linking.parse(result.url);
+        // Supabase trả token trong hash fragment hoặc query params tuỳ config
+        const hashParams = new URLSearchParams(
+          (result.url.split('#')[1] ?? result.url.split('?')[1]) || ''
+        );
+        const accessToken  = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+
+        if (accessToken && refreshToken) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (sessionError) Alert.alert('Lỗi phiên đăng nhập 😿', sessionError.message);
+          // onAuthStateChange trong App.js tự chuyển màn hình
+        } else {
+          // Fallback: thử exchangeCodeForSession (PKCE flow)
+          const { error: codeError } = await supabase.auth.exchangeCodeForSession(result.url);
+          if (codeError) Alert.alert('Lỗi phiên đăng nhập 😿', codeError.message);
+        }
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        // User tự đóng browser — không cần alert
+        console.log('[Google OAuth] User cancelled.');
+      }
+    } catch (e) {
+      Alert.alert('Lỗi Google 😿', e?.message || 'Đã xảy ra lỗi không xác định.');
+    }
   };
 
   const submit = mode === 'login' ? handleLogin
