@@ -416,6 +416,60 @@ export async function computeStreak() {
   return streak;
 }
 
+// ─── PRUNE OLD SESSIONS — giữ tối đa maxCount session gần nhất ───────────────
+/**
+ * Xóa các session cũ vượt quá giới hạn maxCount.
+ * Mỗi session bị xóa sẽ kéo theo toàn bộ dishes sub-collection của nó.
+ *
+ * Chiến lược: Fire-and-forget từ persistSession — không throw, không block UI.
+ * Gọi sau khi saveSession() thành công để tránh race condition xóa session vừa tạo.
+ *
+ * @param {number} maxCount - Số session tối đa được giữ lại (default: 20)
+ */
+export async function pruneOldSessions(maxCount = 20) {
+  try {
+    const id = await getDeviceId();
+
+    // Đọc TẤT CẢ sessions, sort newest first — không dùng limit() vì cần biết tổng số
+    const q = query(sessionsCol(id), orderBy('created_at', 'desc'));
+    const snap = await withTimeoutFallback(getDocs(q), 8000, null);
+
+    if (!snap || snap.size <= maxCount) return; // Chưa vượt ngưỡng → không làm gì
+
+    // Những session cần xóa = tất cả từ index maxCount trở đi (cũ nhất)
+    const toDelete = snap.docs.slice(maxCount);
+
+    if (__DEV__) {
+      console.log(`[DB] pruneOldSessions: total=${snap.size}, keeping=${maxCount}, deleting=${toDelete.length}`);
+    }
+
+    // Fetch dishes sub-collection của mỗi session cần xóa — song song
+    const dishSnaps = await Promise.all(
+      toDelete.map(sessionDoc =>
+        withTimeoutFallback(getDocs(dishesCol(id, sessionDoc.id)), 5000, null)
+      )
+    );
+
+    // Gom tất cả deleteDoc vào 1 mảng rồi Promise.all
+    const deletes = [];
+    toDelete.forEach((sessionDoc, idx) => {
+      if (dishSnaps[idx]) {
+        dishSnaps[idx].docs.forEach(d => deletes.push(deleteDoc(d.ref)));
+      }
+      deletes.push(deleteDoc(sessionDoc.ref));
+    });
+
+    await Promise.all(deletes);
+
+    if (__DEV__) {
+      console.log(`[DB] pruneOldSessions: ✅ Removed ${toDelete.length} old sessions`);
+    }
+  } catch (e) {
+    // Non-critical: không throw để không crash persistSession
+    console.warn('[DB] pruneOldSessions error:', e.message);
+  }
+}
+
 // ─── CLEAR ALL HISTORY (Firestore) ───────────────────────────────────────────
 // FIX (Hiệu suất): fetch tất cả dishes song song, tránh N+1 problem.
 // Với 20 session × 10 dishes, giảm từ ~200 Firestore calls nối đuôi → parallel batch.

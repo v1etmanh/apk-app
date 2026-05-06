@@ -10,6 +10,7 @@ import {
   saveSession, saveDishesToSession,
   loadRecentDishesCache, saveRecentDishesCache,
   getRecentDishIds, loadSessions, loadDishesBySession,
+  pruneOldSessions,
 } from '../utils/database';
 import LottieView from 'lottie-react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +28,9 @@ const ASSETS = {
   wood:  require('../assets/textures/wood_light.png'),
   paper: require('../assets/textures/paper_cream.png'),
 };
+
+// ── Config ────────────────────────────────────────────────────────────────────
+const MAX_SESSIONS_STORED = 20; // Số session tối đa lưu trên Firestore
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const scoreColor = (score) => {
@@ -330,6 +334,7 @@ const RecommendScreen = ({ navigation, route }) => {
   const persistSession = async (result, params) => {
     const safeParams = params || {};
     try {
+      const ranked = result.ranked_dishes || [];
       const sid = await saveSession({
         created_at: new Date().toISOString(),
         lat: safeParams.lat ?? null,
@@ -337,10 +342,18 @@ const RecommendScreen = ({ navigation, route }) => {
         province: safeParams.location?.province || '',
         cuisine_scope: safeParams.cuisine_scope || '',
         basket_skipped: safeParams.market_basket?.is_skipped ? 1 : 0,
+        // ── Denormalized summary — History dùng trực tiếp, không cần sub-collection read ──
+        dish_count: ranked.length,
+        eaten_count: 0,
+        top_dishes: ranked.slice(0, 3).map(d => ({
+          dish_id: d.dish_id,
+          title:   d.title   || '',
+          rank:    d.rank    || 0,
+        })),
       });
       setCurrentSessionId(sid);
-      if (result.ranked_dishes?.length) {
-        await saveDishesToSession(sid, result.ranked_dishes.map(d => ({
+      if (ranked.length) {
+        await saveDishesToSession(sid, ranked.map(d => ({
           dish_id: d.dish_id, rank: d.rank, final_score: d.final_score,
           ingredient_boost: d.ingredient_boost || 0, title: d.title,
           nation: d.nation || '', cook_time_min: d.cook_time_min || 0,
@@ -348,6 +361,12 @@ const RecommendScreen = ({ navigation, route }) => {
           url: d.url || '', score_breakdown: d.score_breakdown || {},
         })));
       }
+
+      // ── Xóa session cũ trong background — không await, không block UI ──────
+      pruneOldSessions(MAX_SESSIONS_STORED).catch(e =>
+        console.warn('[RecommendScreen] pruneOldSessions error:', e)
+      );
+
     } catch (e) { console.error('persistSession:', e); }
   };
 

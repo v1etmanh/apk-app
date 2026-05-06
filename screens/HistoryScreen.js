@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
-import { loadSessions, loadDishesBySession, loadFeedbackBySession } from '../utils/database';
+import { loadSessions } from '../utils/database';
 
 // ─── Design Tokens ────────────────────────────────────────────────
 const C = {
@@ -209,7 +209,7 @@ const SessionCard = ({ item, index, onPress }) => {
         <View style={st.chipRow}>
           <View style={[st.chip, { backgroundColor: '#D4E8F5' }]}>
             <Text style={[st.chipText, { color: '#3A6B8A' }]}>
-              🍽 {item.dishes.length} món
+              🍽 {item.dish_count ?? item.dishes.length} món
             </Text>
           </View>
           {item.eatenCount > 0 && (
@@ -269,21 +269,15 @@ const HistoryScreen = ({ navigation }) => {
   const loadHistory = async () => {
     try {
       const raw = await loadSessions(20);
-      const enriched = await Promise.all(
-        raw.map(async (s) => {
-          const [dishes, fb] = await Promise.all([
-            loadDishesBySession(s.id),
-            loadFeedbackBySession(s.id),
-          ]);
-          const eatenIds = new Set(fb.filter(f => f.action_type === 'eaten').map(f => f.dish_id));
-          return {
-            ...s,
-            dishes: dishes.slice(0, 3),
-            eatenCount: dishes.filter(d => eatenIds.has(d.dish_id)).length,
-          };
-        })
-      );
-      setSessions(enriched);
+      // Dùng trực tiếp denormalized fields (dish_count, top_dishes, eaten_count)
+      // đã được lưu sẵn trong session doc — không cần đọc sub-collection nữa.
+      // Session cũ (trước khi deploy fix) không có top_dishes → fallback graceful.
+      const sessions = raw.map(s => ({
+        ...s,
+        dishes:     Array.isArray(s.top_dishes) ? s.top_dishes : [],
+        eatenCount: typeof s.eaten_count === 'number' ? s.eaten_count : 0,
+      }));
+      setSessions(sessions);
     } catch (e) {
       console.error('loadHistory:', e);
     } finally {

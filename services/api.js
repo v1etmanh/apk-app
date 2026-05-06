@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { supabase } from '../store/suppabase'; // 👈 import supabase client
 
-const API_BASE_URL = 'https://dailyserver-production.up.railway.app/';
+const API_BASE_URL = 'http://192.168.1.19:5001';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
