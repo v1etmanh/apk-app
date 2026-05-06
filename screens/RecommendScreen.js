@@ -411,20 +411,7 @@ const RecommendScreen = ({ navigation, route }) => {
           <Text style={s.headerTitle}>Gợi ý món ăn</Text>
           <View style={{ flexDirection: 'row', gap: 6 }}>
             {/* Nút Bữa hôm nay */}
-            <TouchableOpacity
-              onPress={() => navigation.navigate('ChosenDish')}
-              style={[s.headerAction, s.mealPlanBtn]}
-              activeOpacity={0.78}
-              accessibilityRole="button"
-              accessibilityLabel="Bua hom nay"
-            >
-              <Text style={s.mealPlanBtnText}>🍱</Text>
-              {addedDishIds.size > 0 && (
-                <View style={s.mealPlanBadge}>
-                  <Text style={s.mealPlanBadgeText}>{addedDishIds.size}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+           
             <TouchableOpacity
               onPress={fetchRecommendations}
               style={[s.headerAction, s.refreshBtn]}
