@@ -3,6 +3,8 @@
 // Giữ nguyên interface: initDB(), và db object với các method tương thích
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
 import {
   doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
   collection, query, where, orderBy, limit,
@@ -16,11 +18,25 @@ let _deviceId = null;
 
 export async function getDeviceId() {
   if (_deviceId) return _deviceId;
-  let id = await AsyncStorage.getItem('device_id');
+
+  // [FIX ID-M003] Dùng SecureStore thay AsyncStorage để bảo vệ deviceId
+  // SecureStore = encrypted storage (Keystore/Keychain) — không đọc được qua ADB/root
+  let id = await SecureStore.getItemAsync('device_id');
+
   if (!id) {
-    id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-    await AsyncStorage.setItem('device_id', id);
+    // [FIX ID-M002] Migration: nếu đã có deviceId cũ trong AsyncStorage → migrate sang SecureStore
+    const legacy = await AsyncStorage.getItem('device_id');
+    if (legacy) {
+      id = legacy;
+      await SecureStore.setItemAsync('device_id', id);
+      await AsyncStorage.removeItem('device_id'); // dọn legacy
+    } else {
+      // [FIX ID-M002] Dùng Crypto.randomUUID() thay Math.random() — CSPRNG, entropy 122 bits
+      id = Crypto.randomUUID();
+      await SecureStore.setItemAsync('device_id', id);
+    }
   }
+
   _deviceId = id;
   return id;
 }
@@ -141,7 +157,8 @@ export async function setSetting(key, value) {
   try {
     const id = await getDeviceId();
     await setDoc(settingsRef(id, key), { key, value: String(value) });
-    console.log('[DB] setSetting Firestore OK:', key);
+    // [FIX ID-M004] guard __DEV__ — không log setting key trong production
+    if (__DEV__) console.log('[DB] setSetting Firestore OK:', key);
   } catch (e) {
     // In toàn bộ error, không chỉ e.code
     console.warn('[DB] setSetting Firestore FAILED:', JSON.stringify(e), e.message);

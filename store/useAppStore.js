@@ -8,6 +8,7 @@ import {
   loadAllergiesForProfile, loadLatestMetricsForProfile,
   loadTasteProfileForProfile,
 } from '../utils/database';
+import { loadReminderSettings, DEFAULT_REMINDER_TIMES } from '../services/mealReminderService';
 
 export const useAppStore = create((set, get) => ({
   profile:          null,
@@ -32,6 +33,19 @@ export const useAppStore = create((set, get) => ({
   // Multi-profile
   profiles:        [],    // Array<ProfileMember>
   activeProfileId: null,  // string | null
+
+  // ── Meal Reminder ──────────────────────────────────────────────────────────
+  reminderEnabled: false,
+  reminderTimes: [
+    { id: 'lunch',  label: 'Bữa trưa', hour: 10, minute: 30 },
+    { id: 'dinner', label: 'Bữa tối',  hour: 17, minute: 0  },
+  ],
+  mealReminderModal: {
+    visible:   false,
+    dishName:  '',
+    mealLabel: '',
+    nutrition: null,
+  },
 
   // MarketBasket — giỏ nguyên liệu của phiên hiện tại
   marketBasket: {
@@ -82,6 +96,42 @@ export const useAppStore = create((set, get) => ({
     marketBasket: { selectedIngredients: [], isSkipped: true, boostStrategy: 'strict' },
   }),
 
+  // ── Meal Reminder actions ──────────────────────────────────────────────────
+  setReminderEnabled: (val) => set({ reminderEnabled: val }),
+  setReminderTimes:   (val) => set({ reminderTimes: val }),
+  showMealReminderModal: (data) => set({
+    mealReminderModal: { visible: true, ...data },
+  }),
+  hideMealReminderModal: () => set({
+    mealReminderModal: { visible: false, dishName: '', mealLabel: '', nutrition: null },
+  }),
+
+  // [FIX ID-M011] Reset toàn bộ store về trạng thái ban đầu khi logout
+  // Gọi từ App.js trong onAuthStateChange khi session = null
+  resetStore: () => set({
+    profile:             null,
+    latestMetrics:       null,
+    allergies:           [],
+    currentSession:      null,
+    currentSessionId:    null,
+    rankedDishes:        [],
+    isLoading:           false,
+    error:               null,
+    location:            { lat: null, lon: null, province: '', food_region: '' },
+    tasteProfile:        null,
+    hometownProvinceId:  null,
+    tasteMode:           'hometown',
+    profiles:            [],
+    activeProfileId:     null,
+    marketBasket:        { selectedIngredients: [], isSkipped: true, boostStrategy: 'strict' },
+    reminderEnabled:     false,
+    reminderTimes:       [
+      { id: 'lunch',  label: 'Bữa trưa', hour: 10, minute: 30 },
+      { id: 'dinner', label: 'Bữa tối',  hour: 17, minute: 0  },
+    ],
+    mealReminderModal: { visible: false, dishName: '', mealLabel: '', nutrition: null },
+  }),
+
   // ── Multi-profile thunks ───────────────────────────────────────────────────
   loadAllProfilesAction: async () => {
     try {
@@ -95,18 +145,18 @@ export const useAppStore = create((set, get) => ({
     try {
       await setActiveProfileId(profileId);
       set({ activeProfileId: profileId });
-      // Reload data cho profile mới
-      const profileData = await loadProfileById(profileId);
-      if (profileData) set({ profile: profileData });
-      const [allergiesRaw, metrics, tasteData] = await Promise.all([
+      // [FIX ID-M013] Load profile + tất cả data song song, set vào store 1 lần (atomic)
+      // Tránh partial failure: profile mới nhưng allergies/metrics vẫn là của profile cũ
+      const [profileData, allergiesRaw, metrics, tasteData] = await Promise.all([
+        loadProfileById(profileId),
         loadAllergiesForProfile(profileId),
         loadLatestMetricsForProfile(profileId),
         loadTasteProfileForProfile(profileId),
       ]);
       set({
-        allergies:     allergiesRaw.map(r => r.allergy_key),
-        latestMetrics: metrics,
-        // Reset taste về profile mới (null nếu chưa set)
+        profile:             profileData ?? null,
+        allergies:           allergiesRaw.map(r => r.allergy_key),
+        latestMetrics:       metrics ?? null,
         tasteProfile:        tasteData?.tasteProfile       ?? null,
         hometownProvinceId:  tasteData?.hometownProvinceId ?? null,
         tasteMode:           tasteData?.tasteMode          ?? 'hometown',
@@ -154,13 +204,14 @@ export const useAppStore = create((set, get) => ({
   // FIX (Logic): xóa console.log nhạy cảm, wrap __DEV__ nếu cần debug.
   initializeSettings: async () => {
     try {
-      const [lat, lon, province, cookTime, costPref, activeProfileId] = await Promise.all([
+      const [lat, lon, province, cookTime, costPref, activeProfileId, reminderCfg] = await Promise.all([
         getSetting('last_known_lat'),
         getSetting('last_known_lon'),
         getSetting('last_known_province'),
         getSetting('max_cook_time'),
         getSetting('cost_preference'),
         getActiveProfileId(),
+        loadReminderSettings(),
       ]);
 
       const location = {
@@ -178,6 +229,8 @@ export const useAppStore = create((set, get) => ({
         maxPrepTime:     isNaN(parsedCookTime) ? 60 : parsedCookTime,
         costPreference:  isNaN(parsedCostPref) ? 2  : parsedCostPref,
         activeProfileId: activeProfileId || null,
+        reminderEnabled: reminderCfg?.enabled ?? false,
+        reminderTimes:   reminderCfg?.times   ?? DEFAULT_REMINDER_TIMES,
       });
 
       if (__DEV__) {

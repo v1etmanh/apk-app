@@ -246,7 +246,13 @@ const App = () => {
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthState(session ? 'authenticated' : 'unauthenticated');
-      if (!session) setAppReady(false);
+      if (!session) {
+        setAppReady(false);
+        // [FIX ID-M011] Xóa toàn bộ dữ liệu user khỏi store khi logout
+        // Ngăn data leak: user A logout → user B login trên cùng thiết bị
+        // không còn thấy profile/metrics/allergies của user A
+        useAppStore.getState().resetStore();
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -302,7 +308,8 @@ const App = () => {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       setSetting('last_known_lat', String(loc.coords.latitude));
       setSetting('last_known_lon', String(loc.coords.longitude));
-      console.warn('User location:', loc.coords);
+      // [FIX ID-M004] guard __DEV__ — tọa độ GPS chính xác không được log trong production
+      if (__DEV__) console.warn('User location:', loc.coords);
       return loc;
     } catch { return null; }
   };

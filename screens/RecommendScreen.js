@@ -265,6 +265,9 @@ const RecommendScreen = ({ navigation, route }) => {
   // Toast feedback
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const [toastMsg, setToastMsg] = useState('');
+  // [FIX ID-M015] AbortController — cancel request cũ nếu user bấm "Làm mới" nhiều lần
+  // Ngăn race condition: response sau override response trước theo thứ tự network ngẫu nhiên
+  const abortRef = useRef(null);
 
   // Load meal plan khi màn hình mount
   useEffect(() => {
@@ -298,9 +301,18 @@ const RecommendScreen = ({ navigation, route }) => {
     showToast(`✅ Đã thêm "${dish.title}" vào bữa hôm nay!`);
   }, [profile, activeProfileId, showToast]);
 
-  useEffect(() => { fetchRecommendations(); }, []);
+  useEffect(() => {
+    fetchRecommendations();
+    // [FIX ID-M015] Cleanup: abort request nếu component unmount giữa chừng
+    return () => { if (abortRef.current) abortRef.current.abort(); };
+  }, []);
 
   const fetchRecommendations = async () => {
+    // [FIX ID-M015] Cancel request đang chạy trước khi bắt đầu request mới
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+    const signal = abortRef.current.signal;
+
     setIsLoading(true); setError(null);
     try {
       if(!searchParams){
@@ -315,12 +327,15 @@ const RecommendScreen = ({ navigation, route }) => {
     }
       const recentDishIds = await getRecentDishIds(3);
 
-      const res = await api.post('/api/v1/recommend', { ...searchParams, recent_dish_ids: recentDishIds });
+      const res = await api.post('/api/v1/recommend', { ...searchParams, recent_dish_ids: recentDishIds }, { signal });
+      if (signal.aborted) return; // bị cancel sau khi response về — bỏ qua
       const ranked = res.data.ranked_dishes || [];
       setDishes(ranked);
       await saveRecentDishesCache(ranked);
       await persistSession(res.data, searchParams);
-    } catch {
+    } catch (e) {
+      // Nếu request bị abort (CanceledError / AbortError) → không xử lý, không update state
+      if (e?.name === 'CanceledError' || e?.name === 'AbortError' || signal.aborted) return;
       const cached = await loadRecentDishesCache();
       if (cached.length) { setDishes(cached); setError('offline'); }
       else {
@@ -328,7 +343,9 @@ const RecommendScreen = ({ navigation, route }) => {
         if (sessions.length) { setDishes(await loadDishesBySession(sessions[0].id)); setError('offline'); }
         else setError('empty');
       }
-    } finally { setIsLoading(false); }
+    } finally {
+      if (!signal.aborted) setIsLoading(false);
+    }
   };
 
   const persistSession = async (result, params) => {

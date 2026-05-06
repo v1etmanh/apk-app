@@ -233,15 +233,17 @@ const HomeScreen = ({ navigation }) => {
 
   const getUserLocation = async () => {
     try {
-      
+      // [FIX ID-M010] Thêm await + khai báo const — tránh implicit global & Promise object
+      // [INFO ID-M018] GPS real-time bị comment out có chủ ý (cache only). Uncomment khi release.
       // const { status } = await Location.requestForegroundPermissionsAsync();
       // if (status !== 'granted') return null;
       // const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      
       // return { lat: loc.coords.latitude, lon: loc.coords.longitude };
-      lat=getSetting('last_known_lat') || '16.047';
-      lon=getSetting('last_known_lon') || '108.206';
-      return {lat: Number(lat), lon: Number(lon)};
+      const latStr = await getSetting('last_known_lat');
+      const lonStr = await getSetting('last_known_lon');
+      const lat = latStr ? Number(latStr) : 16.047;
+      const lon = lonStr ? Number(lonStr) : 108.206;
+      return { lat, lon };
     } catch { return null; }
   };
 
@@ -295,7 +297,9 @@ const HomeScreen = ({ navigation }) => {
       : { is_skipped: false, selected_ingredient_ids: marketBasket.selectedIngredients, boost_strategy: marketBasket.boostStrategy };
     navigation.navigate('Recommend', {
       searchParams: {
-        lat: safeCurrentLocation.lat, lon: safeCurrentLocation.lon,
+        // [FIX ID-M014] Round về 2 decimal (~1km precision) — đủ recommend theo vùng, không lộ địa chỉ nhà
+        lat: Math.round(safeCurrentLocation.lat * 100) / 100,
+        lon: Math.round(safeCurrentLocation.lon * 100) / 100,
         weather, personal,
         cuisine_scope: cuisineScope,
         dish_type_filter: dishFilter,

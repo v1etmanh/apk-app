@@ -1,7 +1,10 @@
 import axios from 'axios';
 import { supabase } from '../store/suppabase'; // 👈 import supabase client
 
-const API_BASE_URL = 'http://192.168.1.19:5001';
+// [FIX ID-M001] Dùng env var thay vì hardcode local IP + HTTP
+// Tạo .env: EXPO_PUBLIC_API_BASE_URL=https://your-production-server.com
+// Dev fallback: http://localhost:5001 (không đẩy hardcode lên production)
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://dailyserver-production.up.railway.app';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -39,7 +42,8 @@ api.interceptors.response.use(
     }
 
     const msg = error.response?.data?.detail || error.message;
-    console.error('[API Error]', error.config?.url, msg);
+    // [FIX ID-M004] Chỉ log URL trong dev build — tránh leak API path + lat/lon production
+    if (__DEV__) console.error('[API Error]', error.config?.url, msg);
     return Promise.reject(error);
   }
 );

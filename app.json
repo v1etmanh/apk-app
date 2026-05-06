@@ -20,6 +20,10 @@
       "supportsTablet": true
     },
     "android": {
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
@@ -38,6 +42,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-notifications",
       [
         "expo-build-properties",
         {

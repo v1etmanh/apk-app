@@ -159,6 +159,13 @@ const BodyMetricsScreen = ({ navigation }) => {
     if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
       Alert.alert('Ối! 😅', 'Chiều cao và cân nặng phải là số dương nhé!'); return;
     }
+    // [FIX ID-M017] Validate range — tránh BMI vô nghĩa gây recommendation sai
+    if (h < 50 || h > 250) {
+      Alert.alert('Chiều cao không hợp lệ 📏', 'Chiều cao phải từ 50 đến 250 cm nhé!'); return;
+    }
+    if (w < 20 || w > 300) {
+      Alert.alert('Cân nặng không hợp lệ ⚖️', 'Cân nặng phải từ 20 đến 300 kg nhé!'); return;
+    }
     try {
       await saveBodyMetricsForProfile(activeProfileId, {
         height_cm: h, weight_kg: w,

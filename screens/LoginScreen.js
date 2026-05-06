@@ -32,6 +32,11 @@ export default function LoginScreen() {
   const [showPass, setShowPass] = useState(false);
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  // [FIX ID-M016] Chống double-submit — ref thay state để tránh race condition trước React re-render
+  const isSubmittingRef = useRef(false);
+
+  // [FIX ID-M009] Email format validator (regex đơn giản — đủ để UX feedback trước khi gọi Supabase)
+  const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
   // ── Animation helpers ──────────────────────────────────────────────────────
   const shake = () => {
@@ -45,19 +50,32 @@ export default function LoginScreen() {
 
   // ── Auth handlers ──────────────────────────────────────────────────────────
   const handleLogin = async () => {
+    // [FIX ID-M016] Chống double-submit
+    if (isSubmittingRef.current) return;
     if (!email || !password) { shake(); return; }
+    // [FIX ID-M009] Validate email format trước khi gọi server
+    if (!isValidEmail(email)) { Alert.alert('Email không hợp lệ 😿', 'Kiểm tra lại địa chỉ email nhé!'); shake(); return; }
+    isSubmittingRef.current = true;
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      Alert.alert('Đăng nhập thất bại 😿', friendlyError(error.message));
-      shake();
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        Alert.alert('Đăng nhập thất bại 😿', friendlyError(error.message));
+        shake();
+      }
+      // Nếu thành công, onAuthStateChange trong App.js sẽ tự chuyển màn hình
+    } finally {
+      setLoading(false);
+      isSubmittingRef.current = false;
     }
-    // Nếu thành công, onAuthStateChange trong App.js sẽ tự chuyển màn hình
   };
 
   const handleRegister = async () => {
+    // [FIX ID-M016] Chống double-submit
+    if (isSubmittingRef.current) return;
     if (!email || !password || !confirm) { shake(); return; }
+    // [FIX ID-M009] Validate email format
+    if (!isValidEmail(email)) { Alert.alert('Email không hợp lệ 😿', 'Kiểm tra lại địa chỉ email nhé!'); shake(); return; }
     if (password !== confirm) {
       Alert.alert('Mật khẩu không khớp 😿', 'Nhập lại mật khẩu xác nhận nhé!');
       shake(); return;
@@ -66,18 +84,23 @@ export default function LoginScreen() {
       Alert.alert('Mật khẩu quá ngắn 😿', 'Cần ít nhất 6 ký tự!');
       shake(); return;
     }
+    isSubmittingRef.current = true;
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
-    setLoading(false);
-    if (error) {
-      Alert.alert('Đăng ký thất bại 😿', friendlyError(error.message));
-      shake();
-    } else {
-      Alert.alert(
-        'Kiểm tra email nhé! 📬',
-        'Chúng tôi đã gửi link xác nhận vào email của bạn.',
-        [{ text: 'OK', onPress: () => setMode('login') }]
-      );
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        Alert.alert('Đăng ký thất bại 😿', friendlyError(error.message));
+        shake();
+      } else {
+        Alert.alert(
+          'Kiểm tra email nhé! 📬',
+          'Chúng tôi đã gửi link xác nhận vào email của bạn.',
+          [{ text: 'OK', onPress: () => setMode('login') }]
+        );
+      }
+    } finally {
+      setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -114,7 +137,8 @@ export default function LoginScreen() {
       // tunnel → exp://dasmg0-concop17-8081.exp.direct/--/auth/callback  ✅ khớp exp://*/*
       // LAN    → exp://192.168.1.19:8081/--/auth/callback
       // build  → dailymate://auth/callback
-      console.log('[Google OAuth] redirectUrl:', redirectUrl);
+      // [FIX ID-M004 / ID-M006-A] guard __DEV__ — redirect URL không được log trong production
+      if (__DEV__) console.log('[Google OAuth] redirectUrl:', redirectUrl);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -156,7 +180,7 @@ export default function LoginScreen() {
         }
       } else if (result.type === 'cancel' || result.type === 'dismiss') {
         // User tự đóng browser — không cần alert
-        console.log('[Google OAuth] User cancelled.');
+        if (__DEV__) console.log('[Google OAuth] User cancelled.');
       }
     } catch (e) {
       Alert.alert('Lỗi Google 😿', e?.message || 'Đã xảy ra lỗi không xác định.');
