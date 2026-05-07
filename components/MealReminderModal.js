@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import {
   Modal, View, Text, TouchableOpacity,
   StyleSheet, Animated,
@@ -7,7 +7,7 @@ import LottieView from 'lottie-react-native';
 import { C, F, R, shadow } from '../theme';
 import PaperCard from './ui/PaperCard';
 
-// 1. Quy hoạch Lottie sources
+// ── Lottie sources ────────────────────────────────────────────────────────────
 const LOTTIE = {
   lunch:    require('../assets/animations/cat_orange.json'),
   dinner:   require('../assets/animations/Lazy cat.json'),
@@ -15,7 +15,58 @@ const LOTTIE = {
   no_dish:  require('../assets/animations/cat_gosh.json'),
 };
 
-// 2. Component con để tái sử dụng
+// ── Copy văn chương ───────────────────────────────────────────────────────────
+const MODAL_COPY = {
+  lunch: {
+    headings: [
+      (name) => `Trưa nay ăn ${name} đi nào! 🍚`,
+      (name) => `${name} đang chờ bạn nè~ 🥢`,
+      (name) => `Bụng réo chưa? Có ${name} rồi đây 👀`,
+      (name) => `Hôm nay thử ${name} xem sao nhé 🍽️`,
+      (name) => `Mèo đầu bếp gợi ý: ${name} 🐱`,
+    ],
+    subtexts: [
+      `Nạp năng lượng đi, chiều còn chiến tiếp! 💪`,
+      `Bỏ bữa trưa là chiều ngủ gật đó nghen~ 😴`,
+      `Dành 30 phút cho bản thân, ăn no rồi làm tiếp 🫶`,
+      `Buổi trưa ngon là buổi chiều năng suất 🔋`,
+      `Ăn gì ngon ngon đi, bạn xứng đáng mà 🌟`,
+    ],
+  },
+  dinner: {
+    headings: [
+      (name) => `Tối nay ${name} là chuẩn rồi 🌙`,
+      (name) => `Tan làm rồi, ${name} thôi nào~ 🍜`,
+      (name) => `${name} — phần thưởng sau một ngày dài 🥰`,
+      (name) => `Buổi tối nhẹ nhàng với ${name} nhé 🌿`,
+      (name) => `Đói chưa? ${name} đang gọi tên bạn 👋`,
+    ],
+    subtexts: [
+      `Cả ngày vất vả rồi, tối nay ăn ngon xứng đáng 🌙`,
+      `Hết giờ làm rồi — thời gian cho bản thân thôi 🏠`,
+      `Bữa tối ngon là ngủ ngon, ngủ ngon là ngày mai xịn 💫`,
+      `Tối ăn vừa đủ, nhẹ bụng, ngủ mới sâu 😴`,
+      `Kết thúc ngày bằng một bữa ngon đi bạn ơi 🌿`,
+    ],
+  },
+};
+
+function pickBySeed(arr, seed) {
+  return arr[Math.abs(seed) % arr.length];
+}
+
+function useModalCopy(mealId, dishName) {
+  return useMemo(() => {
+    const set = MODAL_COPY[mealId] ?? MODAL_COPY.lunch;
+    const seed = new Date().getMinutes() + new Date().getHours() * 60;
+    const headingFn = pickBySeed(set.headings, seed);
+    const subtext   = pickBySeed(set.subtexts, seed + 3);
+    return { heading: headingFn(dishName), subtext };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mealId, dishName]);
+}
+
+// ── NutritionChip ─────────────────────────────────────────────────────────────
 function NutritionChip({ emoji, label, color }) {
   return (
     <View style={[styles.chip, { borderColor: color + '55', backgroundColor: color + '18' }]}>
@@ -25,167 +76,204 @@ function NutritionChip({ emoji, label, color }) {
   );
 }
 
+
+// ── MealReminderModal (component chính) ───────────────────────────────────────
 export default function MealReminderModal({
   visible,
+  dishName,
+  mealLabel,
+  mealId,
+  nutrition,
   onClose,
   onNavigate,
-  dishName  = 'Món ăn hôm nay',
-  mealLabel = 'Bữa trưa',
-  mealId    = 'lunch',
-  nutrition = null,
 }) {
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const lottieRef = useRef(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(60)).current;
+  const { heading, subtext } = useModalCopy(mealId, dishName || 'món ngon');
 
   useEffect(() => {
     if (visible) {
-      // Reset và chạy animation khi modal hiện lên
-      lottieRef.current?.reset();
-      lottieRef.current?.play();
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 80,
-        friction: 8,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(fadeAnim,  { toValue: 1, duration: 280, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 60, friction: 10, useNativeDriver: true }),
+      ]).start();
     } else {
-      scaleAnim.setValue(0);
+      Animated.parallel([
+        Animated.timing(fadeAnim,  { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 60, duration: 200, useNativeDriver: true }),
+      ]).start();
     }
   }, [visible]);
 
-  const catSource = nutrition ? (LOTTIE[mealId] ?? LOTTIE.fallback) : LOTTIE.no_dish;
+  const lottieSrc = useMemo(() => {
+    if (!dishName) return LOTTIE.no_dish;
+    return LOTTIE[mealId] ?? LOTTIE.fallback;
+  }, [mealId, dishName]);
+
+  const chips = useMemo(() => {
+    if (!nutrition) return [];
+    const n = [];
+    if (nutrition.calories != null) n.push({ emoji: '🔥', label: `${Math.round(nutrition.calories)} kcal`, color: '#E67E22' });
+    if (nutrition.protein  != null) n.push({ emoji: '💪', label: `${Math.round(nutrition.protein)}g protein`, color: '#27AE60' });
+    if (nutrition.fat      != null) n.push({ emoji: '🧈', label: `${Math.round(nutrition.fat)}g chất béo`, color: '#F39C12' });
+    if (nutrition.carbs    != null) n.push({ emoji: '🌾', label: `${Math.round(nutrition.carbs)}g carbs`, color: '#8E44AD' });
+    return n;
+  }, [nutrition]);
 
   return (
-    <Modal transparent visible={visible} animationType="fade" statusBarTranslucent>
-      <View style={styles.overlay}>
-        <Animated.View style={[styles.card, { transform: [{ scale: scaleAnim }] }]}>
-          <PaperCard priority="primary">
-            
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+          <PaperCard style={styles.card}>
+            {/* Lottie minh hoạ */}
             <LottieView
-              ref={lottieRef}
-              source={catSource}
-              style={styles.lottie}
+              source={lottieSrc}
+              autoPlay
               loop
+              style={styles.lottie}
             />
 
-            <Text style={styles.heading}>Đến giờ {mealLabel} rồi! 🍽️</Text>
-            <Text style={styles.dishName}>{dishName}</Text>
-
-            {nutrition ? (
-              <View style={styles.chips}>
-                <NutritionChip emoji="🔥" label={`${nutrition.calories} kcal`} color="#E8512A" />
-                <NutritionChip emoji="🥩" label={`${nutrition.protein}g đạm`}  color="#2A8AE8" />
-                <NutritionChip emoji="🍞" label={`${nutrition.carbs}g tinh bột`} color="#C97A1A" />
+            {/* Meal label badge */}
+            {!!mealLabel && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{mealLabel}</Text>
               </View>
-            ) : (
-              <Text style={styles.subtext}>🐱 Mèo đầu bếp đã chọn cho bạn!</Text>
             )}
 
+            {/* Heading */}
+            <Text style={styles.heading}>{heading}</Text>
+            <Text style={styles.subtext}>{subtext}</Text>
+
+            {/* Nutrition chips */}
+            {chips.length > 0 && (
+              <View style={styles.chipRow}>
+                {chips.map((c, i) => (
+                  <NutritionChip key={i} emoji={c.emoji} label={c.label} color={c.color} />
+                ))}
+              </View>
+            )}
+
+            {/* Actions */}
             <View style={styles.actions}>
-              <TouchableOpacity style={styles.btnPrimary} onPress={onNavigate}>
-                <Text style={styles.btnPrimaryText}>Xem gợi ý</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.btnSecondary} onPress={onClose}>
-                <Text style={styles.btnSecondaryText}>Để sau</Text>
+              {!!dishName && typeof onNavigate === 'function' && (
+                <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={onNavigate} activeOpacity={0.8}>
+                  <Text style={styles.btnPrimaryText}>Xem chi tiết 🍽️</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={onClose} activeOpacity={0.8}>
+                <Text style={styles.btnSecondaryText}>Bỏ qua</Text>
               </TouchableOpacity>
             </View>
-
           </PaperCard>
         </Animated.View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
 
-// 3. Một khối Styles duy nhất
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(30, 15, 5, 0.65)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    marginHorizontal: 12,
+    marginBottom: 24,
   },
   card: {
-    width: '100%',
-    maxWidth: 360,
+    padding: 20,
+    borderRadius: 20,
+    alignItems: 'center',
   },
   lottie: {
-    width: 130,
-    height: 130,
-    alignSelf: 'center',
-    marginBottom: 4,
+    width: 120,
+    height: 120,
+    marginBottom: 8,
+  },
+  badge: {
+    backgroundColor: '#F59E0B22',
+    borderColor: '#F59E0B',
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    marginBottom: 10,
+  },
+  badgeText: {
+    fontFamily: 'BeVietnamPro-SemiBold',
+    fontSize: 12,
+    color: '#92400E',
   },
   heading: {
-    fontSize: F.xl,
-    fontWeight: '700',
-    color: C.primary,
+    fontFamily: 'Lora-SemiBold',
+    fontSize: 17,
+    color: '#3D2B1F',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
+    lineHeight: 24,
   },
-  dishName: {
-    fontSize: F.lg,
-    fontWeight: '600',
-    color: C.text,
+  subtext: {
+    fontFamily: 'BeVietnamPro-Regular',
+    fontSize: 13,
+    color: '#6B5744',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
+    lineHeight: 19,
   },
-  chips: {
+  chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 18,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: R.pill,
     borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 4,
   },
-  chipEmoji: { fontSize: F.base },
-  chipLabel: { fontSize: F.sm, fontWeight: '600' },
-  subtext: {
-    fontSize: F.base,
-    color: C.textLight,
-    textAlign: 'center',
-    marginBottom: 12,
-    fontStyle: 'italic',
+  chipEmoji: { fontSize: 13 },
+  chipLabel: {
+    fontFamily: 'BeVietnamPro-Regular',
+    fontSize: 12,
   },
   actions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
+    width: '100%',
+    gap: 8,
+  },
+  btn: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
   btnPrimary: {
-    flex: 1,
-    backgroundColor: C.primary,
-    borderRadius: R.lg,
-    paddingVertical: 12,
-    alignItems: 'center',
-    ...shadow(2),
+    backgroundColor: '#8B5E3C',
   },
   btnPrimaryText: {
-    color: '#FFFFFF',
-    fontSize: F.base,
-    fontWeight: '700',
+    fontFamily: 'BeVietnamPro-SemiBold',
+    fontSize: 15,
+    color: '#FFF8EA',
   },
   btnSecondary: {
-    flex: 1,
-    borderRadius: R.lg,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: C.border,
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#C8A96E',
   },
   btnSecondaryText: {
-    color: C.textMid,
-    fontSize: F.base,
-    fontWeight: '600',
+    fontFamily: 'BeVietnamPro-Regular',
+    fontSize: 14,
+    color: '#8B7355',
   },
 });

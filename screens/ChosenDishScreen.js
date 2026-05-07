@@ -211,7 +211,7 @@ const ChosenDishScreen = ({ navigation }) => {
     if (profileId !== activeProfileId) {
       await switchProfile(profileId);
     }
-    navigation.navigate('recommend');
+    navigation.navigate('Recommend');
   }, [activeProfileId, switchProfile, navigation]);
 
   // ── Reset hôm nay ─────────────────────────────────────────────────────────
@@ -287,7 +287,7 @@ const ChosenDishScreen = ({ navigation }) => {
           <Text style={s.loadingText}>Đang tải thực đơn... 🍳</Text>
         </View>
       ) : plan.items.length === 0 ? (
-        <EmptyState onGoRecommend={() => navigation.navigate('recommend')} />
+        <EmptyState onGoRecommend={() => navigation.navigate('Recommend')} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}

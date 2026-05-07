@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, Animated, Dimensions, ImageBackground,
+  Alert, Animated, Dimensions, ImageBackground, Switch,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,17 @@ import { Trash }           from 'phosphor-react-native/lib/module/icons/Trash';
 import { GearSix }         from 'phosphor-react-native/lib/module/icons/GearSix';
 import { PawPrint }        from 'phosphor-react-native/lib/module/icons/PawPrint';
 import { SignOut }         from 'phosphor-react-native/lib/module/icons/SignOut';
+import { Bell }           from 'phosphor-react-native/lib/module/icons/Bell';
 import { getSetting, setSetting, clearAllHistory } from '../utils/database';
+import {
+  requestNotificationPermission,
+  setupNotificationChannel,
+  rescheduleAllReminders,
+  cancelAllReminders,
+  loadReminderSettings,
+  saveReminderSettings,
+  DEFAULT_REMINDER_TIMES,
+} from '../services/mealReminderService';
 import { useAppStore } from '../store/useAppStore';
 import { supabase }    from '../store/suppabase';
 import { C }           from '../theme';
@@ -102,6 +112,34 @@ const ActionRow = ({ IconComponent, iconBg, label, actionLabel, onPress, danger,
   />
 );
 
+// ─── TimePickerRow ────────────────────────────────────────────────────────────
+const HOURS   = Array.from({ length: 24 }, (_, i) => ({ label: `${String(i).padStart(2,'0')}h`, value: String(i) }));
+const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => ({
+  label: `:${String(m).padStart(2,'0')}`,
+  value: String(m),
+}));
+
+const TimePickerRow = ({ meal, onChange, isLast }) => (
+  <View style={[st.settingsRow, { paddingVertical: 10 }]}>
+    <View style={[st.settingsIconBox, { backgroundColor: 'rgba(251,191,36,0.15)' }]}>
+      <Clock weight="duotone" size={20} color={C.accentGold ?? '#C97A1A'} />
+    </View>
+    <Text style={st.settingsRowLabel}>{meal.label}</Text>
+    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+      <WoodPicker
+        selectedValue={String(meal.hour)}
+        onValueChange={(v) => onChange({ ...meal, hour: Number(v) })}
+        items={HOURS}
+      />
+      <WoodPicker
+        selectedValue={String(meal.minute)}
+        onValueChange={(v) => onChange({ ...meal, minute: Number(v) })}
+        items={MINUTES}
+      />
+    </View>
+  </View>
+);
+
 // ─── SettingsScreen ──────────────────────────────────────────────────────────
 const SettingsScreen = () => {
   const [cuisinePreference, setCuisinePreference]   = useState('vietnam');
@@ -109,6 +147,8 @@ const SettingsScreen = () => {
   const [costPreference,    setCostPreferenceLocal]  = useState('2');
   const [language,          setLanguage]             = useState('vi');
   const [unitSystem,        setUnitSystem]           = useState('metric');
+  const [reminderEnabled,   setReminderEnabled]      = useState(false);
+  const [reminderTimes,     setReminderTimes]        = useState(DEFAULT_REMINDER_TIMES);
 
   const { location, setLocation, setCostPreference: setStoreCostPref } = useAppStore();
   const insets = useSafeAreaInsets();
@@ -141,7 +181,53 @@ const SettingsScreen = () => {
         lon:      parseFloat(lon),
         province: province || location?.province,
       });
+      // Load trạng thái reminder
+      const { enabled, times } = await loadReminderSettings();
+      setReminderEnabled(enabled);
+      setReminderTimes(times || DEFAULT_REMINDER_TIMES);
     } catch (e) { console.error('loadSettings:', e); }
+  };
+
+  const handleReminderToggle = async (value) => {
+    try {
+      if (value) {
+        await setupNotificationChannel();
+        const granted = await requestNotificationPermission();
+        if (!granted) {
+          Alert.alert(
+            'Cần quyền thông báo',
+            'Vui lòng vào Cài đặt điện thoại → Ứng dụng → Daily Mate → Thông báo và bật lên nhé.',
+          );
+          return;
+        }
+        await rescheduleAllReminders(reminderTimes);
+        await saveReminderSettings(true, reminderTimes);
+        setReminderEnabled(true);
+        const lunch  = reminderTimes.find(t => t.id === 'lunch');
+        const dinner = reminderTimes.find(t => t.id === 'dinner');
+        Alert.alert(
+          '✅ Đã bật',
+          `Nhắc bữa trưa lúc ${String(lunch.hour).padStart(2,'0')}:${String(lunch.minute).padStart(2,'0')} ` +
+          `và bữa tối lúc ${String(dinner.hour).padStart(2,'0')}:${String(dinner.minute).padStart(2,'0')}.`,
+        );
+      } else {
+        await cancelAllReminders();
+        await saveReminderSettings(false, reminderTimes);
+        setReminderEnabled(false);
+      }
+    } catch (e) {
+      console.error('handleReminderToggle:', e);
+      Alert.alert('Lỗi', 'Không thể thay đổi cài đặt thông báo.');
+    }
+  };
+
+  const updateReminderTime = async (mealId, newMeal) => {
+    const newTimes = reminderTimes.map(t => t.id === mealId ? newMeal : t);
+    setReminderTimes(newTimes);
+    if (reminderEnabled) {
+      await rescheduleAllReminders(newTimes);
+    }
+    await saveReminderSettings(reminderEnabled, newTimes);
   };
 
   const save = async (key, val) => {
@@ -237,6 +323,26 @@ const SettingsScreen = () => {
             />
           </Svg>
         </ImageBackground>
+
+        {/* ── Section: Thông báo ── */}
+        <SectionHeader title="Thông báo nhắc ăn" />
+        <PaperCard containerStyle={st.cardWrapper}>
+          <SettingsRow
+            IconComponent={Bell}
+            iconBg="rgba(251,191,36,0.2)"
+            label="Nhắc bữa trưa & tối"
+            isLast={true}
+            control={
+              <Switch
+                value={reminderEnabled}
+                onValueChange={handleReminderToggle}
+                trackColor={{ false: '#D1D5DB', true: '#60A5FA' }}
+                thumbColor={reminderEnabled ? '#3B82F6' : '#F3F4F6'}
+              />
+            }
+          />
+
+        </PaperCard>
 
         {/* ── Section: Gợi ý mặc định ── */}
         <SectionHeader title="Gợi ý mặc định" />
@@ -354,6 +460,22 @@ const st = StyleSheet.create({
 
   // ── Divider ──
   menuDivider: { height: 1, backgroundColor: C.borderLight, marginLeft: 56, opacity: 0.8 },
+
+  // ── Dev Tools ──
+  devBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    backgroundColor: 'rgba(96,165,250,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.35)',
+  },
+  devBtnText: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 13,
+    color: '#3B82F6',
+  },
 
   // ── Footer ──
   footer:       { alignItems: 'center', marginTop: 36, gap: 6 },

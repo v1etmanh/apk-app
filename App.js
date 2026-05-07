@@ -3,8 +3,9 @@
  * Luồng: loading → unauthenticated (Login) | authenticated → Onboarding | Main
  */
 
-import React, { useEffect, useState } from 'react';
-import { SafeAreaView, StatusBar, View, Text, StyleSheet, Image } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { StatusBar, View, Text, StyleSheet, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import LottieView from 'lottie-react-native';
 import { useFonts } from 'expo-font';
 import * as Linking from 'expo-linking';
@@ -22,11 +23,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import { supabase } from './store/suppabase';
-import { initDB, setSetting, migrateExistingProfile } from './utils/database';
+import { initDB, setSetting, migrateExistingProfile, getDeviceId } from './utils/database';
 import { useAppStore } from './store/useAppStore';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { setupNotificationChannel } from './services/mealReminderService';
+import { api } from './services/api';
 import LoginScreen             from './screens/LoginScreen';
 import HomeScreen              from './screens/HomeScreen';
 import HistoryScreen           from './screens/HistoryScreen';
@@ -45,6 +47,7 @@ import RecommendScreen         from './screens/RecommendScreen';
 import ResetPasswordScreen     from './screens/ResetPasswordScreen';
 import AddEditProfileScreen    from './screens/AddEditProfileScreen';
 import ChosenDishScreen        from './screens/ChosenDishScreen';
+import MealReminderModal       from './components/MealReminderModal';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -216,12 +219,16 @@ const App = () => {
     initializeLocation, initializeMaxPrepTime,
     initializeCostPreference, initializeIngredients,
     initializeSettings, loadAllProfilesAction,
+    mealReminderModal, showMealReminderModal, hideMealReminderModal,
   } = useAppStore();
+
+  // navigationRef — dùng để navigate từ notification listener (ngoài navigator context)
+  const navigationRef = useRef(null);
 
   const [authState,      setAuthState]      = useState('loading');
   const [appReady,       setAppReady]       = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showReset,      setShowReset]      = useState(false); // ← reset password flow
+  const [showReset,      setShowReset]      = useState(false);
 
   const [fontsLoaded] = useFonts({
     // Be Vietnam Pro — body text
@@ -295,6 +302,40 @@ const App = () => {
     return () => sub.remove();
   }, []);
 
+  // ── Notification listeners — đăng ký 1 lần khi app mount ─────────────────
+  useEffect(() => {
+    // Listener 1: User TAP vào notification (app đang background hoặc bị kill)
+    const responseSub = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      if (data?.screen === 'MealReminder') {
+        useAppStore.getState().showMealReminderModal({
+          dishName:  data.dishName  || 'Món ăn hôm nay',
+          mealLabel: data.mealId === 'lunch' ? 'Bữa trưa' : 'Bữa tối',
+          mealId:    data.mealId   || 'lunch',
+          nutrition: data.nutrition || null,
+        });
+      }
+    });
+
+    // Listener 2: Notification hiện khi app đang FOREGROUND
+    const receiveSub = Notifications.addNotificationReceivedListener(notification => {
+      const data = notification.request.content.data;
+      if (data?.screen === 'MealReminder') {
+        useAppStore.getState().showMealReminderModal({
+          dishName:  data.dishName  || 'Món ăn hôm nay',
+          mealLabel: data.mealId === 'lunch' ? 'Bữa trưa' : 'Bữa tối',
+          mealId:    data.mealId   || 'lunch',
+          nutrition: data.nutrition || null,
+        });
+      }
+    });
+
+    return () => {
+      responseSub.remove();
+      receiveSub.remove();
+    };
+  }, []);
+
   useEffect(() => {
     if (authState === 'authenticated' && !appReady) initializeApp();
     if (authState === 'unauthenticated')            setAppReady(true);
@@ -307,10 +348,39 @@ const App = () => {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       setSetting('last_known_lat', String(loc.coords.latitude));
       setSetting('last_known_lon', String(loc.coords.longitude));
-      // [FIX ID-M004] guard __DEV__ — tọa độ GPS chính xác không được log trong production
       if (__DEV__) console.warn('User location:', loc.coords);
       return loc;
     } catch { return null; }
+  };
+
+  // ── Đăng ký Expo push token lên backend ──────────────────────────────────
+  const registerDeviceToken = async (location) => {
+    try {
+      // Lấy Expo Push Token (dùng projectId từ app.json)
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') return; // Chưa được quyền → skip
+
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: 'b0b88ff3-6754-479f-bfbc-68a309e75da5',
+      });
+      const expoPushToken = tokenData.data; // "ExponentPushToken[xxx]"
+
+      const deviceId = await getDeviceId();
+      const lat = location?.coords?.latitude ?? null;
+      const lon = location?.coords?.longitude ?? null;
+
+      await api.post('/api/v1/device/register', {
+        device_id: deviceId,
+        fcm_token:  expoPushToken,
+        lat,
+        lon,
+      });
+
+      if (__DEV__) console.log('[Push] Device registered:', expoPushToken.slice(0, 30));
+    } catch (e) {
+      // Non-critical — không crash app nếu đăng ký thất bại
+      if (__DEV__) console.warn('[Push] registerDeviceToken failed:', e.message);
+    }
   };
 
   const initializeApp = async () => {
@@ -328,11 +398,12 @@ const App = () => {
         loadAllProfilesAction(),
         initializeIngredients(),
       ]);
-      getUserLocation();
 
       // ── Notification channel (Android 8+ bắt buộc) ──────────────────────
-      // Phải gọi ở đây để channel tồn tại trước khi schedule bất kỳ notification nào
       await setupNotificationChannel();
+
+      // ── Lấy GPS + đăng ký Expo token lên backend (background) ───────────
+      getUserLocation().then(loc => registerDeviceToken(loc));
 
       // ── Bỏ onboarding quiz — người dùng vào thẳng app ───────────────────
       // Onboarding đã bị loại bỏ theo yêu cầu. Dữ liệu profile có thể
@@ -374,7 +445,7 @@ const App = () => {
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5EDDC" />
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Main"             component={MainTabs}/>
           <Stack.Screen name="DishDetail"       component={DishDetailScreen}/>
@@ -388,6 +459,20 @@ const App = () => {
           <Stack.Screen name="Recommend"        component={RecommendScreen}/>
           <Stack.Screen name="AddEditProfile"   component={AddEditProfileScreen}/>
         </Stack.Navigator>
+
+        {/* Modal nhắc ăn — render ở root để hiện được từ bất kỳ màn hình nào */}
+        <MealReminderModal
+          visible={mealReminderModal.visible}
+          dishName={mealReminderModal.dishName}
+          mealLabel={mealReminderModal.mealLabel}
+          mealId={mealReminderModal.mealId}
+          nutrition={mealReminderModal.nutrition}
+          onClose={hideMealReminderModal}
+          onNavigate={() => {
+            hideMealReminderModal();
+            navigationRef.current?.navigate('Recommend');
+          }}
+        />
       </NavigationContainer>
     </SafeAreaView>
   );
