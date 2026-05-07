@@ -192,7 +192,7 @@ const HomeScreen = ({ navigation }) => {
 
   const [refreshing, setRefreshing]     = useState(false);
   const [weatherData, setWeatherData]   = useState(null);
-  const [cuisineScope, setCuisineScope] = useState('vietnam');
+  const cuisineScope                    = 'global'; // always global — scope selector removed
   const [dishFilter, setDishFilter]     = useState('all');
   const [isDirty, setIsDirty]           = useState(false);
   const [basketBadge, setBasketBadge]   = useState(0);
@@ -203,7 +203,7 @@ const HomeScreen = ({ navigation }) => {
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     setIsDirty(true);
-  }, [cuisineScope, dishFilter]);
+  }, [dishFilter]);
 
   const {
     profile, latestMetrics, setRankedDishes,
@@ -518,46 +518,16 @@ const HomeScreen = ({ navigation }) => {
           </PaperCard>
         </TouchableOpacity>
 
-        {/* ── Selection Toggles (Two distinct rows) ── */}
+        {/* ── Selection Toggles ── */}
         <View style={s.filtersContainer}>
           <Text style={s.filtersEyebrow}>TÙY CHỌN TÌM KIẾM</Text>
-          
-          {/* Row 1: Cuisine Options */}
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
+
+          {/* Dish Type Options */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
             contentContainerStyle={s.filtersScrollContent}
             style={s.filtersScroll}
-          >
-            {[{ k: 'vietnam', l: 'Việt Nam', flagCode: 'VN' }, { k: 'global', l: 'Toàn cầu', flagCode: 'GLOBAL' }].map(({ k, l, flagCode }) => (
-              <TouchableOpacity
-                key={k}
-                onPress={() => setCuisineScope(k)}
-                activeOpacity={0.78}
-              >
-                <ImageBackground 
-                  source={cuisineScope === k ? ASSETS.wood : ASSETS.paper} 
-                  style={[s.pillBtn, cuisineScope === k ? s.pillBtnActive : null]} 
-                  imageStyle={s.pillBtnImg} 
-                  resizeMode="cover"
-                >
-                  <View style={cuisineScope === k ? s.pillOverlayActive : s.pillOverlayInactive}>
-                    <View style={s.pillContent}>
-                      <FilterFlagMark code={flagCode} />
-                      <Text style={cuisineScope === k ? s.pillTextActive : s.pillText}>{l}</Text>
-                    </View>
-                  </View>
-                </ImageBackground>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Row 2: Dish Type Options */}
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
-            contentContainerStyle={[s.filtersScrollContent, { paddingTop: 0 }]}
-            style={[s.filtersScroll, { marginTop: 12 }]}
           >
             {[
               { k: 'all',       l: '🍽️ Tất cả' },
@@ -569,10 +539,10 @@ const HomeScreen = ({ navigation }) => {
                 onPress={() => setDishFilter(k)}
                 activeOpacity={0.78}
               >
-                <ImageBackground 
-                  source={dishFilter === k ? ASSETS.wood : ASSETS.paper} 
-                  style={[s.pillBtn, dishFilter === k ? s.pillBtnActive : null]} 
-                  imageStyle={s.pillBtnImg} 
+                <ImageBackground
+                  source={dishFilter === k ? ASSETS.wood : ASSETS.paper}
+                  style={[s.pillBtn, dishFilter === k ? s.pillBtnActive : null]}
+                  imageStyle={s.pillBtnImg}
                   resizeMode="cover"
                 >
                   <View style={dishFilter === k ? s.pillOverlayActive : s.pillOverlayInactive}>

@@ -83,22 +83,6 @@ const DishPill = ({ dish, profileId, onRemove, onPress }) => (
 );
 
 // ── AddDishButton — dashed ghost button (design.md) ──────────────────────────
-const AddDishButton = ({ onPress }) => (
-  <TouchableOpacity onPress={onPress} style={s.addBtn} activeOpacity={0.75}>
-    {/* SVG dashed border (design.md: dùng SVG thay borderStyle:'dashed') */}
-    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-      <Rect x="2" y="2" width="96%" height="88%"
-        rx="14" ry="14"
-        fill="transparent"
-        stroke="#C8A96E"
-        strokeWidth="1.5"
-        strokeDasharray="5 3"
-      />
-    </Svg>
-    <Ionicons name="add-circle-outline" size={16} color="#9A7040" />
-    <Text style={s.addBtnText}>Thêm món</Text>
-  </TouchableOpacity>
-);
 
 // ── ProfileCard — card cho từng thành viên ────────────────────────────────────
 const ProfileCard = ({ entry, onRemoveDish, onAddDish, onPressDish }) => (
@@ -148,7 +132,7 @@ const ProfileCard = ({ entry, onRemoveDish, onAddDish, onPressDish }) => (
         }
 
         {/* Add button */}
-        <AddDishButton onPress={() => onAddDish(entry.profileId)} />
+       
       </View>
     </View>
   </View>

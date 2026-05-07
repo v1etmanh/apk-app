@@ -142,7 +142,6 @@ const TimePickerRow = ({ meal, onChange, isLast }) => (
 
 // ─── SettingsScreen ──────────────────────────────────────────────────────────
 const SettingsScreen = () => {
-  const [cuisinePreference, setCuisinePreference]   = useState('vietnam');
   const [maxCookTime,       setMaxCookTime]          = useState('60');
   const [costPreference,    setCostPreferenceLocal]  = useState('2');
   const [language,          setLanguage]             = useState('vi');
@@ -164,13 +163,12 @@ const SettingsScreen = () => {
 
   const loadSettings = async () => {
     try {
-      const [cuisine, cook, cost, lang, unit, lat, lon, province] = await Promise.all([
-        getSetting('default_cuisine'), getSetting('max_cook_time'),
+      const [cook, cost, lang, unit, lat, lon, province] = await Promise.all([
+        getSetting('max_cook_time'),
         getSetting('cost_preference'), getSetting('language'),
         getSetting('unit_system'),     getSetting('last_known_lat'),
         getSetting('last_known_lon'),  getSetting('last_known_province'),
       ]);
-      setCuisinePreference(cuisine  || 'vietnam');
       setMaxCookTime(cook           || '60');
       setCostPreferenceLocal(cost   || '2');
       setLanguage(lang              || 'vi');
@@ -235,7 +233,6 @@ const SettingsScreen = () => {
     catch { Alert.alert('Lỗi', 'Không thể lưu cài đặt'); }
   };
 
-  const handleCuisineChange  = async v => { setCuisinePreference(v);  await save('default_cuisine', v); };
   const handleCookTimeChange = async v => { setMaxCookTime(v);         await save('max_cook_time',  v); };
   const handleLanguageChange = async v => { setLanguage(v);            await save('language',        v); };
   const handleUnitChange     = async v => { setUnitSystem(v);          await save('unit_system',     v); };
@@ -344,28 +341,8 @@ const SettingsScreen = () => {
 
         </PaperCard>
 
-        {/* ── Section: Gợi ý mặc định ── */}
         <SectionHeader title="Gợi ý mặc định" />
         <PaperCard containerStyle={st.cardWrapper}>
-          <SettingsRow
-            IconComponent={ForkKnife}
-            iconBg="rgba(245,158,11,0.2)"
-            label="Phạm vi ẩm thực"
-            control={
-              <WoodPicker
-                selectedValue={cuisinePreference}
-                onValueChange={handleCuisineChange}
-                items={[
-                  { label: 'Việt Nam',  value: 'vietnam',  flagCode: 'VN'     },
-                  { label: 'Toàn cầu',  value: 'global',   flagCode: 'GLOBAL' },
-                  { label: 'Nhật Bản',  value: 'japan',    flagCode: 'JP'     },
-                  { label: 'Thái Lan',  value: 'thailand', flagCode: 'TH'     },
-                  { label: 'Ý',         value: 'italy',    flagCode: 'IT'     },
-                  { label: 'Hàn Quốc', value: 'korea',    flagCode: 'KR'     },
-                ]}
-              />
-            }
-          />
           <SettingsRow
             IconComponent={CurrencyDollar}
             iconBg="rgba(56,176,122,0.2)"

@@ -99,6 +99,7 @@ export async function addDishToMealPlan(profileInfo, dish) {
       nation:        dish.nation     || '',
       final_score:   dish.final_score || 0,
       explanation:   dish.explanation?.[0] || '',
+      url:           dish.url        || '',   // ← giữ link hướng dẫn nấu
       addedAt:       new Date().toISOString(),
     });
   }

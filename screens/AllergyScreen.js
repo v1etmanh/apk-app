@@ -38,27 +38,123 @@ const C = {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const CATEGORY_LABELS = {
-  vegetable: 'Rau củ',      fruit:     'Trái cây',
-  protein:   'Protein',     grain:     'Ngũ cốc',
-  dairy:     'Sữa & Trứng', spice:     'Gia vị',
-  fat:       'Chất béo',    condiment: 'Gia vị nước',
-  meat:      'Thịt đỏ',     seafood:   'Hải sản',
-  egg:       'Trứng',       legume:    'Đậu / Đậu phộng',
-  nut:       'Hạt',         soy:       'Đậu nành',
-  pork:      'Thịt heo',    gluten:    'Gluten (lúa mì)',
+  // Core types matching DB
+  seafood:   'Hải sản',
+  vegetable: 'Rau củ',
+  meat:      'Thịt',
+  spice:     'Gia vị',
+  fruit:     'Trái cây',
+  processed: 'Đã chế biến',
+  legume:    'Đậu & Hạt',
+  grain:     'Ngũ cốc & Tinh bột',
+  beverage:  'Đồ uống',
+  fat:       'Dầu & Mỡ',
+  dairy:     'Sữa & Trứng',
+  // Alias keys that may appear in DB
+  pork:      'Thịt heo',
+  egg:       'Trứng',
+  nut:       'Hạt các loại',
+  soy:       'Đậu nành',
+  condiment: 'Gia vị / Nước chấm',
+  gluten:    'Gluten (lúa mì)',
+  protein:   'Đạm tổng hợp',
+  oil:       'Dầu & Mỡ',
+  starch:    'Ngũ cốc & Tinh bột',
 };
 
+// Emoji riêng biệt cho từng loại — không trùng lặp
+// Hỗ trợ cả English key (nếu DB dùng) lẫn Vietnamese string (DB thực tế)
 const CATEGORY_EMOJIS = {
-  vegetable: '🥦', fruit: '🍎', protein: '💪', grain: '🌾',
-  dairy: '🥛', spice: '🌶️', fat: '🫒', condiment: '🍶',
-  meat: '🥩', seafood: '🦐', egg: '🥚', legume: '🫘',
-  nut: '🥜', soy: '🫘', pork: '🐷', gluten: '🌾',
+  // ── English keys ──
+  seafood:   '🦐',  vegetable: '🥦',  meat:      '🥩',
+  spice:     '🌶️', fruit:     '🍊',  processed: '🥫',
+  legume:    '🫘',  grain:     '🌾',  beverage:  '🧃',
+  fat:       '🫒',  dairy:     '🥛',  pork:      '🐷',
+  egg:       '🥚',  nut:       '🥜',  soy:       '🫛',
+  condiment: '🫙',  gluten:    '🍞',  protein:   '🍗',
+  oil:       '🫗',  starch:    '🥔',
+  // ── Vietnamese keys (actual DB values) ──
+  'Hải sản':              '🦐',
+  'Rau củ':               '🥦',
+  'Thịt':                 '🥩',
+  'Gia vị':               '🌶️',
+  'Trái cây':             '🍊',
+  'Đã chế biến':          '🥫',
+  'Đậu & Hạt':            '🫘',
+  'Ngũ cốc & Tinh bột':   '🌾',
+  'Đồ uống':              '🧃',
+  'Dầu & Mỡ':             '🫒',
+  'Sữa & Trứng':          '🥛',
+  'Thịt heo':             '🐷',
+  'Trứng':                '🥚',
+  'Hạt các loại':         '🥜',
+  'Đậu nành':             '🫛',
+  'Gia vị / Nước chấm':   '🫙',
+  'Gluten (lúa mì)':      '🍞',
+  'Đạm tổng hợp':         '🍗',
+  'Ngũ cốc':              '🌾',
+  'Sữa':                  '🥛',
 };
+
+// Bảng màu riêng cho từng category — mỗi loại một sắc thái khác nhau
+// Hỗ trợ cả English key lẫn Vietnamese string (DB thực tế)
+const CATEGORY_COLORS = {
+  // ── English keys ──
+  seafood:   { bg: '#E3F2FD', accent: '#1565C0', border: '#90CAF9', tabColor: '#1976D2' },
+  vegetable: { bg: '#E8F5E9', accent: '#2E7D32', border: '#A5D6A7', tabColor: '#388E3C' },
+  meat:      { bg: '#FFEBEE', accent: '#C62828', border: '#EF9A9A', tabColor: '#D32F2F' },
+  spice:     { bg: '#FFF3E0', accent: '#E65100', border: '#FFCC80', tabColor: '#F57C00' },
+  fruit:     { bg: '#F3E5F5', accent: '#6A1B9A', border: '#CE93D8', tabColor: '#7B1FA2' },
+  processed: { bg: '#ECEFF1', accent: '#37474F', border: '#B0BEC5', tabColor: '#455A64' },
+  legume:    { bg: '#FBE9E7', accent: '#BF360C', border: '#FFAB91', tabColor: '#D84315' },
+  grain:     { bg: '#FFF8E1', accent: '#F57F17', border: '#FFE082', tabColor: '#F9A825' },
+  beverage:  { bg: '#E0F7FA', accent: '#00695C', border: '#80CBC4', tabColor: '#00796B' },
+  fat:       { bg: '#F9FBE7', accent: '#558B2F', border: '#C5E1A5', tabColor: '#689F38' },
+  dairy:     { bg: '#E1F5FE', accent: '#0277BD', border: '#81D4FA', tabColor: '#0288D1' },
+  pork:      { bg: '#FCE4EC', accent: '#880E4F', border: '#F48FB1', tabColor: '#AD1457' },
+  egg:       { bg: '#FFFDE7', accent: '#F9A825', border: '#FFF59D', tabColor: '#F57F17' },
+  nut:       { bg: '#FFF3E0', accent: '#6D4C41', border: '#BCAAA4', tabColor: '#795548' },
+  soy:       { bg: '#F1F8E9', accent: '#33691E', border: '#AED581', tabColor: '#558B2F' },
+  condiment: { bg: '#EFEBE9', accent: '#4E342E', border: '#BCAAA4', tabColor: '#6D4C41' },
+  gluten:    { bg: '#FFF8E1', accent: '#795548', border: '#D7CCC8', tabColor: '#8D6E63' },
+  protein:   { bg: '#FFF3E0', accent: '#827717', border: '#F0F4C3', tabColor: '#9E9D24' },
+  oil:       { bg: '#F9FBE7', accent: '#558B2F', border: '#C5E1A5', tabColor: '#689F38' },
+  starch:    { bg: '#FFF8E1', accent: '#F57F17', border: '#FFE082', tabColor: '#F9A825' },
+  // ── Vietnamese keys (actual DB values) ──
+  'Hải sản':              { bg: '#E3F2FD', accent: '#1565C0', border: '#90CAF9', tabColor: '#1976D2' },
+  'Rau củ':               { bg: '#E8F5E9', accent: '#2E7D32', border: '#A5D6A7', tabColor: '#388E3C' },
+  'Thịt':                 { bg: '#FFEBEE', accent: '#C62828', border: '#EF9A9A', tabColor: '#D32F2F' },
+  'Gia vị':               { bg: '#FFF3E0', accent: '#E65100', border: '#FFCC80', tabColor: '#F57C00' },
+  'Trái cây':             { bg: '#F3E5F5', accent: '#6A1B9A', border: '#CE93D8', tabColor: '#7B1FA2' },
+  'Đã chế biến':          { bg: '#ECEFF1', accent: '#37474F', border: '#B0BEC5', tabColor: '#455A64' },
+  'Đậu & Hạt':            { bg: '#FBE9E7', accent: '#BF360C', border: '#FFAB91', tabColor: '#D84315' },
+  'Ngũ cốc & Tinh bột':   { bg: '#FFF8E1', accent: '#F57F17', border: '#FFE082', tabColor: '#F9A825' },
+  'Đồ uống':              { bg: '#E0F7FA', accent: '#00695C', border: '#80CBC4', tabColor: '#00796B' },
+  'Dầu & Mỡ':             { bg: '#F9FBE7', accent: '#558B2F', border: '#C5E1A5', tabColor: '#689F38' },
+  'Sữa & Trứng':          { bg: '#E1F5FE', accent: '#0277BD', border: '#81D4FA', tabColor: '#0288D1' },
+  'Thịt heo':             { bg: '#FCE4EC', accent: '#880E4F', border: '#F48FB1', tabColor: '#AD1457' },
+  'Trứng':                { bg: '#FFFDE7', accent: '#F9A825', border: '#FFF59D', tabColor: '#F57F17' },
+  'Hạt các loại':         { bg: '#FFF3E0', accent: '#6D4C41', border: '#BCAAA4', tabColor: '#795548' },
+  'Đậu nành':             { bg: '#F1F8E9', accent: '#33691E', border: '#AED581', tabColor: '#558B2F' },
+  'Gia vị / Nước chấm':   { bg: '#EFEBE9', accent: '#4E342E', border: '#BCAAA4', tabColor: '#6D4C41' },
+  'Gluten (lúa mì)':      { bg: '#FFF8E1', accent: '#795548', border: '#D7CCC8', tabColor: '#8D6E63' },
+  'Ngũ cốc':              { bg: '#FFF8E1', accent: '#F57F17', border: '#FFE082', tabColor: '#F9A825' },
+  'Sữa':                  { bg: '#E1F5FE', accent: '#0277BD', border: '#81D4FA', tabColor: '#0288D1' },
+  // Fallback
+  _default:  { bg: '#FDF8EE', accent: '#8B6340', border: '#C8A96E', tabColor: '#C4955A' },
+};
+
+const getCatColors = (key) => CATEGORY_COLORS[key] || CATEGORY_COLORS._default;
 
 const INGREDIENT_CATEGORY_LABELS = {
-  vegetable: 'Rau củ', fruit: 'Trái cây', protein: 'Protein', grain: 'Ngũ cốc',
-  dairy: 'Sữa', spice: 'Gia vị', fat: 'Chất béo', condiment: 'Gia vị nước',
-  meat: 'Thịt', seafood: 'Hải sản', egg: 'Trứng', legume: 'Đậu',
+  seafood:   'Hải sản',    vegetable: 'Rau củ',    meat:    'Thịt',
+  spice:     'Gia vị',     fruit:     'Trái cây',  processed:'Đã chế biến',
+  legume:    'Đậu & Hạt',  grain:     'Ngũ cốc',  beverage: 'Đồ uống',
+  fat:       'Dầu & Mỡ',   dairy:     'Sữa & Trứng',
+  // aliases
+  pork: 'Thịt heo', egg: 'Trứng', nut: 'Hạt', soy: 'Đậu nành',
+  condiment: 'Gia vị', gluten: 'Gluten', protein: 'Protein',
+  oil: 'Dầu', starch: 'Tinh bột',
 };
 
 // ─── WobblyCard — SVG hand-drawn border ───────────────────────────────────────
@@ -147,23 +243,54 @@ const ModeToggle = ({ mode, onChange }) => (
 // ─── Category Chip ─────────────────────────────────────────────────────────────
 const CategoryChip = ({ item, selected, onToggle }) => {
   const cardW = SW - 32;
-  const cardH = 68;
+  const cardH = 76;
+  const col = getCatColors(item.key);
+
   return (
     <TouchableOpacity
       activeOpacity={0.8}
       onPress={() => onToggle(item.key)}
-      style={[st.chipShadow, { marginBottom: 10 }, selected && st.chipShadowActive]}>
+      style={[
+        st.chipShadow,
+        { marginBottom: 10 },
+        selected && [st.chipShadowActive, { shadowColor: col.accent }],
+      ]}>
       <WobblyCard
         w={cardW}
         h={cardH}
-        fill={selected ? '#F5F0E8' : C.paper}
-        stroke={selected ? C.woodDark : C.paperStroke}
+        fill={selected ? col.bg : C.paper}
+        stroke={selected ? col.accent : col.border}
         strokeWidth={selected ? 2.5 : 1.5}>
         <View style={st.chipInner}>
-          <View style={[st.chipTab, { backgroundColor: selected ? C.woodDark : C.paperStroke }]} />
-          <Text style={st.chipEmoji}>{item.emoji}</Text>
-          <Text style={[st.chipText, selected && st.chipTextActive]}>{item.display}</Text>
-          <View style={[st.checkbox, selected && st.checkboxActive]}>
+          {/* Colored left tab */}
+          <View style={[st.chipTab, { backgroundColor: selected ? col.tabColor : col.border }]} />
+
+          {/* Emoji badge with category color */}
+          <View style={[
+            st.chipEmojiBadge,
+            { backgroundColor: selected ? col.accent + '22' : col.bg },
+            selected && { borderColor: col.border },
+          ]}>
+            <Text style={st.chipEmoji}>{item.emoji}</Text>
+          </View>
+
+          {/* Label */}
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[st.chipText, selected && { ...st.chipTextActive, color: col.accent }]}
+              numberOfLines={1}>
+              {item.display}
+            </Text>
+            {selected && (
+              <Text style={[st.chipSubLabel, { color: col.accent }]}>Đang tránh ✓</Text>
+            )}
+          </View>
+
+          {/* Checkbox */}
+          <View style={[
+            st.checkbox,
+            selected && { backgroundColor: col.accent, borderColor: col.accent },
+          ]}>
             {selected && <Text style={st.checkmark}>✓</Text>}
           </View>
         </View>
@@ -229,18 +356,26 @@ const SearchModal = ({ visible, onClose, allIngredients, selectedIds, onToggle, 
   const renderItem = useCallback(({ item }) => {
     const sel = selectedIds.has(String(item.id));
     const catLabel = INGREDIENT_CATEGORY_LABELS[item.category] || item.category || '';
+    const catEmoji = CATEGORY_EMOJIS[item.category] || '🍽️';
+    const col = getCatColors(item.category);
     return (
       <TouchableOpacity
         style={[st.srItem, sel && st.srItemActive]}
         onPress={() => onToggle(item)}
         activeOpacity={0.7}>
+        {/* Category emoji badge */}
+        <View style={[st.srCatBadge, { backgroundColor: col.bg, borderColor: col.border }]}>
+          <Text style={{ fontSize: 18 }}>{catEmoji}</Text>
+        </View>
         <View style={{ flex: 1 }}>
           <Text style={[st.srName, sel && st.srNameActive]}>{item.name}</Text>
-          {item.name_en
-            ? <Text style={st.srSub}>{item.name_en}{catLabel ? ` · ${catLabel}` : ''}</Text>
-            : null}
+          {(item.name_en || catLabel) ? (
+            <Text style={st.srSub}>
+              {item.name_en ? item.name_en : ''}{item.name_en && catLabel ? ' · ' : ''}{catLabel}
+            </Text>
+          ) : null}
         </View>
-        <View style={[st.checkbox, sel && st.checkboxActive]}>
+        <View style={[st.checkbox, sel && { backgroundColor: col.accent, borderColor: col.accent }]}>
           {sel && <Text style={st.checkmark}>✓</Text>}
         </View>
       </TouchableOpacity>
@@ -725,18 +860,24 @@ const st = StyleSheet.create({
     borderRadius: 20,
   },
   chipShadowActive: {
-    shadowOpacity: 0.22,
-    shadowRadius: 7,
-    elevation: 5,
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 6,
   },
   chipInner: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 14, flex: 1, height: '100%',
   },
-  chipTab:       { width: 4, height: 36, borderRadius: 2, marginRight: 12 },
-  chipEmoji:     { fontSize: 26, marginRight: 12 },
-  chipText:      { flex: 1, fontSize: 17, fontFamily: 'Nunito-Regular', color: C.ink, fontWeight: '500' },
-  chipTextActive:{ color: C.woodDark, fontFamily: 'Nunito-Bold', fontWeight: '700' },
+  chipTab:       { width: 4, height: 40, borderRadius: 2, marginRight: 12 },
+  chipEmojiBadge: {
+    width: 46, height: 46, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 12, borderWidth: 1, borderColor: 'transparent',
+  },
+  chipEmoji:     { fontSize: 26 },
+  chipText:      { fontSize: 16, fontFamily: 'Nunito-Regular', color: C.ink, fontWeight: '500' },
+  chipTextActive:{ fontFamily: 'Nunito-Bold', fontWeight: '700' },
+  chipSubLabel:  { fontSize: 11, fontFamily: 'Nunito-Regular', fontWeight: '600', marginTop: 2, opacity: 0.85 },
 
   // Checkbox
   checkbox: {
@@ -825,13 +966,18 @@ const st = StyleSheet.create({
   // Search result items
   srItem:      {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.paper, paddingVertical: 13, paddingHorizontal: 14,
+    backgroundColor: C.paper, paddingVertical: 11, paddingHorizontal: 12,
     borderRadius: 16, marginVertical: 2,
   },
   srItemActive:{ backgroundColor: '#F5EDD8' },
-  srName:      { fontSize: 17, fontFamily: 'Nunito-Regular', color: C.ink, fontWeight: '500' },
+  srCatBadge:  {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 12, borderWidth: 1,
+  },
+  srName:      { fontSize: 16, fontFamily: 'Nunito-Regular', color: C.ink, fontWeight: '500' },
   srNameActive:{ color: C.woodDark, fontWeight: '700' },
-  srSub:       { fontSize: 13, fontFamily: 'Nunito-Regular', color: C.inkFaint, marginTop: 2 },
+  srSub:       { fontSize: 12, fontFamily: 'Nunito-Regular', color: C.inkFaint, marginTop: 2 },
   emptyText:   { textAlign: 'center', color: C.inkFaint, marginTop: 40, fontSize: 16, fontFamily: 'Nunito-Regular' },
 });
 

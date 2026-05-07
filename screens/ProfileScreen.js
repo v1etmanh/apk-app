@@ -1,146 +1,211 @@
+/**
+ * ProfileScreen.js — Hồ sơ cá nhân
+ * Design: Ghibli × Storybook Handcrafted (design.md)
+ * Font: Lora (display) + BeVietnamPro (body)
+ * Texture: wood_light + paper_cream
+ */
+
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Dimensions, ImageBackground, Alert,
+  Image, ImageBackground, Platform, Alert, StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import Svg, { Circle, Path } from 'react-native-svg';
-import { Scales } from 'phosphor-react-native/lib/module/icons/Scales';
-import { Ruler } from 'phosphor-react-native/lib/module/icons/Ruler';
-import { ChartBar } from 'phosphor-react-native/lib/module/icons/ChartBar';
-import { Person } from 'phosphor-react-native/lib/module/icons/Person';
-import { PersonSimpleRun } from 'phosphor-react-native/lib/module/icons/PersonSimpleRun';
-import { Warning } from 'phosphor-react-native/lib/module/icons/Warning';
-import { ForkKnife } from 'phosphor-react-native/lib/module/icons/ForkKnife';
-import { CaretRight } from 'phosphor-react-native/lib/module/icons/CaretRight';
-import { PawPrint } from 'phosphor-react-native/lib/module/icons/PawPrint';
-import { Plus } from 'phosphor-react-native/lib/module/icons/Plus';
+import Svg, { Rect, Path, Circle } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+
 import { useAppStore } from '../store/useAppStore';
 import { deleteProfileMember } from '../utils/database';
 
-import { C } from '../theme';
-import ScreenBackground from '../components/ui/ScreenBackground';
-import SectionHeader from '../components/ui/SectionHeader';
-
-const { width: SW } = Dimensions.get('window');
-const ASSETS = {
+// ── Assets ────────────────────────────────────────────────────────────────────
+const TEX = {
   paper: require('../assets/textures/paper_cream.png'),
-  wood: require('../assets/textures/wood_light.png'),
+  wood:  require('../assets/textures/wood_light.png'),
 };
 
-const DIET_LABEL     = { omnivore:'Ăn tất cả', vegetarian:'Chay', vegan:'Thuần chay', pescatarian:'Ăn cá' };
-const ACTIVITY_LABEL = { sedentary:'Ít vận động', lightly_active:'Nhẹ nhàng', moderately_active:'Vừa phải', very_active:'Nhiều vận động' };
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const nativeShadow = (
+  color = '#8B5E3C', opacity = 0.18,
+  radius = 8, offset = { width: 0, height: 4 }, elevation = 5,
+) =>
+  Platform.select({
+    ios:     { shadowColor: color, shadowOpacity: opacity, shadowRadius: radius, shadowOffset: offset },
+    android: { elevation },
+  });
 
-const ProfileAvatarMark = () => (
-  <Svg width={52} height={52} viewBox="0 0 48 48" fill="none">
-    <Circle cx="24" cy="24" r="24" fill="rgba(139,94,60,0.06)" />
-    <Path
-      d="M24 11.5C19.86 11.5 16.5 14.86 16.5 19C16.5 23.14 19.86 26.5 24 26.5C28.14 26.5 31.5 23.14 31.5 19C31.5 14.86 28.14 11.5 24 11.5Z"
-      fill="#CDA06D"
-    />
-    <Path
-      d="M13.5 37.2C15.91 32.62 19.52 30.25 24 30.25C28.48 30.25 32.09 32.62 34.5 37.2"
-      stroke="#8B5E3C"
-      strokeWidth="3"
-      strokeLinecap="round"
-    />
-    <Path
-      d="M24 13.25C20.83 13.25 18.25 15.83 18.25 19C18.25 22.17 20.83 24.75 24 24.75C27.17 24.75 29.75 22.17 29.75 19C29.75 15.83 27.17 13.25 24 13.25Z"
-      stroke="#8B5E3C"
-      strokeWidth="2.5"
-    />
-    <Path
-      d="M17.25 35.75C19.2 33.35 21.43 32.25 24 32.25C26.57 32.25 28.8 33.35 30.75 35.75"
-      stroke="#CDA06D"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-    />
-  </Svg>
-);
+// ── Label maps ────────────────────────────────────────────────────────────────
+const DIET_LABEL = {
+  omnivore: 'Ăn tất cả', vegetarian: 'Chay',
+  vegan: 'Thuần chay', pescatarian: 'Ăn cá',
+};
+const ACTIVITY_LABEL = {
+  sedentary: 'Ít vận động', lightly_active: 'Nhẹ nhàng',
+  moderately_active: 'Vừa phải', very_active: 'Nhiều vận động',
+};
+const RELATION_LABEL = {
+  self: 'Bản thân', child: 'Con', parent: 'Cha / Mẹ',
+  spouse: 'Vợ / Chồng', sibling: 'Anh / Chị / Em', other: 'Khác',
+};
 
-const WoodStatCard = ({ label, value, unit, hasValue, IconComponent, accentColor = 'rgba(255,220,150,0.18)' }) => (
-  <ImageBackground
-    source={ASSETS.wood}
-    style={st.woodCell}
-    imageStyle={st.woodCellImg}
-    resizeMode="cover"
-  >
-    <View style={st.woodCellOverlay}>
-      {/* Icon + label badge */}
-      <View style={[st.woodIconBadge, { backgroundColor: accentColor }]}>
-        <IconComponent weight="fill" size={16} color="rgba(255,248,225,0.85)" />
-        <Text style={st.woodLabel} numberOfLines={1}>{label.toUpperCase()}</Text>
-      </View>
-      {/* Divider */}
-      <View style={st.woodDivider} />
-      {/* Value */}
-      {hasValue ? (
-        <View style={st.woodValCol}>
-          <Text
-            style={st.woodVal}
-            adjustsFontSizeToFit
-            numberOfLines={1}
-            minimumFontScale={0.4}
-          >
-            {value}
-          </Text>
-          {unit ? <Text style={st.woodUnit}>{unit}</Text> : null}
-        </View>
-      ) : (
-        <View style={st.woodAddRow}>
-          <Plus weight="bold" size={12} color="#FDF5E6" />
-          <Text style={st.woodAddText}>Thêm</Text>
-        </View>
-      )}
-    </View>
-  </ImageBackground>
-);
-
-const MenuItem = ({ IconComponent, iconBg, label, sub, onPress, isLast }) => (
-  <>
-    <TouchableOpacity 
-      style={st.menuRow} 
-      onPress={onPress} 
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`${label}, ${sub || ''}`}
-    >
-      <View style={[st.menuIconWrap, { backgroundColor: iconBg }]}>
-        <IconComponent weight="fill" size={20} color="#FFFFFF" />
-      </View>
-      <View style={st.menuTextWrap}>
-        <Text style={st.menuLabel} numberOfLines={1}>{label}</Text>
-        {sub ? <Text style={st.menuSub} numberOfLines={1}>{sub}</Text> : null}
-      </View>
-      <CaretRight weight="bold" size={16} color="#D1D1D6" style={{ marginRight: 4 }} />
-    </TouchableOpacity>
-    {!isLast && <View style={st.menuDivider} />}
-  </>
-);
-
-const Avatar = () => {
+// ── WigglyFrame — khung SVG vẽ tay ──────────────────────────────────────────
+const WigglyFrame = ({ size = 110, color = '#C8A96E', strokeWidth = 2.2, children }) => {
+  const w = size, h = size, s = 9;
+  const path = `
+    M ${s},${s * 0.6}
+    Q ${w * 0.25},${-s * 0.3} ${w * 0.5},${s * 0.4}
+    Q ${w * 0.75},${s * 1.1} ${w - s},${s * 0.7}
+    Q ${w + s * 0.4},${h * 0.25} ${w - s * 0.6},${h * 0.5}
+    Q ${w + s * 0.5},${h * 0.75} ${w - s},${h - s * 0.8}
+    Q ${w * 0.75},${h + s * 0.4} ${w * 0.5},${h - s * 0.6}
+    Q ${w * 0.25},${h + s * 0.3} ${s},${h - s * 0.7}
+    Q ${-s * 0.4},${h * 0.75} ${s * 0.7},${h * 0.5}
+    Q ${-s * 0.5},${h * 0.25} ${s},${s * 0.6} Z
+  `;
   return (
-    <View style={st.avatarWrap}>
-      <View style={st.avatarOuterRing}>
-        <View style={st.avatarInner}>
-          <ProfileAvatarMark />
-        </View>
+    <View style={{ width: size, height: size }}>
+      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+        <Path d={path} fill="rgba(245,237,220,0.9)" stroke={color} strokeWidth={strokeWidth} />
+      </Svg>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        {children}
       </View>
     </View>
   );
 };
 
-const ProfileScreen = ({ navigation }) => {
-  const { profile, latestMetrics, profiles, activeProfileId, switchProfile, loadAllProfilesAction } = useAppStore();
-  const insets = useSafeAreaInsets();
+// ── HeroAvatar — avatar trung tâm Ghibli ─────────────────────────────────────
+const HeroAvatar = ({ avatar, displayName }) => (
+  <View style={av.outer}>
+    {/* Vòng ngoài gỗ */}
+    <View style={[av.ring, nativeShadow('#8B5E3C', 0.25, 10, { width: 0, height: 5 }, 7)]}>
+      <View style={{ borderRadius: 60, overflow: 'hidden', ...StyleSheet.absoluteFillObject }}>
+        <Image source={TEX.wood} style={{ width: '100%', height: '100%', opacity: 0.8 }} resizeMode="cover" />
+      </View>
+    </View>
+    {/* WigglyFrame trong */}
+    <View style={av.frameWrap}>
+      <WigglyFrame size={104} color="#C8A96E" strokeWidth={2.5}>
+        <Text style={av.emoji}>{avatar || '🧑'}</Text>
+      </WigglyFrame>
+    </View>
+    {/* Dấu stamp góc phải dưới */}
+    <View style={av.stamp}>
+      <Text style={av.stampText}>✦</Text>
+    </View>
+  </View>
+);
 
-  // Load profiles on focus
+// ── WoodChip — tag metadata nhỏ ──────────────────────────────────────────────
+const WoodChip = ({ icon, label }) => (
+  <View style={ch.wrap}>
+    <View style={{ borderRadius: 999, overflow: 'hidden', ...StyleSheet.absoluteFillObject }}>
+      <Image source={TEX.wood} style={{ width: '100%', height: '100%', opacity: 0.75 }} resizeMode="cover" />
+    </View>
+    <Ionicons name={icon} size={13} color="#FDF5E6" style={{ zIndex: 1 }} />
+    <Text style={ch.text}>{label}</Text>
+  </View>
+);
+
+// ── WoodStatCard — ô thống kê nền gỗ tối ────────────────────────────────────
+const WoodStatCard = ({ icon, label, value, unit, hasValue, accentColor }) => (
+  <View style={[sc.shadow, nativeShadow('#2A1500', 0.20, 12, { width: 0, height: 8 }, 7)]}>
+    <ImageBackground source={TEX.wood} style={sc.card} imageStyle={sc.cardImg} resizeMode="cover">
+      <View style={sc.overlay}>
+        <View style={[sc.iconBadge, { backgroundColor: accentColor || 'rgba(255,220,150,0.18)' }]}>
+          <Ionicons name={icon} size={14} color="rgba(255,248,225,0.9)" />
+          <Text style={sc.label} numberOfLines={1}>{label.toUpperCase()}</Text>
+        </View>
+        <View style={sc.divider} />
+        {hasValue ? (
+          <View>
+            <Text style={sc.value} adjustsFontSizeToFit numberOfLines={1} minimumFontScale={0.4}>{value}</Text>
+            {unit ? <Text style={sc.unit}>{unit}</Text> : null}
+          </View>
+        ) : (
+          <View style={sc.addRow}>
+            <Ionicons name="add" size={12} color="#FDF5E6" />
+            <Text style={sc.addText}>Thêm</Text>
+          </View>
+        )}
+      </View>
+    </ImageBackground>
+  </View>
+);
+
+// ── MemberRow — hàng thành viên trong card ───────────────────────────────────
+const MemberRow = ({ p, isActive, isLast, onPress, onLongPress }) => (
+  <>
+    <TouchableOpacity
+      style={[mr.row, isActive && mr.rowActive]}
+      activeOpacity={0.75}
+      onPress={onPress}
+      onLongPress={onLongPress}
+    >
+      {isActive && (
+        <View style={[StyleSheet.absoluteFill, { borderRadius: 0, overflow: 'hidden' }]} pointerEvents="none">
+          <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.5 }} resizeMode="cover" />
+        </View>
+      )}
+      <View style={[mr.avatar, isActive && mr.avatarActive]}>
+        <Text style={{ fontSize: 22 }}>{p.avatar || '🧑'}</Text>
+      </View>
+      <View style={{ flex: 1, zIndex: 1 }}>
+        <Text style={[mr.name, isActive && mr.nameActive]} numberOfLines={1}>
+          {p.displayName || 'Chưa đặt tên'}
+        </Text>
+        <Text style={mr.sub} numberOfLines={1}>
+          {RELATION_LABEL[p.relation] || 'Khác'}{p.age ? ` · ${p.age} tuổi` : ''}
+        </Text>
+      </View>
+      {isActive
+        ? <View style={mr.activePill}><Text style={mr.activePillText}>✓ Active</Text></View>
+        : <Ionicons name="chevron-forward" size={16} color="#C8A96E" style={{ zIndex: 1 }} />
+      }
+    </TouchableOpacity>
+    {!isLast && <View style={mr.divider} />}
+  </>
+);
+
+// ── MenuItem — hàng cài đặt ──────────────────────────────────────────────────
+const MenuItem = ({ icon, iconColor, iconBgColor, label, sub, onPress, isLast }) => (
+  <>
+    <TouchableOpacity style={mi.row} onPress={onPress} activeOpacity={0.72}>
+      <View style={[mi.iconBox, { backgroundColor: iconBgColor }]}>
+        <Ionicons name={icon} size={18} color="#FFF" />
+      </View>
+      <View style={mi.textWrap}>
+        <Text style={mi.label} numberOfLines={1}>{label}</Text>
+        {sub ? <Text style={mi.sub} numberOfLines={1}>{sub}</Text> : null}
+      </View>
+      <Ionicons name="chevron-forward" size={15} color="#C8A96E" />
+    </TouchableOpacity>
+    {!isLast && <View style={mi.divider} />}
+  </>
+);
+
+// ── SectionStamp — tiêu đề section phong cách stamp ──────────────────────────
+const SectionStamp = ({ label }) => (
+  <View style={ss.wrap}>
+    <View style={ss.line} />
+    <View style={ss.badge}>
+      <View style={[StyleSheet.absoluteFill, { borderRadius: 999, overflow: 'hidden' }]} pointerEvents="none">
+        <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.8 }} resizeMode="cover" />
+      </View>
+      <Text style={ss.text}>{label}</Text>
+    </View>
+    <View style={ss.line} />
+  </View>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+const ProfileScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const { profile, latestMetrics, profiles, activeProfileId, switchProfile, loadAllProfilesAction } = useAppStore();
+
   useFocusEffect(useCallback(() => { loadAllProfilesAction(); }, []));
 
-  // ── Handle long-press on member row ───────────────────────────────────────
   const handleMemberLongPress = (p) => {
-    const isActive = p.profileId === activeProfileId;
     const canDelete = profiles.length > 1;
     const options = [
       { text: 'Chỉnh sửa', onPress: () => navigation.getParent()?.navigate('AddEditProfile', { profileId: p.profileId }) },
@@ -152,6 +217,7 @@ const ProfileScreen = ({ navigation }) => {
           { text: 'Hủy', style: 'cancel' },
           { text: 'Xóa', style: 'destructive', onPress: async () => {
             await deleteProfileMember(p.profileId);
+            const isActive = p.profileId === activeProfileId;
             if (isActive) {
               const rest = profiles.filter(x => x.profileId !== p.profileId);
               if (rest.length > 0) await switchProfile(rest[0].profileId);
@@ -165,342 +231,297 @@ const ProfileScreen = ({ navigation }) => {
     Alert.alert(p.displayName || 'Thành viên', undefined, options);
   };
 
-  let bmi = null, bmiLabel = '–';
+  // BMI calculation
+  let bmi = null, bmiLabel = 'BMI';
   if (latestMetrics?.height_cm && latestMetrics?.weight_kg) {
     const h = latestMetrics.height_cm / 100;
-    bmi = (latestMetrics.weight_kg / (h * h)).toFixed(1);
-    if (latestMetrics?.weight_kg / (h * h) < 18.5) { bmiLabel = 'Thiếu cân'; }
-    else if (latestMetrics?.weight_kg / (h * h) < 25)   { bmiLabel = 'Bình thường'; }
-    else if (latestMetrics?.weight_kg / (h * h) < 30)   { bmiLabel = 'Thừa cân'; }
-    else                 { bmiLabel = 'Béo phì'; }
-  } else {
-    bmiLabel = 'BMI';
+    const val = latestMetrics.weight_kg / (h * h);
+    bmi = val.toFixed(1);
+    if (val < 18.5) bmiLabel = 'Thiếu cân';
+    else if (val < 25) bmiLabel = 'Bình thường';
+    else if (val < 30) bmiLabel = 'Thừa cân';
+    else bmiLabel = 'Béo phì';
   }
 
   const menuItems = [
-    {
-      IconComponent: Person, iconBg: '#007AFF', label: 'Thông tin cá nhân',
-      sub: profile ? `${profile.age} tuổi · ${DIET_LABEL[profile.diet_type] || ''}` : 'Chưa thiết lập',
-      onPress: () => navigation.getParent()?.navigate('EditPersonal'),
-    },
-    {
-      IconComponent: Scales, iconBg: '#34C759', label: 'Chỉ số cơ thể',
+    { icon: 'person-outline', iconBgColor: '#C8A96E', label: 'Thông tin cá nhân',
+      sub: profile ? `${profile.age} tuổi · ${DIET_LABEL[profile.diet_type] || '–'}` : 'Chưa thiết lập',
+      onPress: () => navigation.getParent()?.navigate('EditPersonal') },
+    { icon: 'barbell-outline', iconBgColor: '#8B9E6A', label: 'Chỉ số cơ thể',
       sub: latestMetrics ? `${latestMetrics.weight_kg} kg · BMI ${bmi}` : 'Chưa thiết lập',
-      onPress: () => navigation.getParent()?.navigate('BodyMetrics'),
-    },
-    {
-      IconComponent: Warning, iconBg: '#FF9500', label: 'Dị ứng & Chế độ ăn',
+      onPress: () => navigation.getParent()?.navigate('BodyMetrics') },
+    { icon: 'warning-outline', iconBgColor: '#C88A5A', label: 'Dị ứng & Chế độ ăn',
       sub: 'Quản lý thực phẩm cần tránh',
-      onPress: () => navigation.getParent()?.navigate('Allergy'),
-    },
-    {
-      IconComponent: ForkKnife, iconBg: '#FF3B30', label: 'Khẩu vị của tôi',
+      onPress: () => navigation.getParent()?.navigate('Allergy') },
+    { icon: 'restaurant-outline', iconBgColor: '#A06E6E', label: 'Khẩu vị của tôi',
       sub: 'Sở thích hương vị cá nhân',
-      onPress: () => navigation.getParent()?.navigate('TasteProfile'),
-    },
+      onPress: () => navigation.getParent()?.navigate('TasteProfile') },
   ];
 
   return (
-    <ScreenBackground texture="paper" edges={[]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[st.scroll, { paddingTop: insets.top + 24 }]}>
-        
-        {/* ── Thành viên gia đình ── */}
-        <SectionHeader title="👨‍👩‍👦 Thành viên" style={st.sectionHeader} titleStyle={st.sectionTitle} />
+    <View style={s.root}>
+      <StatusBar barStyle="dark-content" />
+      {/* Layer 1 — gỗ nền */}
+      <Image source={TEX.wood} style={[StyleSheet.absoluteFillObject, { opacity: 0.82 }]} resizeMode="cover" />
+      {/* Layer 2 — overlay kem */}
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(240,230,210,0.48)' }]} />
 
-        <View style={st.memberGroup}>
-          {profiles.map((p) => {
-            const isActive = p.profileId === activeProfileId;
-            return (
-              <TouchableOpacity
-                key={p.profileId}
-                style={[st.memberRow, isActive && st.memberRowActive]}
-                activeOpacity={0.75}
-                onPress={() => !isActive && switchProfile(p.profileId)}
-                onLongPress={() => handleMemberLongPress(p)}
-              >
-                <View style={[st.memberAvatar, isActive && st.memberAvatarActive]}>
-                  <Text style={{ fontSize: 22 }}>{p.avatar || '🧑'}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[st.memberName, isActive && { color: C.primary }]} numberOfLines={1}>
-                    {p.displayName || 'Chưa đặt tên'}
-                  </Text>
-                  <Text style={st.memberSub} numberOfLines={1}>
-                    {({ self:'Bản thân', child:'Con', parent:'Cha/Mẹ', spouse:'Vợ/Chồng', sibling:'Anh/Chị/Em', other:'Khác' })[p.relation] || 'Khác'}
-                    {p.age ? ` · ${p.age} tuổi` : ''}
-                  </Text>
-                </View>
-                {isActive
-                  ? <View style={st.activePill}><Text style={st.activePillText}>✓ Active</Text></View>
-                  : <Text style={{ fontSize: 18, color: C.textLight }}>›</Text>
-                }
-              </TouchableOpacity>
-            );
-          })}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 100 }]}
+      >
 
-          {/* Add new member */}
-          <TouchableOpacity
-            style={st.addMemberBtn}
-            activeOpacity={0.8}
-            onPress={() => navigation.getParent()?.navigate('AddEditProfile')}
-          >
-            <Text style={st.addMemberIcon}>＋</Text>
-            <Text style={st.addMemberText}>Thêm thành viên</Text>
-          </TouchableOpacity>
-        </View>
+        {/* ══ HERO SECTION ═══════════════════════════════════════════════════ */}
+        <View style={s.heroSection}>
+          <HeroAvatar avatar={profile?.avatar || profiles[0]?.avatar} displayName={profile?.displayName} />
 
-        {/* ── Header / Profile Info ── */}
-        <View style={st.headerSection}>
-          <Avatar />
-          <Text style={st.userName}>
-            {profile?.age ? `${profile.age} tuổi` : 'Chưa thiết lập'}
+          {/* Tên người dùng */}
+          <Text style={s.heroName} numberOfLines={1}>
+            {profile?.displayName || profiles[0]?.displayName || 'Hồ sơ của bạn'}
           </Text>
 
-          <View style={st.heroPills}>
+          {/* Pills khẩu vị + hoạt động */}
+          <View style={s.pillsRow}>
             {profile?.diet_type && (
-              <View style={st.heroPill}>
-                <ForkKnife weight="fill" size={14} color="#8B5E3C" />
-                <Text style={st.heroPillText}>{DIET_LABEL[profile.diet_type]}</Text>
-              </View>
+              <WoodChip icon="restaurant-outline" label={DIET_LABEL[profile.diet_type]} />
             )}
             {profile?.activity_level && (
-              <View style={st.heroPill}>
-                <PersonSimpleRun weight="fill" size={14} color="#8B5E3C" />
-                <Text style={st.heroPillText}>{ACTIVITY_LABEL[profile.activity_level] || ACTIVITY_LABEL['lightly_active']}</Text>
-              </View>
+              <WoodChip icon="bicycle-outline" label={ACTIVITY_LABEL[profile.activity_level] || 'Nhẹ nhàng'} />
+            )}
+            {profile?.age && (
+              <WoodChip icon="calendar-outline" label={`${profile.age} tuổi`} />
             )}
           </View>
         </View>
 
-        {/* ── Stats Row ── */}
-        <View style={st.statsRow}>
+        {/* ══ STATS ROW ══════════════════════════════════════════════════════ */}
+        <View style={s.statsRow}>
           <WoodStatCard
-            IconComponent={Scales} label="Cân nặng"
+            icon="scale-outline" label="Cân nặng"
             value={latestMetrics?.weight_kg ?? '–'} unit="kg"
             hasValue={Boolean(latestMetrics?.weight_kg)}
-            accentColor="rgba(100,180,255,0.2)"
+            accentColor="rgba(100,180,255,0.22)"
           />
           <WoodStatCard
-            IconComponent={Ruler} label="Chiều cao"
+            icon="resize-outline" label="Chiều cao"
             value={latestMetrics?.height_cm ?? '–'} unit="cm"
             hasValue={Boolean(latestMetrics?.height_cm)}
-            accentColor="rgba(160,220,130,0.2)"
+            accentColor="rgba(160,220,130,0.22)"
           />
           <WoodStatCard
-            IconComponent={ChartBar} label={bmiLabel}
+            icon="analytics-outline" label={bmiLabel}
             value={bmi ?? '–'} unit=""
             hasValue={Boolean(bmi)}
-            accentColor="rgba(255,180,100,0.22)"
+            accentColor="rgba(255,180,100,0.25)"
           />
         </View>
 
-        {/* ── Settings Menu ── */}
-        <SectionHeader title="Thiết lập ⚙️🛠️" style={st.sectionHeader} titleStyle={st.sectionTitle} />
+        {/* ══ MEMBERS ════════════════════════════════════════════════════════ */}
+        <SectionStamp label="🏠  Thành viên gia đình" />
 
-        <View style={st.menuGroup}>
-          {menuItems.map((item, i) => (
-            <MenuItem
-              key={item.label}
-              {...item}
-              isLast={i === menuItems.length - 1}
-            />
-          ))}
+        <View style={[s.cardShadow, nativeShadow('#8B5E3C', 0.18, 8, { width: 0, height: 4 }, 5)]}>
+          <View style={s.card}>
+            <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
+              <Image source={TEX.paper} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            </View>
+            <View style={{ zIndex: 1 }}>
+              {profiles.map((p, i) => (
+                <MemberRow
+                  key={p.profileId}
+                  p={p}
+                  isActive={p.profileId === activeProfileId}
+                  isLast={i === profiles.length - 1}
+                  onPress={() => p.profileId !== activeProfileId && switchProfile(p.profileId)}
+                  onLongPress={() => handleMemberLongPress(p)}
+                />
+              ))}
+
+              {/* Dashed "Thêm thành viên" */}
+              <TouchableOpacity
+                style={s.addMember}
+                activeOpacity={0.75}
+                onPress={() => navigation.getParent()?.navigate('AddEditProfile')}
+              >
+                <Ionicons name="add-circle-outline" size={17} color="#9A7040" />
+                <Text style={s.addMemberText}>Thêm thành viên mới</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
-        <View style={st.footer}>
-          <PawPrint weight="fill" size={24} color={C.border} style={{ opacity: 0.6, marginRight: 8 }} />
-          <PawPrint weight="fill" size={24} color={C.border} style={{ opacity: 0.3 }} />
+        {/* ══ SETTINGS ═══════════════════════════════════════════════════════ */}
+        <SectionStamp label="⚙️  Thiết lập" />
+
+        <View style={[s.cardShadow, nativeShadow('#8B5E3C', 0.18, 8, { width: 0, height: 4 }, 5)]}>
+          <View style={s.card}>
+            <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
+              <Image source={TEX.paper} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            </View>
+            <View style={{ zIndex: 1 }}>
+              {menuItems.map((item, i) => (
+                <MenuItem
+                  key={item.label}
+                  {...item}
+                  isLast={i === menuItems.length - 1}
+                />
+              ))}
+            </View>
+          </View>
         </View>
 
-        <View style={{ height: 40 }}/>
+        {/* ── Footer dấu chân mèo ── */}
+        <View style={s.footer}>
+          <Text style={s.footerPaw}>🐾</Text>
+          <Text style={s.footerPaw}>🐾</Text>
+        </View>
+
       </ScrollView>
-    </ScreenBackground>
+    </View>
   );
 };
 
-const st = StyleSheet.create({
-  scroll: { paddingHorizontal: 16 },
+// ── StyleSheet ────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F5EDDC' },
+  scroll: { paddingHorizontal: 18 },
 
-  // ── Members Section ──
-  memberGroup: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06, shadowRadius: 12, elevation: 3,
-    borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)',
-    marginBottom: 24,
+  // Hero
+  heroSection: { alignItems: 'center', marginBottom: 24, paddingTop: 8 },
+  heroName: {
+    fontFamily: 'Lora-Bold', fontSize: 24, color: '#3D2B1F',
+    marginTop: 14, marginBottom: 10, textAlign: 'center',
   },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
-    minHeight: 64,
-    gap: 12,
+  pillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', paddingHorizontal: 10 },
+
+  // Stats
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 28 },
+
+  // Card (parchment)
+  cardShadow: { borderRadius: 20, marginBottom: 28 },
+  card: {
+    borderRadius: 20, backgroundColor: '#F5EDDC',
+    borderWidth: 1.5, borderColor: '#C8A96E',
+    overflow: 'hidden', // clip nội dung trong card, shadow vẫn OK vì nằm ở cardShadow
   },
-  memberRowActive: { backgroundColor: 'rgba(139,94,60,0.04)' },
-  memberAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FDFAF6',
-    borderWidth: 1.5,
-    borderColor: 'rgba(200,169,110,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
+
+  // Add member dashed button
+  addMember: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 14, minHeight: 48,
+    marginHorizontal: 4, marginBottom: 4,
+    borderRadius: 14, backgroundColor: 'transparent',
   },
-  memberAvatarActive: { borderColor: C.primary, borderWidth: 2 },
-  memberName: { fontFamily: 'Nunito_700Bold', fontSize: 15, color: C.text, marginBottom: 2 },
-  memberSub:  { fontFamily: 'Nunito_600SemiBold', fontSize: 12, color: '#8E8E93' },
+  addMemberText: {
+    fontFamily: 'BeVietnamPro-Bold', fontSize: 14, color: '#9A7040',
+  },
+
+  // Footer
+  footer: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingTop: 20, opacity: 0.4 },
+  footerPaw: { fontSize: 22 },
+});
+
+// ── Avatar styles ─────────────────────────────────────────────────────────────
+const av = StyleSheet.create({
+  outer: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
+  ring: {
+    position: 'absolute', width: 120, height: 120, borderRadius: 60,
+    borderWidth: 2, borderColor: '#9A7040',
+  },
+  frameWrap: { width: 108, height: 108, alignItems: 'center', justifyContent: 'center' },
+  emoji: { fontSize: 50 },
+  stamp: {
+    position: 'absolute', bottom: 2, right: 4,
+    backgroundColor: '#C8A96E', borderRadius: 999,
+    width: 22, height: 22, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: '#F5EDDC',
+  },
+  stampText: { fontSize: 10, color: '#FFF8EA', fontFamily: 'BeVietnamPro-Bold' },
+});
+
+// ── WoodChip styles ───────────────────────────────────────────────────────────
+const ch = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
+    borderWidth: 1, borderColor: '#9A7040',
+  },
+  text: { fontFamily: 'BeVietnamPro-Bold', fontSize: 12, color: '#FDF5E6', zIndex: 1 },
+});
+
+// ── WoodStatCard styles ───────────────────────────────────────────────────────
+const sc = StyleSheet.create({
+  shadow: { flex: 1, borderRadius: 18 },
+  card: { flex: 1, height: 120, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(160,120,74,0.3)', overflow: 'hidden' },
+  cardImg: { borderRadius: 18, opacity: 0.85 },
+  overlay: {
+    backgroundColor: 'rgba(15,7,2,0.30)', flex: 1,
+    paddingHorizontal: 11, paddingTop: 10, paddingBottom: 12, justifyContent: 'space-between',
+  },
+  iconBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start',
+  },
+  label: { fontFamily: 'BeVietnamPro-Bold', fontSize: 9, color: '#FDF5E6', opacity: 0.85, letterSpacing: 0.5 },
+  divider: { height: 1, backgroundColor: 'rgba(255,240,200,0.12)', marginVertical: 6 },
+  value: { fontFamily: 'Lora-Bold', fontSize: 26, color: '#FFF9EB', letterSpacing: -0.5, lineHeight: 32 },
+  unit: { fontFamily: 'BeVietnamPro-Regular', fontSize: 10, color: '#FDF5E6', opacity: 0.55, marginTop: 1 },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  addText: { fontFamily: 'BeVietnamPro-Bold', fontSize: 13, color: '#FDF5E6' },
+});
+
+// ── MemberRow styles ──────────────────────────────────────────────────────────
+const mr = StyleSheet.create({
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 12, paddingHorizontal: 16, minHeight: 64,
+  },
+  rowActive: { backgroundColor: 'transparent' }, // paper overlay xử lý
+  avatar: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(200,169,110,0.15)',
+    borderWidth: 1.5, borderColor: '#C8A96E',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  avatarActive: { borderColor: '#8B5E3C', borderWidth: 2 },
+  name: { fontFamily: 'BeVietnamPro-Bold', fontSize: 15, color: '#3D2B1F', marginBottom: 2 },
+  nameActive: { fontFamily: 'Lora-Bold', color: '#5C3A1E' },
+  sub: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: '#8B7355' },
   activePill: {
-    backgroundColor: C.primary, borderRadius: 999,
-    paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: '#C8A96E', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
   },
-  activePillText: { fontFamily: 'Nunito_700Bold', fontSize: 11, color: '#FFF8EA' },
-  addMemberBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F2F2F7',
-  },
-  addMemberIcon: { fontSize: 18, color: C.primary },
-  addMemberText: { fontFamily: 'Nunito_700Bold', fontSize: 15, color: C.primary },
+  activePillText: { fontFamily: 'BeVietnamPro-Bold', fontSize: 11, color: '#FFF8EA' },
+  divider: { height: 1, backgroundColor: 'rgba(200,169,110,0.25)', marginHorizontal: 16 },
+});
 
-  // ── Header Section ──
-  headerSection: { alignItems: 'center', marginBottom: 28 },
-  
-  // ── Avatar ──
-  avatarWrap: { marginBottom: 16 },
-  avatarOuterRing: { 
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 
+// ── MenuItem styles ───────────────────────────────────────────────────────────
+const mi = StyleSheet.create({
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 0,
+    paddingVertical: 13, paddingHorizontal: 16, minHeight: 64,
   },
-  avatarInner: { 
-    width: 92, height: 92, borderRadius: 46,
-    backgroundColor: '#FDFBFA', 
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: C.borderLight
+  iconBox: {
+    width: 38, height: 38, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center', marginRight: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
   },
+  textWrap: { flex: 1, justifyContent: 'center' },
+  label: { fontFamily: 'Lora-Bold', fontSize: 16, color: '#3D2B1F', marginBottom: 2 },
+  sub: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: '#8B7355' },
+  divider: { height: 1, backgroundColor: 'rgba(200,169,110,0.25)', marginHorizontal: 16 },
+});
 
-  // ── User Name & Pills ──
-  userName: { fontFamily: 'Nunito_700Bold', fontSize: 24, color: C.text, marginBottom: 14, textAlign: 'center' },
-  heroPills: { flexDirection: 'row', gap: 10, justifyContent: 'center', flexWrap: 'wrap', paddingHorizontal: 20 },
-  heroPill: { 
-    backgroundColor: '#FFFFFF', 
-    borderRadius: 999,
-    paddingHorizontal: 14, paddingVertical: 8,
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
-    borderWidth: 1, borderColor: C.borderLight
+// ── SectionStamp styles ───────────────────────────────────────────────────────
+const ss = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12, marginTop: 4,
   },
-  heroPillText: { fontFamily: 'Nunito_600SemiBold', fontSize: 13, color: C.textMid },
-
-  // ── Stats Row (Dark Wood) ──
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 32 },
-  woodCell: {
-    flex: 1,
-    height: 118,
-    borderRadius: 18, overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(160,120,74,0.3)',
-    shadowColor: '#2A1500',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18, shadowRadius: 12, elevation: 7,
+  line: { flex: 1, height: 1, backgroundColor: 'rgba(200,169,110,0.45)' },
+  badge: {
+    paddingHorizontal: 16, paddingVertical: 6, borderRadius: 999,
+    borderWidth: 1.5, borderColor: '#C8A96E',
+    backgroundColor: 'rgba(245,237,220,0.7)',
   },
-  woodCellImg: { borderRadius: 18, opacity: 0.88 },
-  woodCellOverlay: {
-    backgroundColor: 'rgba(15,7,2,0.32)',
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingTop: 11,
-    paddingBottom: 13,
-    justifyContent: 'space-between',
-  },
-  woodIconBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 7,
-    paddingVertical: 5,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-  },
-  woodDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,240,200,0.12)',
-    marginVertical: 7,
-    marginHorizontal: -2,
-  },
-  woodLabel: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 10,
-    color: '#FDF5E6',
-    opacity: 0.85,
-    letterSpacing: 0.6,
-  },
-  woodValCol: {
-    flexDirection: 'column',
-    justifyContent: 'flex-end',
-  },
-  woodVal: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 26,
-    color: '#FFF9EB',
-    letterSpacing: -0.5,
-    lineHeight: 32,
-  },
-  woodUnit: {
-    fontFamily: 'Nunito_600SemiBold',
-    fontSize: 10,
-    color: '#FDF5E6',
-    opacity: 0.55,
-    marginTop: 1,
-    letterSpacing: 0.3,
-  },
-  woodAddRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingBottom: 4 },
-  woodAddText: { fontFamily: 'Nunito_700Bold', fontSize: 13, color: '#FDF5E6' },
-
-  // ── Section Header ──
-  sectionHeader: { marginBottom: 12, paddingHorizontal: 4 },
-  sectionTitle: { fontFamily: 'Nunito_700Bold', fontSize: 20, color: C.text },
-
-  // ── iOS Style Menu Group ──
-  menuGroup: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06, shadowRadius: 12, elevation: 3,
-    borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)'
-  },
-  menuRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    minHeight: 68
-  },
-  menuIconWrap: { 
-    width: 36, height: 36, 
-    borderRadius: 10,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  menuTextWrap: { flex: 1, marginLeft: 14, justifyContent: 'center' },
-  menuLabel: { fontFamily: 'Nunito_700Bold', fontSize: 17, color: C.text, marginBottom: 2 },
-  menuSub: { fontFamily: 'Nunito_600SemiBold', fontSize: 13, color: '#8E8E93' },
-  menuDivider: { height: 1, backgroundColor: '#F2F2F7', marginLeft: 66 },
-
-  // ── Footer ──
-  footer: { flexDirection: 'row', justifyContent: 'center', paddingTop: 40 },
+  text: { fontFamily: 'Lora-Bold', fontSize: 14, color: '#5C3A1E', zIndex: 1 },
 });
 
 export default ProfileScreen;

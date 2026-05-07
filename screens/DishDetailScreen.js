@@ -64,6 +64,7 @@ const DishDetailScreen = ({ route, navigation }) => {
   const [ingredients, setIngredients]               = useState([]);
   const [loadingDetail, setLoadingDetail]           = useState(true);
   const [feedbackState, setFeedbackState]           = useState({}); // { eaten: 'loading'|'done'|'error' }
+  const [dishUrl, setDishUrl]                       = useState(dish.url || ''); // fallback cho url từ API
 
   useEffect(() => { loadDetail(); }, []);
 
@@ -73,6 +74,10 @@ const DishDetailScreen = ({ route, navigation }) => {
       if (!dishId) return;
       const res = await api.get(`/api/v1/dishes/${dishId}`);
       setIngredients(res.data.ingredients || []);
+      // Nếu dish trong params (từ meal plan cũ) không có url → lấy từ API
+      if (!dishUrl && res.data.url) {
+        setDishUrl(res.data.url);
+      }
     } catch (e) { console.error('loadDetail:', e); }
     finally { setLoadingDetail(false); }
   };
@@ -380,11 +385,11 @@ const DishDetailScreen = ({ route, navigation }) => {
           ) : null}
 
           {/* ── Recipe Link ── */}
-          {dish.url ? (
+          {dishUrl ? (
             <TouchableOpacity 
               style={s.recipeBtn} 
               activeOpacity={0.85}
-              onPress={() => Linking.openURL(dish.url)}
+              onPress={() => Linking.openURL(dishUrl)}
             >
               <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 16, opacity: 0.9 }} resizeMode="cover" />
               <View style={s.recipeBtnInner}>
