@@ -6,7 +6,6 @@
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, StatusBar, View, Text, StyleSheet, Image } from 'react-native';
 import LottieView from 'lottie-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts } from 'expo-font';
 import * as Linking from 'expo-linking';
 import {
@@ -26,6 +25,8 @@ import { supabase } from './store/suppabase';
 import { initDB, setSetting, migrateExistingProfile } from './utils/database';
 import { useAppStore } from './store/useAppStore';
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
+import { setupNotificationChannel } from './services/mealReminderService';
 import LoginScreen             from './screens/LoginScreen';
 import HomeScreen              from './screens/HomeScreen';
 import HistoryScreen           from './screens/HistoryScreen';
@@ -39,10 +40,7 @@ import BodyMetricsScreen       from './screens/BodyMetricsScreen';
 import AllergyScreen           from './screens/AllergyScreen';
 import CookingChallengeScreen  from './screens/CookingChallengeScreen';
 import TasteProfileScreen      from './screens/TasteProfileScreen';
-import OnboardingWelcome       from './screens/onboarding/OnboardingWelcome';
-import OnboardingPersonal      from './screens/onboarding/OnboardingPersonal';
-import OnboardingAllergy       from './screens/onboarding/OnboardingAllergy';
-import OnboardingProfileScreen from './screens/onboarding/OnBoardTast';
+// Onboarding screens đã bị loại bỏ — không import nữa
 import RecommendScreen         from './screens/RecommendScreen';
 import ResetPasswordScreen     from './screens/ResetPasswordScreen';
 import AddEditProfileScreen    from './screens/AddEditProfileScreen';
@@ -50,6 +48,17 @@ import ChosenDishScreen        from './screens/ChosenDishScreen';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
+
+// ── Notification handler — PHẢI đặt ở top-level, ngoài component ────────────
+// Không có dòng này → notification KHÔNG hiển thị khi app đang foreground
+// Và trên một số APK builds → notification bị drop hoàn toàn
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge:  false,
+  }),
+});
 
 // ── Static assets ─────────────────────────────────────────────────────────
 const TEX = {
@@ -85,16 +94,6 @@ const MainTabs = () => (
     <Tab.Screen name="Settings"  component={SettingsScreen}
       options={{ tabBarLabel: 'Cài đặt',   tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused}/> }}/>
   </Tab.Navigator>
-);
-
-// ── Onboarding Stack ──────────────────────────────────────────────────────
-const OnboardingStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="OnboardingWelcome"  component={OnboardingWelcome}/>
-    <Stack.Screen name="OnboardingPersonal" component={OnboardingPersonal}/>
-    <Stack.Screen name="OnboardingAllergy"  component={OnboardingAllergy}/>
-    <Stack.Screen name="TasteProfile"       component={OnboardingProfileScreen}/>
-  </Stack.Navigator>
 );
 
 // ── Splash Screen (Lottie Lazy Cat) ──────────────────────────────────────
@@ -330,8 +329,15 @@ const App = () => {
         initializeIngredients(),
       ]);
       getUserLocation();
-      const onboardingDone = await AsyncStorage.getItem('onboarding_done');
-      setShowOnboarding(!onboardingDone);
+
+      // ── Notification channel (Android 8+ bắt buộc) ──────────────────────
+      // Phải gọi ở đây để channel tồn tại trước khi schedule bất kỳ notification nào
+      await setupNotificationChannel();
+
+      // ── Bỏ onboarding quiz — người dùng vào thẳng app ───────────────────
+      // Onboarding đã bị loại bỏ theo yêu cầu. Dữ liệu profile có thể
+      // được thiết lập sau trong ProfileScreen / SettingsScreen.
+      setShowOnboarding(false);
       setAppReady(true);
     } catch (e) {
       console.error('initializeApp error:', e);
@@ -364,29 +370,23 @@ const App = () => {
     );
   }
 
-  // Đã đăng nhập → toàn bộ app
+  // Đã đăng nhập → toàn bộ app (onboarding đã bị loại bỏ)
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5EDDC" />
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {showOnboarding ? (
-            <Stack.Screen name="Onboarding" component={OnboardingStack}/>
-          ) : (
-            <>
-              <Stack.Screen name="Main"             component={MainTabs}/>
-              <Stack.Screen name="DishDetail"       component={DishDetailScreen}/>
-              <Stack.Screen name="MarketBasket"     component={MarketBasketScreen}/>
-              <Stack.Screen name="HistoryDetail"    component={HistoryDetailScreen}/>
-              <Stack.Screen name="EditPersonal"     component={EditPersonalScreen}/>
-              <Stack.Screen name="BodyMetrics"      component={BodyMetricsScreen}/>
-              <Stack.Screen name="Allergy"          component={AllergyScreen}/>
-              <Stack.Screen name="CookingChallenge" component={CookingChallengeScreen}/>
-              <Stack.Screen name="TasteProfile"     component={TasteProfileScreen}/>
-              <Stack.Screen name="Recommend"        component={RecommendScreen}/>
-              <Stack.Screen name="AddEditProfile"   component={AddEditProfileScreen}/>
-            </>
-          )}
+          <Stack.Screen name="Main"             component={MainTabs}/>
+          <Stack.Screen name="DishDetail"       component={DishDetailScreen}/>
+          <Stack.Screen name="MarketBasket"     component={MarketBasketScreen}/>
+          <Stack.Screen name="HistoryDetail"    component={HistoryDetailScreen}/>
+          <Stack.Screen name="EditPersonal"     component={EditPersonalScreen}/>
+          <Stack.Screen name="BodyMetrics"      component={BodyMetricsScreen}/>
+          <Stack.Screen name="Allergy"          component={AllergyScreen}/>
+          <Stack.Screen name="CookingChallenge" component={CookingChallengeScreen}/>
+          <Stack.Screen name="TasteProfile"     component={TasteProfileScreen}/>
+          <Stack.Screen name="Recommend"        component={RecommendScreen}/>
+          <Stack.Screen name="AddEditProfile"   component={AddEditProfileScreen}/>
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaView>

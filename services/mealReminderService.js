@@ -2,12 +2,13 @@
  * services/mealReminderService.js
  * Quản lý toàn bộ vòng đời local notification nhắc ăn hàng ngày.
  *
- * ⚠️  DailyTriggerInput phải có ĐÚNG 3 keys: { hour, minute, repeats }.
- *     Không thêm channelId vào trigger — chỉ đặt ở content.channelId.
- *     (Bug: thêm key thừa → "Trigger of type: calendar is not supported on Android")
+ * ⚠️  expo-notifications 0.29+ dùng SchedulableTriggerInputTypes.DAILY thay cho
+ *     { hour, minute, repeats: true } (format cũ đã deprecated).
+ *     channelId đặt trong content (Android), KHÔNG trong trigger.
  */
 
 import * as Notifications from 'expo-notifications';
+import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getSetting, setSetting } from '../utils/database';
 
@@ -78,10 +79,11 @@ export async function scheduleReminder(meal, dishInfo = null) {
       ...(Platform.OS === 'android' && { channelId: 'meal-reminders' }),
     },
     trigger: {
-      // DailyTriggerInput: đúng 3 keys, không thêm bất kỳ key nào khác
+      // expo-notifications 0.29+: dùng SchedulableTriggerInputTypes.DAILY
+      // Không dùng { hour, minute, repeats: true } — đã deprecated và gây lỗi trên APK
+      type:    SchedulableTriggerInputTypes.DAILY,
       hour:    meal.hour,
       minute:  meal.minute,
-      repeats: true,
     },
   });
 }
