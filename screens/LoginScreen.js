@@ -132,7 +132,7 @@ export default function LoginScreen() {
       // Trong Expo Go: sẽ generate exp://... (khớp với exp://*/* trong Supabase)
       // Trong standalone build: sẽ generate dailymate://... (khớp với dailymate://**)
       const redirectUrl = AuthSession.makeRedirectUri({
-        path: 'auth/callback',
+        native: 'com.anonymous.dailymate:/oauth2redirect/google',
       });
       // tunnel → exp://dasmg0-concop17-8081.exp.direct/--/auth/callback  ✅ khớp exp://*/*
       // LAN    → exp://192.168.1.19:8081/--/auth/callback
