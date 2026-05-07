@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { supabase } from '../store/suppabase';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
 import * as Linking from 'expo-linking';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -128,16 +127,11 @@ export default function LoginScreen() {
 
   const handleGoogle = async () => {
     try {
-      // Expo Go không nhận custom scheme — phải dùng makeRedirectUri()
-      // Trong Expo Go: sẽ generate exp://... (khớp với exp://*/* trong Supabase)
-      // Trong standalone build: sẽ generate dailymate://... (khớp với dailymate://**)
-      const redirectUrl = AuthSession.makeRedirectUri({
-        native: 'com.anonymous.dailymate://oauth2redirect/google',
-      });
-      // tunnel → exp://dasmg0-concop17-8081.exp.direct/--/auth/callback  ✅ khớp exp://*/*
-      // LAN    → exp://192.168.1.19:8081/--/auth/callback
-      // build  → dailymate://auth/callback
-      // [FIX ID-M004 / ID-M006-A] guard __DEV__ — redirect URL không được log trong production
+      // [FIX] Dùng Linking.createURL thay vì makeRedirectUri({ native: ... })
+      // APK standalone → dailymate:///   (khớp intentFilter scheme="dailymate" trong app.json)
+      // Expo Go        → exp://IP:PORT/--/   (khớp exp://*/** trong Supabase)
+      // KHÔNG dùng com.anonymous.dailymate:// — đó là package ID, không phải URL scheme
+      const redirectUrl = Linking.createURL('/');
       if (__DEV__) console.log('[Google OAuth] redirectUrl:', redirectUrl);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -157,14 +151,15 @@ export default function LoginScreen() {
       );
 
       if (result.type === 'success' && result.url) {
-        // Parse fragment tokens từ URL trả về (implicit flow)
-        const parsed = Linking.parse(result.url);
-        // Supabase trả token trong hash fragment hoặc query params tuỳ config
-        const hashParams = new URLSearchParams(
-          (result.url.split('#')[1] ?? result.url.split('?')[1]) || ''
-        );
-        const accessToken  = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
+        // iOS: Custom Tab trả về URL trực tiếp → xử lý ở đây
+        // Android APK: Chrome Custom Tab close + app nhận deep link qua Linking
+        //              → handleDeepLink trong App.js đã lo, nhưng vẫn xử lý ở đây để an toàn
+        const urlStr = result.url;
+        const queryStr = urlStr.split('#')[1] ?? urlStr.split('?')[1] ?? '';
+        const params   = new URLSearchParams(queryStr);
+        const accessToken  = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const code         = params.get('code');
 
         if (accessToken && refreshToken) {
           const { error: sessionError } = await supabase.auth.setSession({
@@ -172,15 +167,17 @@ export default function LoginScreen() {
             refresh_token: refreshToken,
           });
           if (sessionError) Alert.alert('Lỗi phiên đăng nhập 😿', sessionError.message);
-          // onAuthStateChange trong App.js tự chuyển màn hình
-        } else {
-          // Fallback: thử exchangeCodeForSession (PKCE flow)
-          const { error: codeError } = await supabase.auth.exchangeCodeForSession(result.url);
+        } else if (code) {
+          // PKCE flow — Android thường dùng flow này
+          const { error: codeError } = await supabase.auth.exchangeCodeForSession(urlStr);
           if (codeError) Alert.alert('Lỗi phiên đăng nhập 😿', codeError.message);
         }
-      } else if (result.type === 'cancel' || result.type === 'dismiss') {
-        // User tự đóng browser — không cần alert
-        if (__DEV__) console.log('[Google OAuth] User cancelled.');
+        // onAuthStateChange trong App.js tự chuyển màn hình khi session ready
+      }
+      // type === 'cancel'/'dismiss': Android đóng tab để mở app qua deep link
+      // → App.js handleDeepLink sẽ xử lý — không cần alert ở đây
+      if (__DEV__ && result.type !== 'success') {
+        console.log('[Google OAuth] WebBrowser result:', result.type, '— chờ deep link từ Android...');
       }
     } catch (e) {
       Alert.alert('Lỗi Google 😿', e?.message || 'Đã xảy ra lỗi không xác định.');

@@ -32,20 +32,7 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "autoVerify": true,
           "data": [{ "scheme": "dailymate" }],
-          "category": ["BROWSABLE", "DEFAULT"]
-        },
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "com.anonymous.dailymate",
-              "host": "oauth2redirect",
-              "pathPrefix": "/google"
-            }
-          ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
