@@ -254,10 +254,16 @@ const ListRow = ({ item, onPress, isAdded, onAddToMeal }) => (
 const RecommendScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { searchParams = {} } = route.params || {};
-  const [dishes, setDishes]        = useState([]);
-  const [isLoading, setIsLoading]  = useState(true);
-  const [visibleCount, setVisible] = useState(10);
-  const [error, setError]          = useState(null);
+  const PAGE_SIZE = 10;
+
+  const [dishes, setDishes]               = useState([]);
+  const [isLoading, setIsLoading]         = useState(true);
+  const [currentPage, setCurrentPage]     = useState(1);
+  const [totalPages, setTotalPages]       = useState(1);
+  const [hasNextPage, setHasNextPage]     = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [totalDishes, setTotalDishes]     = useState(0);
+  const [error, setError]                 = useState(null);
   const { setCurrentSessionId, profile, activeProfileId }    = useAppStore();
 
   // ── Meal plan state: set của dish_id đã thêm vào bữa hôm nay ──────────────
@@ -302,40 +308,84 @@ const RecommendScreen = ({ navigation, route }) => {
   }, [profile, activeProfileId, showToast]);
 
   useEffect(() => {
-    fetchRecommendations();
-    // [FIX ID-M015] Cleanup: abort request nếu component unmount giữa chừng
+    fetchFirstPage();
     return () => { if (abortRef.current) abortRef.current.abort(); };
   }, []);
 
-  const fetchRecommendations = async () => {
-    // [FIX ID-M015] Cancel request đang chạy trước khi bắt đầu request mới
+  // ── Tải trang đầu (mount hoặc nhấn "Làm mới") ──────────────────────────────
+  const fetchFirstPage = async () => {
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
-    const signal = abortRef.current.signal;
+    setIsLoading(true);
+    setError(null);
+    setDishes([]);
+    setCurrentPage(1);
+    setTotalDishes(0);
+    setHasNextPage(false);
+    await _fetchPage(1, abortRef.current.signal);
+    if (!abortRef.current?.signal?.aborted) setIsLoading(false);
+  };
 
-    setIsLoading(true); setError(null);
+  // ── Tải trang tiếp (nhấn "Xem thêm") ──────────────────────────────────────
+  const fetchNextPage = async () => {
+    if (!hasNextPage || isLoadingMore) return;
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+    setIsLoadingMore(true);
+    await _fetchPage(currentPage + 1, abortRef.current.signal);
+    if (!abortRef.current?.signal?.aborted) setIsLoadingMore(false);
+  };
+
+  // ── Hàm gọi API nội bộ ─────────────────────────────────────────────────────
+  const _fetchPage = async (page, signal) => {
     try {
-      if(!searchParams){
-         const cached = await loadRecentDishesCache();
-      if (cached.length) { setDishes(cached); setError('offline'); }
-      else {
-        const sessions = await loadSessions(1);
-        if (sessions.length) { setDishes(await loadDishesBySession(sessions[0].id)); setError('offline'); }
-        else setError('empty');
+      if (!searchParams) {
+        const cached = await loadRecentDishesCache();
+        if (cached.length) { setDishes(cached); setError('offline'); }
+        else {
+          const sessions = await loadSessions(1);
+          if (sessions.length) { setDishes(await loadDishesBySession(sessions[0].id)); setError('offline'); }
+          else setError('empty');
+        }
+        return;
       }
-      return
-    }
-      const recentDishIds = await getRecentDishIds(3);
 
-      const res = await api.post('/api/v1/recommend', { ...searchParams, recent_dish_ids: recentDishIds }, { signal });
-      if (signal.aborted) return; // bị cancel sau khi response về — bỏ qua
-      const ranked = res.data.ranked_dishes || [];
-      setDishes(ranked);
-      await saveRecentDishesCache(ranked);
-      await persistSession(res.data, searchParams);
+      const recentDishIds = await getRecentDishIds(3);
+      const res = await api.post('/api/v1/recommend', {
+        ...searchParams,
+        recent_dish_ids: recentDishIds,
+        page,
+        page_size: PAGE_SIZE,
+      }, { signal });
+
+      if (signal?.aborted) return;
+
+      const incoming = res.data.ranked_dishes || [];
+
+      if (page === 1) {
+        setDishes(incoming);
+      } else {
+        // [FIX DUPLICATE-KEY] Dedup khi merge page: loại bỏ dish đã có trong prev
+        // tránh trường hợp server trả về dish_id trùng giữa 2 page → React warning "duplicate key"
+        setDishes(prev => {
+          const existingIds = new Set(prev.map(d => d.dish_id));
+          const deduped = incoming.filter(d => !existingIds.has(d.dish_id));
+          return [...prev, ...deduped];
+        });
+      }
+
+      setCurrentPage(res.data.page ?? page);
+      setTotalPages(res.data.total_pages ?? 1);
+      setHasNextPage(res.data.has_next_page ?? false);
+      setTotalDishes(res.data.total_dishes ?? incoming.length);
+
+      // Chỉ persist session + cache khi tải trang đầu
+      if (page === 1) {
+        await saveRecentDishesCache(incoming);
+        await persistSession(res.data, searchParams);
+      }
     } catch (e) {
-      // Nếu request bị abort (CanceledError / AbortError) → không xử lý, không update state
-      if (e?.name === 'CanceledError' || e?.name === 'AbortError' || signal.aborted) return;
+      if (e?.name === 'CanceledError' || e?.name === 'AbortError' || signal?.aborted) return;
       const cached = await loadRecentDishesCache();
       if (cached.length) { setDishes(cached); setError('offline'); }
       else {
@@ -343,8 +393,6 @@ const RecommendScreen = ({ navigation, route }) => {
         if (sessions.length) { setDishes(await loadDishesBySession(sessions[0].id)); setError('offline'); }
         else setError('empty');
       }
-    } finally {
-      if (!signal.aborted) setIsLoading(false);
     }
   };
 
@@ -359,8 +407,8 @@ const RecommendScreen = ({ navigation, route }) => {
         province: safeParams.location?.province || '',
         cuisine_scope: safeParams.cuisine_scope || '',
         basket_skipped: safeParams.market_basket?.is_skipped ? 1 : 0,
-        // ── Denormalized summary — History dùng trực tiếp, không cần sub-collection read ──
-        dish_count: ranked.length,
+        // Dùng total_dishes từ server (tổng thật), không phải ranked.length (chỉ page 1)
+        dish_count: result.total_dishes ?? ranked.length,
         eaten_count: 0,
         top_dishes: ranked.slice(0, 3).map(d => ({
           dish_id: d.dish_id,
@@ -430,7 +478,7 @@ const RecommendScreen = ({ navigation, route }) => {
             {/* Nút Bữa hôm nay */}
            
             <TouchableOpacity
-              onPress={fetchRecommendations}
+              onPress={fetchFirstPage}
               style={[s.headerAction, s.refreshBtn]}
               activeOpacity={0.78}
               accessibilityRole="button"
@@ -474,7 +522,7 @@ const RecommendScreen = ({ navigation, route }) => {
           <View style={{ flex: 1 }} />
           <MetaChip 
             variant="accent" 
-            label={`${dishes.length} gợi ý`} 
+            label={totalDishes > 0 ? `${totalDishes} gợi ý` : `${dishes.length} gợi ý`} 
             style={s.resultChip}
           />
         </View>
@@ -498,9 +546,9 @@ const RecommendScreen = ({ navigation, route }) => {
               horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingLeft: 24, paddingRight: 12, gap: 16, paddingBottom: 8 }}
             >
-              {dishes.slice(0, 3).map(item => (
+              {dishes.slice(0, 3).map((item, idx) => (
                 <TopCard
-                  key={item.dish_id || item.rank}
+                  key={item.dish_id != null ? `top_${item.dish_id}` : `top_rank_${item.rank ?? idx}`}
                   item={item}
                   isAdded={addedDishIds.has(item.dish_id)}
                   onAddToMeal={handleAddToMeal}
@@ -515,9 +563,9 @@ const RecommendScreen = ({ navigation, route }) => {
         {dishes.length > 3 && (
           <View style={{ marginTop: 16 }}>
             <SectionHeader title="Gợi ý khác" />
-            {dishes.slice(3, visibleCount).map(item => (
+            {dishes.slice(3).map((item, idx) => (
               <ListRow
-                key={item.dish_id || item.rank}
+                key={item.dish_id != null ? `list_${item.dish_id}` : `list_rank_${item.rank ?? idx + 3}`}
                 item={item}
                 isAdded={addedDishIds.has(item.dish_id)}
                 onAddToMeal={handleAddToMeal}
@@ -525,13 +573,20 @@ const RecommendScreen = ({ navigation, route }) => {
               />
             ))}
 
-            {visibleCount < dishes.length && (
-              <TouchableOpacity onPress={() => setVisible(dishes.length)} activeOpacity={0.80}>
+            {hasNextPage && (
+              <TouchableOpacity
+                onPress={fetchNextPage}
+                disabled={isLoadingMore}
+                activeOpacity={0.80}
+              >
                 <ImageBackground source={ASSETS.paper} style={s.loadMoreBtn} imageStyle={{ borderRadius: 18, opacity: 0.85 }} resizeMode="cover">
                   <View style={{ backgroundColor: 'rgba(255,255,255,0.20)', borderRadius: 18, paddingVertical: 14, alignItems: 'center' }}>
-                    <Text style={s.loadMoreText}>
-                      Xem thêm {dishes.length - visibleCount} gợi ý ↓
-                    </Text>
+                    {isLoadingMore
+                      ? <ActivityIndicator color={C.text} />
+                      : <Text style={s.loadMoreText}>
+                          Xem thêm gợi ý · Trang {currentPage + 1}/{totalPages} ↓
+                        </Text>
+                    }
                   </View>
                 </ImageBackground>
               </TouchableOpacity>
@@ -545,7 +600,7 @@ const RecommendScreen = ({ navigation, route }) => {
             <Text style={{ fontSize: 52 }}>🍽️</Text>
             <Text style={[s.sectionTitle, { marginHorizontal: 0, marginTop: 12 }]}>Chưa có gợi ý nào</Text>
             <Text style={s.emptyMeta}>Kiểm tra kết nối mạng</Text>
-            <TouchableOpacity onPress={fetchRecommendations} activeOpacity={0.80} style={{ marginTop: 20 }}>
+            <TouchableOpacity onPress={fetchFirstPage} activeOpacity={0.80} style={{ marginTop: 20 }}>
               <ImageBackground source={ASSETS.wood} style={s.retryBtn} imageStyle={{ borderRadius: 18, opacity: 0.88 }} resizeMode="cover">
                 <View style={{ backgroundColor: 'rgba(92,58,30,0.22)', borderRadius: 18, paddingVertical: 13, paddingHorizontal: 32 }}>
                   <Text style={s.retryText}>Thử lại</Text>
