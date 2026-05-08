@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, ActivityIndicator, StatusBar, ImageBackground,
 } from 'react-native';
+import LottieView from 'lottie-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { api } from '../services/api';
@@ -29,7 +30,8 @@ const ASSETS = {
   wood:  require('../assets/textures/wood_light.png'),
   paper: require('../assets/textures/paper_cream.png'),
 };
-
+const ANIM_CAT = require('../assets/animations/Lazy cat.json');
+const COOKING = require('../assets/animations/pizza ingrediants.json');
 const DEFAULT_LOCATION = { lat: 16.047, lon: 108.206, province: 'Đà Nẵng' };
 const isValidCoordinate = (value, min, max) => {
   if (value === null || value === undefined || value === '') return false;
@@ -499,14 +501,18 @@ const HomeScreen = ({ navigation }) => {
 
         {/* ── Basket CTA ── */}
         <TouchableOpacity activeOpacity={0.82} onPress={() => navigation.navigate('MarketBasket')}>
-          <PaperCard style={s.cardSpacing} innerStyle={{ padding: 20 }}>
-            <View style={s.rowCenter}>
-              <Ionicons name="cart-outline" size={24} color={C.text} />
-              <View style={{ flex: 1, marginLeft: 10 }}>
+          <PaperCard style={s.cardSpacing} innerStyle={{ padding: 0 }}>
+            <View style={[s.rowCenter, { padding: 18, paddingVertical: 16 }]}>
+              <View style={s.basketIconWrap}>
+                <Ionicons name="cart-outline" size={22} color={C.woodDark} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={s.basketTitle}>
                   {basketBadge > 0 ? `Đã chọn ${basketBadge} nguyên liệu` : 'Bạn đã mua gì hôm nay?'}
                 </Text>
-                <Text style={s.basketSub}>Tap để cập nhật giỏ hàng</Text>
+                <Text style={s.basketSub}>
+                  {basketBadge > 0 ? 'App sẽ ưu tiên món dùng đúng đồ bạn có' : 'Tap để cập nhật giỏ hàng'}
+                </Text>
               </View>
               {basketBadge > 0 && (
                 <View style={s.badge}>
@@ -517,6 +523,26 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </PaperCard>
         </TouchableOpacity>
+
+        {/* ── Basket Hint — sticky note bên dưới, KHÔNG phải button ── */}
+        <View style={s.basketHintWrap}>
+          <View style={s.basketHintRow}>
+            <LottieView
+              source={COOKING}
+              autoPlay
+              loop
+              style={[s.basketHintCat, { pointerEvents: 'none' }]}
+            />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.basketHintEyebrow}>💡 Mẹo nhỏ</Text>
+              <Text style={s.basketHintText}>
+                Có nguyên liệu trong tủ mà{'\n'}chưa biết nấu gì?{' '}
+                <Text style={s.basketHintAccent}>Tick chọn vào đây</Text>
+                {' '}— app tự gợi ý món phù hợp! 🍳
+              </Text>
+            </View>
+          </View>
+        </View>
 
         {/* ── Selection Toggles ── */}
         <View style={s.filtersContainer}>
@@ -867,6 +893,59 @@ const s = StyleSheet.create({
   basketSub: {
     fontFamily: 'Caveat_400Regular', fontSize: 13,
     color: C.textLight, marginTop: 2,
+  },
+  basketIconWrap: {
+    width: 44, height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(200,169,110,0.18)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(200,169,110,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Sticky note hint — TÁCH RA khỏi card, gắn sát dưới
+  basketHintWrap: {
+    marginHorizontal: 28,          // thụt vào 4px mỗi bên so với card (24+4)
+    marginTop: 0,
+    paddingHorizontal: 14,
+    paddingTop: 9,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(254,243,199,0.88)',
+    borderWidth: 1,
+    borderTopWidth: 0,             // liền mạch với card phía trên
+    borderColor: 'rgba(200,169,110,0.45)',
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+  },
+  basketHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  basketHintCat: {
+    width: 48,
+    height: 48,
+    flexShrink: 0,
+  },
+  basketHintEyebrow: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 10,
+    color: '#92400E',
+    letterSpacing: 0.6,
+    marginBottom: 3,
+  },
+  basketHintText: {
+    fontFamily: 'Caveat_400Regular',
+    fontSize: 14,
+    color: '#78350F',
+    lineHeight: 20,
+    flexWrap: 'wrap',
+    flexShrink: 1,
+  },
+  basketHintAccent: {
+    fontFamily: 'Caveat_700Bold',
+    color: '#92400E',
+    textDecorationLine: 'underline',
   },
 
   // ── Badge
