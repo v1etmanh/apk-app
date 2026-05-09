@@ -23,7 +23,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import { supabase } from './store/suppabase';
-import { initDB, setSetting, migrateExistingProfile, getDeviceId, getActiveProfileId } from './utils/database';
+import { initDB, setSetting, migrateExistingProfile, getDeviceId, getActiveProfileId, setActiveProfileId, saveProfileMember } from './utils/database';
 import { ensureFirebaseAuth } from './utils/firebaseConfig';
 import { useAppStore } from './store/useAppStore';
 import * as Location from 'expo-location';
@@ -395,20 +395,43 @@ const App = () => {
 
   const initializeApp = async () => {
     try {
-      // [AUD-003] Firebase Anonymous Auth — trước initDB() để Firestore Rules pass
+      // Bước 1: chờ Firebase Auth sẵn sàng HOÀN TOÀN trước khi đụng Firestore.
+      // ensureFirebaseAuth() gọi waitForFirebaseAuth() bên trong — block cho đến khi
+      // onAuthStateChanged fire (session restore từ AsyncStorage) hoặc signInAnonymously xong.
+      // Đây là root cause của "lần đầu đăng nhập không ghi được Firestore":
+      // Firebase persistence là async, currentUser = null cho đến khi SDK load xong.
       await ensureFirebaseAuth();
+
       await initDB();
+
       // Migration: profile cũ → multi-profile schema (chỉ chạy 1 lần)
       await migrateExistingProfile();
-      // [FIX] Sync activeProfileId vào Zustand NGAY sau migration, trước initializeSettings.
-      // Lần đầu đăng nhập: migrateExistingProfile tạo profileId mới và lưu vào AsyncStorage,
-      // nhưng Zustand vẫn là null cho đến khi initializeSettings chạy xong.
-      // Nếu user navigate vào EditPersonal/Allergy/BodyMetrics trong khoảng thời gian đó
-      // → activeProfileId = null → saveProfileMember({ profileId: null }) → save thất bại.
-      const earlyProfileId = await getActiveProfileId();
-      if (earlyProfileId) useAppStore.getState().setActiveProfileId(earlyProfileId);
-      // Load settings (bao gồm activeProfileId)
+
+      // Guard: nếu migration fail (Firestore write bị reject) và activeProfileId vẫn null
+      // → tạo profile khẩn cấp. Lần này Firebase auth đã chắc chắn ready.
+      let earlyProfileId = await getActiveProfileId();
+      if (!earlyProfileId) {
+        if (__DEV__) console.warn('[App] activeProfileId null sau migration — tạo profile khẩn cấp');
+        const emergencyId = 'profile_' + Date.now().toString(36);
+        await saveProfileMember({
+          profileId:   emergencyId,
+          displayName: 'Bản thân',
+          relation:    'self',
+          avatar:      '🧑',
+          isDefault:   true,
+          created_at:  new Date().toISOString(),
+          updated_at:  new Date().toISOString(),
+        });
+        await setActiveProfileId(emergencyId);
+        earlyProfileId = emergencyId;
+      }
+
+      // Sync activeProfileId vào Zustand NGAY, trước initializeSettings
+      useAppStore.getState().setActiveProfileId(earlyProfileId);
+
+      // Load settings (bao gồm activeProfileId, location, costPref, v.v.)
       await initializeSettings();
+
       // Load data song song
       await Promise.all([
         loadProfile(),
@@ -418,20 +441,28 @@ const App = () => {
         initializeIngredients(),
       ]);
 
-      // ── Notification channel (Android 8+ bắt buộc) ──────────────────────
+      // Notification channel (Android 8+ bắt buộc)
       await setupNotificationChannel();
 
-      // ── Lấy GPS + đăng ký Expo token lên backend (background) ───────────
+      // GPS + push token — chạy background, không block splash
       getUserLocation().then(loc => registerDeviceToken(loc));
 
-      // ── Bỏ onboarding quiz — người dùng vào thẳng app ───────────────────
-      // Onboarding đã bị loại bỏ theo yêu cầu. Dữ liệu profile có thể
-      // được thiết lập sau trong ProfileScreen / SettingsScreen.
       setShowOnboarding(false);
       setAppReady(true);
     } catch (e) {
-      console.error('initializeApp error:', e);
-      setAppReady(true);
+      console.error('[App] initializeApp error:', e);
+      // KHÔNG setAppReady(true) khi lỗi Firebase auth — retry khi authState thay đổi lại.
+      // Chỉ setAppReady(true) nếu lỗi không phải permission/auth để tránh màn hình trắng mãi.
+      const isAuthError = e?.code === 'permission-denied' || e?.message?.includes('permission');
+      if (!isAuthError) {
+        setAppReady(true);
+      } else {
+        console.warn('[App] Firebase permission error — giữ splash, chờ auth ổn định rồi retry');
+        // Retry sau 2 giây
+        setTimeout(() => {
+          if (!appReady) initializeApp();
+        }, 2000);
+      }
     }
   };
 

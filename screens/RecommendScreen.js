@@ -12,6 +12,7 @@ import {
   getRecentDishIds, loadSessions, loadDishesBySession,
   pruneOldSessions, getSavedDishes, saveDish, removeSavedDish,
 } from '../utils/database';
+import { ensureFirebaseAuth } from '../utils/firebaseConfig';
 import LottieView from 'lottie-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from '../theme';
@@ -452,6 +453,11 @@ const RecommendScreen = ({ navigation, route }) => {
   const persistSession = async (result, params) => {
     const safeParams = params || {};
     try {
+      // [FIX] Đảm bảo Firebase auth sẵn sàng trước khi write Firestore.
+      // persistSession chạy ngay sau khi nhận response API — có thể Firebase
+      // anonymous auth chưa hoàn tất (đặc biệt lần đầu đăng nhập) → permission-denied.
+      await ensureFirebaseAuth();
+
       const ranked = result.ranked_dishes || [];
       const sid = await saveSession({
         created_at: new Date().toISOString(),

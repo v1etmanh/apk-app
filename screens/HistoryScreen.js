@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   FlatList, StatusBar, ImageBackground, Animated,
   Dimensions, Image,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
 import { loadSessions, getSavedDishes, removeSavedDish } from '../utils/database';
@@ -251,8 +252,7 @@ const HistoryScreen = ({ navigation }) => {
   const catWiggle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    loadHistory();
-
+    // Animation loop — chỉ khởi động 1 lần khi mount
     Animated.loop(
       Animated.sequence([
         Animated.timing(catBob, { toValue: -7, duration: 1000, useNativeDriver: true }),
@@ -268,8 +268,21 @@ const HistoryScreen = ({ navigation }) => {
     ).start();
   }, []);
 
-  const loadHistory = async () => {
+  // [FIX] Reload history mỗi khi tab History được focus.
+  // useEffect([]) chỉ chạy 1 lần khi mount — nếu HistoryScreen đã mount sẵn trong
+  // bottom tabs thì navigate về đây sẽ không reload → không thấy session vừa tạo.
+  // useFocusEffect + useCallback đảm bảo loadHistory chạy lại mỗi lần focus.
+  // silent=true: nếu đã có data thì refresh ngầm, không show loading cat nhấp nháy.
+  useFocusEffect(
+    useCallback(() => {
+      loadHistory(sessions.length > 0); // có data rồi → silent, chưa có → show loading
+    }, [sessions.length > 0])
+  );
+
+  const loadHistory = async (silent = false) => {
     try {
+      // silent=true: refresh ngầm khi focus lại, không hiện loading cat
+      if (!silent) setLoading(true);
       const [raw, saved] = await Promise.all([
         loadSessions(20),
         getSavedDishes(),
