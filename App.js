@@ -23,7 +23,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import { supabase } from './store/suppabase';
-import { initDB, setSetting, migrateExistingProfile, getDeviceId } from './utils/database';
+import { initDB, setSetting, migrateExistingProfile, getDeviceId, getActiveProfileId } from './utils/database';
 import { useAppStore } from './store/useAppStore';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -388,6 +388,13 @@ const App = () => {
       await initDB();
       // Migration: profile cũ → multi-profile schema (chỉ chạy 1 lần)
       await migrateExistingProfile();
+      // [FIX] Sync activeProfileId vào Zustand NGAY sau migration, trước initializeSettings.
+      // Lần đầu đăng nhập: migrateExistingProfile tạo profileId mới và lưu vào AsyncStorage,
+      // nhưng Zustand vẫn là null cho đến khi initializeSettings chạy xong.
+      // Nếu user navigate vào EditPersonal/Allergy/BodyMetrics trong khoảng thời gian đó
+      // → activeProfileId = null → saveProfileMember({ profileId: null }) → save thất bại.
+      const earlyProfileId = await getActiveProfileId();
+      if (earlyProfileId) useAppStore.getState().setActiveProfileId(earlyProfileId);
       // Load settings (bao gồm activeProfileId)
       await initializeSettings();
       // Load data song song

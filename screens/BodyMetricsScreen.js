@@ -155,6 +155,18 @@ const BodyMetricsScreen = ({ navigation }) => {
   };
 
   const handleSave = async () => {
+    // Safety guard: nếu activeProfileId vẫn null (race condition khi app mới start)
+    // → thử auto-activate profile đầu tiên trước khi save
+    if (!activeProfileId) {
+      const { profiles, switchProfile } = useAppStore.getState();
+      if (profiles.length > 0) {
+        await switchProfile(profiles[0].profileId);
+      } else {
+        Alert.alert('Chưa có hồ sơ', 'Hãy tạo hồ sơ cá nhân trước khi lưu chỉ số nhé!');
+        return;
+      }
+    }
+
     const h = parseFloat(height), w = parseFloat(weight);
     if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
       Alert.alert('Ối! 😅', 'Chiều cao và cân nặng phải là số dương nhé!'); return;

@@ -294,6 +294,38 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {/* ══ SETUP BANNER — hiện khi profile chưa đủ thông tin ════════════ */}
+        {(!profile?.age || !latestMetrics?.weight_kg) && (
+          <View style={s.setupBanner}>
+            <View style={[StyleSheet.absoluteFill, { borderRadius: 16, overflow: 'hidden' }]} pointerEvents="none">
+              <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.9 }} resizeMode="cover" />
+            </View>
+            <Text style={s.setupTitle}>👋 Chào mừng! Hãy thiết lập hồ sơ</Text>
+            <Text style={s.setupSub}>Điền đầy đủ thông tin để nhận gợi ý món ăn phù hợp nhất.</Text>
+            <View style={s.setupSteps}>
+              {!profile?.age && (
+                <TouchableOpacity style={s.setupStep} onPress={() => navigation.getParent()?.navigate('EditPersonal')}>
+                  <View style={s.setupStepDot}><Text style={s.setupStepNum}>1</Text></View>
+                  <Text style={s.setupStepText}>Thông tin cá nhân (tuổi, giới tính...)</Text>
+                  <Ionicons name="chevron-forward" size={14} color="#C8A96E" />
+                </TouchableOpacity>
+              )}
+              {!latestMetrics?.weight_kg && (
+                <TouchableOpacity style={s.setupStep} onPress={() => navigation.getParent()?.navigate('BodyMetrics')}>
+                  <View style={s.setupStepDot}><Text style={s.setupStepNum}>2</Text></View>
+                  <Text style={s.setupStepText}>Chỉ số cơ thể (cân nặng, chiều cao)</Text>
+                  <Ionicons name="chevron-forward" size={14} color="#C8A96E" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={s.setupStep} onPress={() => navigation.getParent()?.navigate('Allergy')}>
+                <View style={s.setupStepDot}><Text style={s.setupStepNum}>3</Text></View>
+                <Text style={s.setupStepText}>Dị ứng thực phẩm (nếu có)</Text>
+                <Ionicons name="chevron-forward" size={14} color="#C8A96E" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* ══ STATS ROW ══════════════════════════════════════════════════════ */}
         <View style={s.statsRow}>
           <WoodStatCard
@@ -418,6 +450,31 @@ const s = StyleSheet.create({
   // Footer
   footer: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingTop: 20, opacity: 0.4 },
   footerPaw: { fontSize: 22 },
+
+  // Setup Banner
+  setupBanner: {
+    borderRadius: 16, borderWidth: 1.5, borderColor: '#C8A96E',
+    padding: 16, marginBottom: 20, overflow: 'hidden',
+  },
+  setupTitle: {
+    fontFamily: 'Lora-Bold', fontSize: 15, color: '#3D2B1F', marginBottom: 4,
+  },
+  setupSub: {
+    fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: '#8B7355', marginBottom: 12,
+  },
+  setupSteps: { gap: 8 },
+  setupStep: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: 'rgba(200,169,110,0.12)', borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: 'rgba(200,169,110,0.3)',
+  },
+  setupStepDot: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: '#C8A96E', justifyContent: 'center', alignItems: 'center',
+  },
+  setupStepNum: { fontFamily: 'BeVietnamPro-Bold', fontSize: 11, color: '#FFF8EA' },
+  setupStepText: { flex: 1, fontFamily: 'BeVietnamPro-Regular', fontSize: 13, color: '#3D2B1F' },
 });
 
 // ── Avatar styles ─────────────────────────────────────────────────────────────

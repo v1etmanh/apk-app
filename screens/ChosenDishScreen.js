@@ -220,7 +220,7 @@ const ChosenDishScreen = ({ navigation }) => {
   const handleMarketBasket = () => {
     const allDishes = plan.items.flatMap(i => i.dishes);
     if (allDishes.length === 0) {
-      Alert.alert('Chưa có món nào', 'Thêm ít nhất 1 món trước khi tổng hợp nguyên liệu nhé!');
+      Alert.alert('Chưa có món nào', 'Thêm ít nhất 1 món trước khi tổng hợp món ăn cho mâm cơm gia đình nhé nhé!');
       return;
     }
     navigation.navigate('MarketBasket', { fromMealPlan: true, dishes: allDishes });
@@ -318,7 +318,7 @@ const ChosenDishScreen = ({ navigation }) => {
               <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
                 <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.45 }} resizeMode="cover" />
               </View>
-              <Text style={s.ctaText}>🛒 Tổng hợp nguyên liệu ({totalDishes} món)</Text>
+              <Text style={s.ctaText}>🛒 Tổng hợp món ăn bạn đã chọn  ({totalDishes} món)</Text>
             </TouchableOpacity>
           </View>
         </View>

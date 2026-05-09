@@ -585,12 +585,20 @@ export async function loadProfileById(profileId) {
 // ── Save (upsert) profile member ─────────────────────────────────────────────
 export async function saveProfileMember(data) {
   const { profileId, ...rest } = data;
+  console.log('[DB] saveProfileMember called — profileId:', profileId, '| data keys:', Object.keys(rest));
   if (!profileId) throw new Error('saveProfileMember: profileId required');
   const id = await getDeviceId();
-  await setDoc(memberRef(id, profileId), {
-    ...rest,
-    updated_at: new Date().toISOString(),
-  }, { merge: true });
+  console.log('[DB] saveProfileMember — deviceId:', id, '| path: device_profiles/', id, '/members/', profileId);
+  try {
+    await setDoc(memberRef(id, profileId), {
+      ...rest,
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
+    console.log('[DB] saveProfileMember — ✅ success');
+  } catch (e) {
+    console.error('[DB] saveProfileMember — ❌ FAILED:', e.code, e.message, e);
+    throw e;
+  }
 }
 
 // ── Delete profile member ────────────────────────────────────────────────────

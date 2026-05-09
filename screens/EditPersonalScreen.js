@@ -220,6 +220,19 @@ const toggleHealth = (key) => {
     if (!age || isNaN(ageNum) || ageNum < 10 || ageNum > 100) {
       Alert.alert('Ối!', 'Tuổi phải từ 10 đến 100 nhé 😊'); return;
     }
+
+    // [FIX] activeProfileId có thể null ở lần đầu đăng nhập nếu store chưa kịp set.
+    // Fallback: đọc thẳng từ AsyncStorage.
+    let profileId = activeProfileId;
+    if (!profileId) {
+      const { getActiveProfileId } = await import('../utils/database');
+      profileId = await getActiveProfileId();
+    }
+    if (!profileId) {
+      Alert.alert('Ối!', 'Không tìm thấy hồ sơ. Vui lòng thử lại sau.');
+      return;
+    }
+
     setSaving(true);
     lottieRef.current?.play();
     try {
@@ -230,12 +243,13 @@ const toggleHealth = (key) => {
         health_condition: healthConditions,
         updated_at: now,
       };
-      await saveProfileMember({ profileId: activeProfileId, ...data });
-      setProfile({ profileId: activeProfileId, ...data, created_at: now });
+      await saveProfileMember({ profileId, ...data });
+      setProfile({ profileId, ...data, created_at: now });
       Alert.alert('Đã lưu ✓', 'Thông tin cá nhân đã được cập nhật.');
       navigation.goBack();
     } catch (e) {
-      Alert.alert('Ối!', 'Không thể lưu. Thử lại nhé 🙏');
+      console.error('[EditPersonal] handleSave error:', e?.message, e);
+      Alert.alert('Ối!', `Không thể lưu. Thử lại nhé 🙏\n${__DEV__ ? e?.message : ''}`);
     } finally { setSaving(false); }
   };
 

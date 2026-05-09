@@ -137,6 +137,14 @@ export const useAppStore = create((set, get) => ({
     try {
       const list = await loadAllProfiles();
       set({ profiles: list });
+
+      // AUTO-ACTIVATE: nếu chưa có profile nào active mà list không rỗng
+      // → tự động active profile đầu tiên để tránh lỗi save/load null profileId
+      const currentActiveId = get().activeProfileId;
+      if (!currentActiveId && list.length > 0) {
+        await get().switchProfile(list[0].profileId);
+      }
+
       return list;
     } catch (e) { console.error('loadAllProfilesAction:', e); return []; }
   },
