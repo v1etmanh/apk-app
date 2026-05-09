@@ -24,6 +24,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 
 import { supabase } from './store/suppabase';
 import { initDB, setSetting, migrateExistingProfile, getDeviceId, getActiveProfileId } from './utils/database';
+import { ensureFirebaseAuth } from './utils/firebaseConfig';
 import { useAppStore } from './store/useAppStore';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -267,6 +268,11 @@ const App = () => {
   useEffect(() => {
     const handleDeepLink = async (url) => {
       if (!url) return;
+      // [AUD-007] Whitelist schemes — reject URL lạ, tránh deep link hijacking
+      if (!url.startsWith('dailymate://') && !url.startsWith('exp://')) {
+        if (__DEV__) console.warn('[DeepLink] Rejected unknown scheme:', url.slice(0, 40));
+        return;
+      }
 
       // PKCE flow (Google OAuth APK): ?code=XXX
       const parsed = Linking.parse(url);
@@ -346,9 +352,12 @@ const App = () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return null;
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setSetting('last_known_lat', String(loc.coords.latitude));
-      setSetting('last_known_lon', String(loc.coords.longitude));
-      if (__DEV__) console.warn('User location:', loc.coords);
+      // [AUD-006] Round 2 decimals (~1.1km) — app chỉ cần city-level, data minimization GDPR
+      const lat = Math.round(loc.coords.latitude  * 100) / 100;
+      const lon = Math.round(loc.coords.longitude * 100) / 100;
+      setSetting('last_known_lat', String(lat));
+      setSetting('last_known_lon', String(lon));
+      if (__DEV__) console.warn('User location (rounded):', { lat, lon });
       return loc;
     } catch { return null; }
   };
@@ -366,8 +375,9 @@ const App = () => {
       const expoPushToken = tokenData.data; // "ExponentPushToken[xxx]"
 
       const deviceId = await getDeviceId();
-      const lat = location?.coords?.latitude ?? null;
-      const lon = location?.coords?.longitude ?? null;
+      // [AUD-006] Round tọa độ trước khi gửi lên server
+      const lat = location?.coords?.latitude  != null ? Math.round(location.coords.latitude  * 100) / 100 : null;
+      const lon = location?.coords?.longitude != null ? Math.round(location.coords.longitude * 100) / 100 : null;
 
       await api.post('/api/v1/device/register', {
         device_id: deviceId,
@@ -385,6 +395,8 @@ const App = () => {
 
   const initializeApp = async () => {
     try {
+      // [AUD-003] Firebase Anonymous Auth — trước initDB() để Firestore Rules pass
+      await ensureFirebaseAuth();
       await initDB();
       // Migration: profile cũ → multi-profile schema (chỉ chạy 1 lần)
       await migrateExistingProfile();

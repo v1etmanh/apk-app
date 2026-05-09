@@ -16,6 +16,9 @@ import { firestore } from './firebaseConfig';
 // Mỗi máy có 1 deviceId duy nhất, dùng làm "user namespace" trên Firestore
 let _deviceId = null;
 
+// [AUD-002] Dùng khi logout — reset cache để User B không đọc namespace của User A
+export function clearDeviceId() { _deviceId = null; }
+
 export async function getDeviceId() {
   if (_deviceId) return _deviceId;
 
@@ -447,8 +450,8 @@ export async function pruneOldSessions(maxCount = 20) {
   try {
     const id = await getDeviceId();
 
-    // Đọc TẤT CẢ sessions, sort newest first — không dùng limit() vì cần biết tổng số
-    const q = query(sessionsCol(id), orderBy('created_at', 'desc'));
+    // [AUD-009] limit(maxCount + 5) thay vì fetch unbounded — tránh billing DoS
+    const q = query(sessionsCol(id), orderBy('created_at', 'desc'), limit(maxCount + 5));
     const snap = await withTimeoutFallback(getDocs(q), 8000, null);
 
     if (!snap || snap.size <= maxCount) return; // Chưa vượt ngưỡng → không làm gì
@@ -547,12 +550,20 @@ function memberAllergyRef(deviceId, pid, key)   { return doc(firestore, 'device_
 function memberMetricsCol(deviceId, profileId)  { return collection(firestore, 'device_profiles', deviceId, 'members', profileId, 'body_metrics'); }
 
 // ── Active profile ID ────────────────────────────────────────────────────────
+// [AUD-008] SecureStore thay AsyncStorage — active_profile_id xác định ai đang load BMI/dị ứng
+// Migration tự động: đọc giá trị cũ ở AsyncStorage rồi chuyển sang SecureStore 1 lần
 export async function getActiveProfileId() {
-  return await AsyncStorage.getItem(ACTIVE_PROFILE_KEY);
+  const legacy = await AsyncStorage.getItem(ACTIVE_PROFILE_KEY);
+  if (legacy !== null) {
+    await SecureStore.setItemAsync(ACTIVE_PROFILE_KEY, legacy);
+    await AsyncStorage.removeItem(ACTIVE_PROFILE_KEY);
+    return legacy;
+  }
+  return await SecureStore.getItemAsync(ACTIVE_PROFILE_KEY);
 }
 
 export async function setActiveProfileId(profileId) {
-  await AsyncStorage.setItem(ACTIVE_PROFILE_KEY, profileId);
+  await SecureStore.setItemAsync(ACTIVE_PROFILE_KEY, profileId);
 }
 
 // ── Load all profiles ────────────────────────────────────────────────────────
@@ -585,18 +596,20 @@ export async function loadProfileById(profileId) {
 // ── Save (upsert) profile member ─────────────────────────────────────────────
 export async function saveProfileMember(data) {
   const { profileId, ...rest } = data;
-  console.log('[DB] saveProfileMember called — profileId:', profileId, '| data keys:', Object.keys(rest));
+  // [AUD-001] __DEV__ guard — không leak profileId/deviceId/path ra production logs
+  if (__DEV__) console.log('[DB] saveProfileMember called — profileId:', profileId, '| data keys:', Object.keys(rest));
   if (!profileId) throw new Error('saveProfileMember: profileId required');
   const id = await getDeviceId();
-  console.log('[DB] saveProfileMember — deviceId:', id, '| path: device_profiles/', id, '/members/', profileId);
+  if (__DEV__) console.log('[DB] saveProfileMember — deviceId:', id, '| path: device_profiles/', id, '/members/', profileId);
   try {
     await setDoc(memberRef(id, profileId), {
       ...rest,
       updated_at: new Date().toISOString(),
     }, { merge: true });
-    console.log('[DB] saveProfileMember — ✅ success');
+    if (__DEV__) console.log('[DB] saveProfileMember — ✅ success');
   } catch (e) {
-    console.error('[DB] saveProfileMember — ❌ FAILED:', e.code, e.message, e);
+    if (__DEV__) console.error('[DB] saveProfileMember — ❌ FAILED:', e.code, e.message, e);
+    else console.error('[DB] saveProfileMember failed');
     throw e;
   }
 }

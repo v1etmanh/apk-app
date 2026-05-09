@@ -79,8 +79,9 @@ export default function LoginScreen() {
       Alert.alert('Mật khẩu không khớp 😿', 'Nhập lại mật khẩu xác nhận nhé!');
       shake(); return;
     }
-    if (password.length < 6) {
-      Alert.alert('Mật khẩu quá ngắn 😿', 'Cần ít nhất 6 ký tự!');
+    // [AUD-010] Min 8 ký tự — phù hợp app lưu dữ liệu sức khỏe cá nhân
+    if (password.length < 8) {
+      Alert.alert('Mật khẩu quá ngắn 😿', 'Cần ít nhất 8 ký tự!');
       shake(); return;
     }
     isSubmittingRef.current = true;

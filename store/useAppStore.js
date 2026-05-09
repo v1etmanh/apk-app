@@ -7,6 +7,8 @@ import {
   loadAllProfiles, loadProfileById, saveProfileMember,
   loadAllergiesForProfile, loadLatestMetricsForProfile,
   loadTasteProfileForProfile,
+  // [AUD-002] Reset module cache khi logout
+  clearDeviceId,
 } from '../utils/database';
 import { loadReminderSettings, DEFAULT_REMINDER_TIMES } from '../services/mealReminderService';
 
@@ -108,7 +110,9 @@ export const useAppStore = create((set, get) => ({
 
   // [FIX ID-M011] Reset toàn bộ store về trạng thái ban đầu khi logout
   // Gọi từ App.js trong onAuthStateChange khi session = null
-  resetStore: () => set({
+  resetStore: () => {
+    clearDeviceId(); // [AUD-002] Reset cached deviceId — ngăn User B đọc namespace của User A
+    set({
     profile:             null,
     latestMetrics:       null,
     allergies:           [],
@@ -130,7 +134,8 @@ export const useAppStore = create((set, get) => ({
       { id: 'dinner', label: 'Bữa tối',  hour: 17, minute: 0  },
     ],
     mealReminderModal: { visible: false, dishName: '', mealLabel: '', nutrition: null },
-  }),
+    });
+  },
 
   // ── Multi-profile thunks ───────────────────────────────────────────────────
   loadAllProfilesAction: async () => {
