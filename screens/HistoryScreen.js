@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
-import { loadSessions } from '../utils/database';
+import { loadSessions, getSavedDishes, removeSavedDish } from '../utils/database';
 
 // ─── Design Tokens ────────────────────────────────────────────────
 const C = {
@@ -240,9 +240,11 @@ const SessionCard = ({ item, index, onPress }) => {
 
 // ─── Main Screen ───────────────────────────────────────────────────
 const HistoryScreen = ({ navigation }) => {
-  const [sessions, setSessions] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [statsSize, setStatsSize] = useState({ width: 0, height: 0 });
+  const [sessions, setSessions]       = useState([]);
+  const [savedDishes, setSavedDishes] = useState([]);
+  const [loading,  setLoading]        = useState(true);
+  const [activeTab, setActiveTab]     = useState('sessions'); // 'sessions' | 'saved'
+  const [statsSize, setStatsSize]     = useState({ width: 0, height: 0 });
 
   // Cat bob animation (header mascot)
   const catBob    = useRef(new Animated.Value(0)).current;
@@ -268,16 +270,17 @@ const HistoryScreen = ({ navigation }) => {
 
   const loadHistory = async () => {
     try {
-      const raw = await loadSessions(20);
-      // Dùng trực tiếp denormalized fields (dish_count, top_dishes, eaten_count)
-      // đã được lưu sẵn trong session doc — không cần đọc sub-collection nữa.
-      // Session cũ (trước khi deploy fix) không có top_dishes → fallback graceful.
+      const [raw, saved] = await Promise.all([
+        loadSessions(20),
+        getSavedDishes(),
+      ]);
       const sessions = raw.map(s => ({
         ...s,
         dishes:     Array.isArray(s.top_dishes) ? s.top_dishes : [],
         eatenCount: typeof s.eaten_count === 'number' ? s.eaten_count : 0,
       }));
       setSessions(sessions);
+      setSavedDishes(saved);
     } catch (e) {
       console.error('loadHistory:', e);
     } finally {
@@ -364,6 +367,31 @@ const HistoryScreen = ({ navigation }) => {
         </View>
         <View style={st.sectionLine} />
       </View>
+
+      {/* ── Tab switcher ── */}
+      <View style={st.tabBar}>
+        <TouchableOpacity
+          style={[st.tabBtn, activeTab === 'sessions' && st.tabBtnActive]}
+          activeOpacity={0.78}
+          onPress={() => setActiveTab('sessions')}
+        >
+          <Text style={[st.tabText, activeTab === 'sessions' && st.tabTextActive]}>
+            📋 Lịch sử gợi ý
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[st.tabBtn, activeTab === 'saved' && st.tabBtnActive]}
+          activeOpacity={0.78}
+          onPress={() => setActiveTab('saved')}
+        >
+          <Text style={[st.tabText, activeTab === 'saved' && st.tabTextActive]}>
+            🔖 Món yêu thích
+            {savedDishes.length > 0 && (
+              <Text style={st.tabBadge}>  {savedDishes.length}</Text>
+            )}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -375,10 +403,75 @@ const HistoryScreen = ({ navigation }) => {
         autoPlay loop
         style={[{ width: 150, height: 150 }, { pointerEvents: 'none' }]}
       />
-      <Text style={st.emptyTitle}>Chưa có lịch sử nào</Text>
-      <Text style={st.emptyText}>Hãy để app gợi ý món ăn cho bạn nhé! 🍽️</Text>
+      <Text style={st.emptyTitle}>
+        {activeTab === 'saved' ? 'Chưa có món yêu thích' : 'Chưa có lịch sử nào'}
+      </Text>
+      <Text style={st.emptyText}>
+        {activeTab === 'saved'
+          ? 'Bấm 🔖 trên màn hình gợi ý để lưu món bạn thích!'
+          : 'Hãy để app gợi ý món ăn cho bạn nhé! 🍽️'}
+      </Text>
     </View>
   );
+
+  // ── Saved dish card ──────────────────────────────────────────────
+  const SavedDishCard = ({ item, index }) => {
+    const fade  = useRef(new Animated.Value(0)).current;
+    const slide = useRef(new Animated.Value(16)).current;
+    useEffect(() => {
+      Animated.parallel([
+        Animated.timing(fade,  { toValue: 1, duration: 300, delay: index * 50, useNativeDriver: true }),
+        Animated.spring(slide, { toValue: 0, tension: 60, friction: 9, delay: index * 50, useNativeDriver: true }),
+      ]).start();
+    }, []);
+
+    const handleRemove = async () => {
+      await removeSavedDish(item.dish_id);
+      setSavedDishes(prev => prev.filter(d => String(d.dish_id) !== String(item.dish_id)));
+    };
+
+    const savedDate = item.saved_at
+      ? new Date(item.saved_at).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })
+      : '';
+
+    return (
+      <Animated.View style={[st.savedCard, { opacity: fade, transform: [{ translateY: slide }] }]}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('DishDetail', { dish: item })}
+          style={st.savedCardInner}
+        >
+          {item.image_url ? (
+            <Image source={{ uri: item.image_url }} style={st.savedImg} resizeMode="cover" />
+          ) : (
+            <View style={[st.savedImg, { backgroundColor: C.paperDeep, justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ fontSize: 28 }}>🍜</Text>
+            </View>
+          )}
+          <View style={st.savedBody}>
+            <Text style={st.savedTitle} numberOfLines={2}>{item.title}</Text>
+            <View style={st.savedMeta}>
+              {item.cook_time_min > 0 && (
+                <Text style={st.savedMetaText}>⏱ {item.cook_time_min}p</Text>
+              )}
+              {item.final_score > 0 && (
+                <Text style={st.savedMetaText}>⭐ {(item.final_score * 100).toFixed(0)}%</Text>
+              )}
+              {item.nation ? (
+                <Text style={st.savedMetaText}>{item.nation}</Text>
+              ) : null}
+            </View>
+            {savedDate ? (
+              <Text style={st.savedDate}>Lưu ngày {savedDate}</Text>
+            ) : null}
+          </View>
+          <TouchableOpacity onPress={handleRemove} style={st.savedRemoveBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={st.savedRemoveText}>✕</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   // ── Render — loading intercepts toàn màn hình ────────────────────
   if (loading) {
@@ -398,15 +491,23 @@ const HistoryScreen = ({ navigation }) => {
     >
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       <FlatList
-        data={sessions}
-        renderItem={({ item, index }) => (
-          <SessionCard
-            item={item}
-            index={index}
-            onPress={() => navigation.navigate('HistoryDetail', { sessionId: item.id })}
-          />
-        )}
-        keyExtractor={i => String(i.id)}
+        data={activeTab === 'sessions' ? sessions : savedDishes}
+        renderItem={({ item, index }) =>
+          activeTab === 'sessions' ? (
+            <SessionCard
+              item={item}
+              index={index}
+              onPress={() => navigation.navigate('HistoryDetail', { sessionId: item.id })}
+            />
+          ) : (
+            <SavedDishCard item={item} index={index} />
+          )
+        }
+        keyExtractor={(item, index) =>
+          activeTab === 'sessions'
+            ? String(item.id)
+            : String(item.dish_id ?? index)
+        }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={st.list}
         ListHeaderComponent={<ListHeader />}
@@ -577,6 +678,118 @@ const st = StyleSheet.create({
   emptyTitle:    { fontFamily: 'Patrick Hand', fontSize: 22, color: C.ink, marginTop: 8 },
   emptyText:     { fontFamily: 'Nunito', fontSize: 14, color: C.inkLight,
                    marginTop: 6, textAlign: 'center', paddingHorizontal: 32 },
+
+  // ── Tab bar ──
+  tabBar: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: C.paperDeep,
+    borderRadius: 18,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: C.dashed,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  tabBtnActive: {
+    backgroundColor: C.white,
+    shadowColor: C.woodDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabText: {
+    fontFamily: 'Nunito',
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.inkLight,
+  },
+  tabTextActive: {
+    color: C.ink,
+  },
+  tabBadge: {
+    fontFamily: 'Nunito',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#9B7355',
+  },
+
+  // ── Saved dish card ──
+  savedCard: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 18,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.dashed,
+    shadowColor: C.woodDark,
+    shadowOffset: { width: 1, height: 3 },
+    shadowOpacity: 0.09,
+    shadowRadius: 5,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  savedCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+  },
+  savedImg: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    marginRight: 12,
+  },
+  savedBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  savedTitle: {
+    fontFamily: 'Patrick Hand',
+    fontSize: 16,
+    color: C.ink,
+    lineHeight: 21,
+  },
+  savedMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  savedMetaText: {
+    fontFamily: 'Nunito',
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.inkLight,
+  },
+  savedDate: {
+    fontFamily: 'Nunito',
+    fontSize: 11,
+    color: C.wood,
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  savedRemoveBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: C.paperDeep,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  savedRemoveText: {
+    fontFamily: 'Nunito',
+    fontSize: 12,
+    fontWeight: '700',
+    color: C.inkLight,
+  },
 });
 
 export default HistoryScreen;

@@ -754,6 +754,65 @@ export async function migrateExistingProfile() {
   }
 }
 
+// ─── SAVED DISHES — món ưa thích do user tự chọn (AsyncStorage) ──────────────
+// Lưu tối đa MAX_SAVED_DISHES món. Key: saved_dishes_v1
+// Mỗi entry: { dish_id, title, image_url, cook_time_min, final_score, nation, saved_at }
+
+const SAVED_DISHES_KEY = 'saved_dishes_v1';
+const MAX_SAVED_DISHES = 50;
+
+export async function getSavedDishes() {
+  try {
+    const raw = await AsyncStorage.getItem(SAVED_DISHES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.warn('[DB] getSavedDishes:', e);
+    return [];
+  }
+}
+
+export async function saveDish(dish) {
+  try {
+    const current = await getSavedDishes();
+    // Nếu đã lưu rồi thì bỏ qua
+    if (current.some(d => String(d.dish_id) === String(dish.dish_id))) return current;
+    const entry = {
+      dish_id:       dish.dish_id,
+      title:         dish.title         || '',
+      image_url:     dish.image_url     || '',
+      cook_time_min: dish.cook_time_min || 0,
+      final_score:   dish.final_score   || 0,
+      nation:        dish.nation        || '',
+      url:           dish.url           || '',
+      saved_at:      new Date().toISOString(),
+    };
+    // Thêm vào đầu, cắt tối đa MAX_SAVED_DISHES
+    const updated = [entry, ...current].slice(0, MAX_SAVED_DISHES);
+    await AsyncStorage.setItem(SAVED_DISHES_KEY, JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    console.warn('[DB] saveDish:', e);
+    return [];
+  }
+}
+
+export async function removeSavedDish(dishId) {
+  try {
+    const current = await getSavedDishes();
+    const updated = current.filter(d => String(d.dish_id) !== String(dishId));
+    await AsyncStorage.setItem(SAVED_DISHES_KEY, JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    console.warn('[DB] removeSavedDish:', e);
+    return [];
+  }
+}
+
+export async function isDishSaved(dishId) {
+  const current = await getSavedDishes();
+  return current.some(d => String(d.dish_id) === String(dishId));
+}
+
 // ─── db object — chỉ còn dùng bởi useAppStore (load profile/metrics/location)
 export const db = {
   getAllAsync: async (sql) => {

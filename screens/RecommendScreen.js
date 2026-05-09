@@ -10,7 +10,7 @@ import {
   saveSession, saveDishesToSession,
   loadRecentDishesCache, saveRecentDishesCache,
   getRecentDishIds, loadSessions, loadDishesBySession,
-  pruneOldSessions,
+  pruneOldSessions, getSavedDishes, saveDish, removeSavedDish,
 } from '../utils/database';
 import LottieView from 'lottie-react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -103,7 +103,7 @@ const LoadingView = () => {
 
 
 // ── Top dish card (rank 1–3, horizontal scroll) ───────────────────────────────
-const TopCard = ({ item, onPress, isAdded, onAddToMeal }) => {
+const TopCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }) => {
   const isFirst = item.rank === 1;
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
@@ -159,21 +159,34 @@ const TopCard = ({ item, onPress, isAdded, onAddToMeal }) => {
             {item.explanation?.[0] && (
               <Text style={s.topHint} numberOfLines={2}>{item.explanation[0]}</Text>
             )}
-            {/* ── Nút Thêm vào bữa ── */}
-            <TouchableOpacity
-              onPress={(e) => { e.stopPropagation(); onAddToMeal(item); }}
-              style={[s.addMealBtn, isAdded && s.addMealBtnDone]}
-              activeOpacity={0.75}
-            >
-              <Ionicons
-                name={isAdded ? 'checkmark-circle' : 'add-circle-outline'}
-                size={14}
-                color={isAdded ? '#22C55E' : '#60A5FA'}
-              />
-              <Text style={[s.addMealText, isAdded && s.addMealTextDone]}>
-                {isAdded ? 'Đã thêm vào bữa' : 'Thêm vào bữa'}
-              </Text>
-            </TouchableOpacity>
+            {/* ── Nút Thêm vào bữa + Bookmark ── */}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'center' }}>
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation(); onAddToMeal(item); }}
+                style={[s.addMealBtn, isAdded && s.addMealBtnDone]}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={isAdded ? 'checkmark-circle' : 'add-circle-outline'}
+                  size={14}
+                  color={isAdded ? '#22C55E' : '#60A5FA'}
+                />
+                <Text style={[s.addMealText, isAdded && s.addMealTextDone]}>
+                  {isAdded ? 'Đã thêm vào bữa' : 'Thêm vào bữa'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation(); onToggleSave(item); }}
+                style={[s.bookmarkBtn, isSaved && s.bookmarkBtnSaved]}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={isSaved ? 'bookmark' : 'bookmark-outline'}
+                  size={14}
+                  color={isSaved ? '#F59E0B' : C.textMid}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </ImageBackground>
@@ -182,7 +195,7 @@ const TopCard = ({ item, onPress, isAdded, onAddToMeal }) => {
 };
 
 // ── List row (rank 4+) ────────────────────────────────────────────────────────
-const ListRow = ({ item, onPress, isAdded, onAddToMeal }) => (
+const ListRow = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }) => (
   <TouchableOpacity onPress={onPress} activeOpacity={0.82}>
     <ImageBackground
       source={ASSETS.paper}
@@ -227,21 +240,34 @@ const ListRow = ({ item, onPress, isAdded, onAddToMeal }) => (
           {item.explanation?.[0] && (
             <Text style={s.rowHint} numberOfLines={1}>{item.explanation[0]}</Text>
           )}
-          {/* ── Nút Thêm vào bữa (row) ── */}
-          <TouchableOpacity
-            onPress={(e) => { e.stopPropagation(); onAddToMeal(item); }}
-            style={[s.addMealBtnRow, isAdded && s.addMealBtnDone]}
-            activeOpacity={0.75}
-          >
-            <Ionicons
-              name={isAdded ? 'checkmark-circle' : 'add-circle-outline'}
-              size={13}
-              color={isAdded ? '#22C55E' : '#60A5FA'}
-            />
-            <Text style={[s.addMealText, isAdded && s.addMealTextDone, { fontSize: 11 }]}>
-              {isAdded ? 'Đã thêm' : 'Thêm vào bữa'}
-            </Text>
-          </TouchableOpacity>
+          {/* ── Nút Thêm vào bữa + Bookmark (row) ── */}
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); onAddToMeal(item); }}
+              style={[s.addMealBtnRow, isAdded && s.addMealBtnDone]}
+              activeOpacity={0.75}
+            >
+              <Ionicons
+                name={isAdded ? 'checkmark-circle' : 'add-circle-outline'}
+                size={13}
+                color={isAdded ? '#22C55E' : '#60A5FA'}
+              />
+              <Text style={[s.addMealText, isAdded && s.addMealTextDone, { fontSize: 11 }]}>
+                {isAdded ? 'Đã thêm' : 'Thêm vào bữa'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); onToggleSave(item); }}
+              style={[s.bookmarkBtn, isSaved && s.bookmarkBtnSaved]}
+              activeOpacity={0.75}
+            >
+              <Ionicons
+                name={isSaved ? 'bookmark' : 'bookmark-outline'}
+                size={13}
+                color={isSaved ? '#F59E0B' : C.textMid}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <Ionicons name="chevron-forward" size={20} color={C.textLight} style={{ paddingRight: 12 }} />
@@ -264,10 +290,13 @@ const RecommendScreen = ({ navigation, route }) => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [totalDishes, setTotalDishes]     = useState(0);
   const [error, setError]                 = useState(null);
+  const [basketWarning, setBasketWarning] = useState(null); // object khi pool < 10, null bình thường
   const { setCurrentSessionId, profile, activeProfileId }    = useAppStore();
 
   // ── Meal plan state: set của dish_id đã thêm vào bữa hôm nay ──────────────
   const [addedDishIds, setAddedDishIds] = useState(new Set());
+  // ── Saved dishes state: set của dish_id đã bookmark ──────────────────────
+  const [savedDishIds, setSavedDishIds] = useState(new Set());
   // Toast feedback
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const [toastMsg, setToastMsg] = useState('');
@@ -281,6 +310,9 @@ const RecommendScreen = ({ navigation, route }) => {
       const plan = await getMealPlan(getTodayDateStr());
       const ids = new Set(plan.items.flatMap(i => i.dishes.map(d => d.dish_id)));
       setAddedDishIds(ids);
+      // Load saved dishes
+      const saved = await getSavedDishes();
+      setSavedDishIds(new Set(saved.map(d => String(d.dish_id))));
     })();
   }, []);
 
@@ -307,6 +339,21 @@ const RecommendScreen = ({ navigation, route }) => {
     showToast(`✅ Đã thêm "${dish.title}" vào bữa hôm nay!`);
   }, [profile, activeProfileId, showToast]);
 
+  // Handler bookmark / bỏ bookmark món
+  const handleToggleSave = useCallback(async (dish) => {
+    const id = String(dish.dish_id);
+    const isSaved = savedDishIds.has(id);
+    if (isSaved) {
+      await removeSavedDish(id);
+      setSavedDishIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+      showToast(`🔖 Đã bỏ lưu "${dish.title}"`);
+    } else {
+      await saveDish(dish);
+      setSavedDishIds(prev => new Set([...prev, id]));
+      showToast(`🔖 Đã lưu "${dish.title}" vào yêu thích!`);
+    }
+  }, [savedDishIds, showToast]);
+
   useEffect(() => {
     fetchFirstPage();
     return () => { if (abortRef.current) abortRef.current.abort(); };
@@ -322,6 +369,7 @@ const RecommendScreen = ({ navigation, route }) => {
     setCurrentPage(1);
     setTotalDishes(0);
     setHasNextPage(false);
+    setBasketWarning(null);
     await _fetchPage(1, abortRef.current.signal);
     if (!abortRef.current?.signal?.aborted) setIsLoading(false);
   };
@@ -378,6 +426,11 @@ const RecommendScreen = ({ navigation, route }) => {
       setTotalPages(res.data.total_pages ?? 1);
       setHasNextPage(res.data.has_next_page ?? false);
       setTotalDishes(res.data.total_dishes ?? incoming.length);
+
+      // ── Basket small-pool warning từ server ──────────────────────────────
+      if (page === 1 && res.data.basket_warning) {
+        setBasketWarning(res.data.basket_warning);
+      }
 
       // Chỉ persist session + cache khi tải trang đầu
       if (page === 1) {
@@ -535,6 +588,34 @@ const RecommendScreen = ({ navigation, route }) => {
         </View>
       )}
 
+      {/* ── Basket small-pool warning ── */}
+      {basketWarning && (
+        <View style={s.basketWarnBanner}>
+          <View style={s.basketWarnHeader}>
+            <Text style={s.basketWarnIcon}>⚠️</Text>
+            <Text style={s.basketWarnTitle}>
+              Chỉ tìm thấy {basketWarning.count} món từ giỏ nguyên liệu của bạn
+            </Text>
+          </View>
+          <Text style={s.basketWarnBody}>
+            Những món này đến đúng từ nguyên liệu bạn đã chọn, nhưng các thông số sức khỏe
+            (natri, chỉ số đường huyết…) có thể chưa được lọc tối ưu theo tình trạng của bạn.
+          </Text>
+          <Text style={s.basketWarnBody}>
+            Để đảm bảo an toàn, bạn có thể tìm kiếm thêm trên{' '}
+            <Text style={s.basketWarnLink}>Google</Text> hoặc{' '}
+            <Text style={s.basketWarnLink}>nền tảng y tế</Text> để xác nhận món phù hợp với sức khỏe của bạn.
+          </Text>
+          <TouchableOpacity
+            onPress={() => setBasketWarning(null)}
+            style={s.basketWarnDismiss}
+            activeOpacity={0.7}
+          >
+            <Text style={s.basketWarnDismissText}>Đã hiểu, đóng thông báo</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }}>
 
         {/* ── Top 3 horizontal scroll ── */}
@@ -552,6 +633,8 @@ const RecommendScreen = ({ navigation, route }) => {
                   item={item}
                   isAdded={addedDishIds.has(item.dish_id)}
                   onAddToMeal={handleAddToMeal}
+                  isSaved={savedDishIds.has(String(item.dish_id))}
+                  onToggleSave={handleToggleSave}
                   onPress={() => navigation.navigate('DishDetail', { dish: item })}
                 />
               ))}
@@ -569,6 +652,8 @@ const RecommendScreen = ({ navigation, route }) => {
                 item={item}
                 isAdded={addedDishIds.has(item.dish_id)}
                 onAddToMeal={handleAddToMeal}
+                isSaved={savedDishIds.has(String(item.dish_id))}
+                onToggleSave={handleToggleSave}
                 onPress={() => navigation.navigate('DishDetail', { dish: item })}
               />
             ))}
@@ -700,6 +785,60 @@ const s = StyleSheet.create({
   },
   offlineText: {
     fontFamily: 'Nunito_600SemiBold', fontSize: 12, color: C.accentGold,
+  },
+
+  // Basket small-pool warning banner
+  basketWarnBanner: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: 'rgba(251, 191, 36, 0.13)',
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.45)',
+    borderRadius: 14,
+    padding: 14,
+    gap: 6,
+  },
+  basketWarnHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  basketWarnIcon: {
+    fontSize: 16,
+  },
+  basketWarnTitle: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 13,
+    color: '#92400E',
+    flex: 1,
+  },
+  basketWarnBody: {
+    fontFamily: 'Nunito_400Regular',
+    fontSize: 12,
+    color: '#78350F',
+    lineHeight: 18,
+  },
+  basketWarnLink: {
+    fontFamily: 'Nunito_700Bold',
+    color: '#1D4ED8',
+    textDecorationLine: 'underline',
+  },
+  basketWarnDismiss: {
+    marginTop: 6,
+    alignSelf: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(251, 191, 36, 0.22)',
+    borderRadius: 10,
+    borderWidth: 0.5,
+    borderColor: 'rgba(251, 191, 36, 0.5)',
+  },
+  basketWarnDismissText: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 11,
+    color: '#92400E',
   },
 
   // Section
@@ -915,6 +1054,19 @@ const s = StyleSheet.create({
     fontFamily: 'Nunito_700Bold', fontSize: 12, color: '#60A5FA',
   },
   addMealTextDone: { color: '#22C55E' },
+
+  // ── Bookmark button ───────────────────────────────────────────────────────
+  bookmarkBtn: {
+    width: 30, height: 30,
+    borderRadius: 10, borderWidth: 1,
+    borderColor: 'rgba(92,58,30,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.40)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  bookmarkBtnSaved: {
+    borderColor: '#F59E0B',
+    backgroundColor: 'rgba(245,158,11,0.10)',
+  },
 
   // ── Toast overlay ─────────────────────────────────────────────────────────
   toast: {
