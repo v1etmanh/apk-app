@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
   Modal, TextInput, FlatList, KeyboardAvoidingView, Platform,
@@ -347,12 +347,19 @@ const CategoryCard = ({ cat, active, count, total, onPress }) => {
 
 // ─── MarketBasketScreen ────────────────────────────────────────────────────────
 const MarketBasketScreen = ({ navigation }) => {
-  const { allIngredients, setMarketBasket, marketBasket } = useAppStore();
+  const { allIngredients, setMarketBasket, marketBasket, initializeIngredients } = useAppStore();
 
   // FIX 1: Khởi tạo selectedIds từ store — không bị mất khi quay lại màn hình
   const [selectedIds,  setSelectedIds]  = useState(() => marketBasket?.selectedIngredients ?? []);
   const [selectedCats, setSelectedCats] = useState([]);
   const [modalCat,     setModalCat]     = useState(null);
+
+  // Load ingredients nếu chưa có (lần đầu mở app / sau khi reset store)
+  useEffect(() => {
+    if (allIngredients.length === 0) {
+      initializeIngredients();
+    }
+  }, []);
 
   const categories = useMemo(() => {
     const catSet = new Set();
