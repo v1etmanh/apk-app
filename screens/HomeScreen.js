@@ -3,16 +3,17 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, ActivityIndicator, StatusBar, ImageBackground,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import LottieView from 'lottie-react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import * as Location from 'expo-location';
 import { api } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
 import {
   saveSession, saveDishesToSession,
   loadSessions, loadDishesBySession,
   getWeatherCache, setWeatherCache, setSetting,
-  getRecentDishIds, saveRecentDishesCache, loadRecentDishesCache,getSetting,
+  getRecentDishIds, saveRecentDishesCache, loadRecentDishesCache, getSetting,
 } from '../utils/database';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from '../theme';
@@ -187,25 +188,41 @@ const FilterFlagMark = ({ code }) => {
   return null;
 };
 
+const LOC_BANNER_KEY = 'location_banner_dismissed_date';
+
 // ─────────────────────────────────────────────────────────────────────────────
 const HomeScreen = ({ navigation }) => {
   const isLoadingRef       = React.useRef(false);
   const prevBasketCountRef = React.useRef(-1);
 
-  const [refreshing, setRefreshing]     = useState(false);
-  const [weatherData, setWeatherData]   = useState(null);
-  const cuisineScope                    = 'global'; // always global — scope selector removed
-  const [dishFilter, setDishFilter]     = useState('all');
-  const [isDirty, setIsDirty]           = useState(false);
-  const [basketBadge, setBasketBadge]   = useState(0);
+  const [refreshing, setRefreshing]         = useState(false);
+  const [weatherData, setWeatherData]       = useState(null);
+  const cuisineScope                        = 'global';
+  const [dishFilter, setDishFilter]         = useState('all');
+  const [isDirty, setIsDirty]               = useState(false);
+  const [basketBadge, setBasketBadge]       = useState(0);
   const [challengeTitle, setChallengeTitle] = useState('');
-  const [showSwitcher, setShowSwitcher] = useState(false);
+  const [showSwitcher, setShowSwitcher]     = useState(false);
+  const [showLocBanner, setShowLocBanner]   = useState(false); // banner nhắc location
   const isFirstRender = React.useRef(true);
 
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     setIsDirty(true);
   }, [dishFilter]);
+
+  // Kiểm tra quyền vị trí mỗi ngày 1 lần — hiện banner nếu chưa cấp
+  useEffect(() => {
+    (async () => {
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+        const dismissed = await AsyncStorage.getItem(LOC_BANNER_KEY);
+        if (dismissed === today) return; // Đã dismiss hôm nay rồi
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted') setShowLocBanner(true);
+      } catch {}
+    })();
+  }, []);
 
   const {
     profile, latestMetrics, setRankedDishes,
@@ -251,15 +268,18 @@ const HomeScreen = ({ navigation }) => {
 
   const gridKey = (lat, lon) => `${Math.round(Number(lat) * 10) / 10}:${Math.round(Number(lon) * 10) / 10}`;
 
-  const fetchWeather = async (lat, lon) => {
+  const fetchWeather = async (lat, lon, forceRefresh = false) => {
     const loc = normalizeLocation({ lat, lon });
     const key = gridKey(loc.lat, loc.lon);
-    const cached = await getWeatherCache(key);
-    if (cached?.temperature != null) { setWeatherData(cached); return cached; }
+    if (!forceRefresh) {
+      const cached = await getWeatherCache(key);
+      if (cached?.temperature != null) { setWeatherData(cached); return cached; }
+    }
     try {
       const res = await api.get(`/api/weather?lat=${loc.lat}&lon=${loc.lon}`);
       const hr = new Date().getHours();
-      await setWeatherCache(key, res.data, hr >= 6 && hr < 22 ? 30 : 60);
+      await setWeatherCache(key, res.data, hr >= 6 && hr < 22 ? 15 : 30); // giảm từ 30/60 → 15/30
+      console.log('Weather:', res.data);
       setWeatherData(res.data);
       return res.data;
     } catch {
@@ -320,8 +340,34 @@ const HomeScreen = ({ navigation }) => {
     const loc = gps || normalizeLocation(location);
     const safeLocation = normalizeLocation(loc);
     if (gps) setLocation(gps);
-    await fetchWeather(safeLocation.lat, safeLocation.lon);
+    await fetchWeather(safeLocation.lat, safeLocation.lon, true); // force bỏ qua cache
     setRefreshing(false);
+  };
+
+  // Xử lý khi user bấm "Cho phép" trên banner location
+  const handleAllowLocation = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status === 'granted') {
+      // Lấy vị trí thật và refresh weather ngay
+      try {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const lat = Math.round(loc.coords.latitude  * 100) / 100;
+        const lon = Math.round(loc.coords.longitude * 100) / 100;
+        await setSetting('last_known_lat', String(lat));
+        await setSetting('last_known_lon', String(lon));
+        setLocation({ lat, lon, province: location?.province || '' });
+        fetchWeather(lat, lon);
+      } catch {}
+    }
+    setShowLocBanner(false);
+    // Lưu ngày dismiss dù granted hay denied — không hỏi lại hôm nay nữa
+    await AsyncStorage.setItem(LOC_BANNER_KEY, new Date().toISOString().slice(0, 10));
+  };
+
+  // Dismiss banner mà không xin quyền — không hỏi lại hôm nay
+  const handleDismissLocBanner = async () => {
+    setShowLocBanner(false);
+    await AsyncStorage.setItem(LOC_BANNER_KEY, new Date().toISOString().slice(0, 10));
   };
 
   const icon = weatherIcon(weatherData?.condition, weatherData?.temperature);
@@ -384,7 +430,26 @@ const HomeScreen = ({ navigation }) => {
           onAddNew={() => navigation.navigate('AddEditProfile')}
         />
 
-        {/* ── Main Temperature with Animated Weather Sprite ── */}
+        {/* ── Location Permission Banner — hiện 1 lần/ngày nếu chưa cấp quyền ── */}
+        {showLocBanner && (
+          <View style={s.locBanner}>
+            <Text style={s.locBannerIcon}>📍</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.locBannerTitle}>Cho phép truy cập vị trí?</Text>
+              <Text style={s.locBannerBody}>
+                Biết vị trí của bạn giúp Daily Mate gợi ý món ăn hợp thời tiết, giá cả và đặc sản vùng miền chính xác hơn.
+              </Text>
+              <View style={s.locBannerActions}>
+                <TouchableOpacity style={s.locBannerBtn} onPress={handleAllowLocation} activeOpacity={0.8}>
+                  <Text style={s.locBannerBtnText}>✅ Cho phép</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleDismissLocBanner} activeOpacity={0.7}>
+                  <Text style={s.locBannerDismiss}>Để sau</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
         {weatherData ? (
           <WeatherAnimationSprite
             icon={icon}
@@ -603,6 +668,62 @@ const s = StyleSheet.create({
   skyOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(255,255,255,0.28)',
+  },
+
+  // ── Location banner
+  locBanner: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    marginBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: 'rgba(239,246,255,0.95)',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(96,165,250,0.45)',
+    padding: 14,
+    shadowColor: '#60A5FA',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  locBannerIcon: { fontSize: 28, marginTop: 2 },
+  locBannerTitle: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 14,
+    color: C.text,
+    marginBottom: 4,
+  },
+  locBannerBody: {
+    fontFamily: 'Caveat_400Regular',
+    fontSize: 14,
+    color: C.textMid,
+    lineHeight: 20,
+  },
+  locBannerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 10,
+  },
+  locBannerBtn: {
+    backgroundColor: C.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  locBannerBtnText: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 13,
+    color: '#FFFFFF',
+  },
+  locBannerDismiss: {
+    fontFamily: 'Nunito_600SemiBold',
+    fontSize: 13,
+    color: C.textLight,
+    textDecorationLine: 'underline',
   },
 
   // ── Header

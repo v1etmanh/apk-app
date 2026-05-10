@@ -23,6 +23,7 @@ export const useAppStore = create((set, get) => ({
   isLoading:        false,
   error:            null,
   location:         { lat: null, lon: null, province: '', food_region: '' },
+  weatherData:      null,   // Cache thời tiết — persist khi chuyển tab
   maxPrepTime:      60,   // F02: thời gian nấu tối đa (phút). 999 = không giới hạn
   costPreference:   2,    // F03: 1=Tiết kiệm | 2=Vừa phải | 3=Thoải mái
   allIngredients:   [],   // Cache toàn bộ ingredients (1100+) — load 1 lần khi app khởi động
@@ -73,6 +74,7 @@ export const useAppStore = create((set, get) => ({
       food_region: location?.food_region ?? '',
     },
   }),
+  setWeatherData:      (data)      => set({ weatherData: data }),
   setMaxPrepTime:      (val)       => set({ maxPrepTime: Number(val) }),
   setCostPreference:   (val)       => set({ costPreference: Number(val) }),  // F03
   setAllIngredients:   (list)      => set({ allIngredients: list }),
@@ -123,6 +125,7 @@ export const useAppStore = create((set, get) => ({
     isLoading:           false,
     error:               null,
     location:            { lat: null, lon: null, province: '', food_region: '' },
+    weatherData:         null,
     tasteProfile:        null,
     hometownProvinceId:  null,
     tasteMode:           'hometown',

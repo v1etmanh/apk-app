@@ -3,8 +3,8 @@
  * Luồng: loading → unauthenticated (Login) | authenticated → Onboarding | Main
  */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { StatusBar, View, Text, StyleSheet, Image } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { StatusBar, View, Text, StyleSheet, Image, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LottieView from 'lottie-react-native';
 import { useFonts } from 'expo-font';
@@ -220,11 +220,14 @@ const App = () => {
     initializeLocation, initializeMaxPrepTime,
     initializeCostPreference, initializeIngredients,
     initializeSettings, loadAllProfilesAction,
-    mealReminderModal, showMealReminderModal, hideMealReminderModal,
   } = useAppStore();
 
   // navigationRef — dùng để navigate từ notification listener (ngoài navigator context)
   const navigationRef = useRef(null);
+  // appStateRef — track AppState để detect foreground
+  const appStateRef   = useRef(AppState.currentState);
+  // locationDateRef — lưu ngày đã check location gần nhất (format YYYY-MM-DD)
+  const locationDateRef = useRef(null);
 
   const [authState,      setAuthState]      = useState('loading');
   const [appReady,       setAppReady]       = useState(false);
@@ -310,35 +313,19 @@ const App = () => {
 
   // ── Notification listeners — đăng ký 1 lần khi app mount ─────────────────
   useEffect(() => {
-    // Listener 1: User TAP vào notification (app đang background hoặc bị kill)
+    // Khi user TAP vào notification → navigate đến màn hình liên quan
     const responseSub = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
       if (data?.screen === 'MealReminder') {
-        useAppStore.getState().showMealReminderModal({
-          dishName:  data.dishName  || 'Món ăn hôm nay',
-          mealLabel: data.mealId === 'lunch' ? 'Bữa trưa' : 'Bữa tối',
-          mealId:    data.mealId   || 'lunch',
-          nutrition: data.nutrition || null,
-        });
+        // Điều hướng thẳng đến Recommend thay vì mở modal
+        navigationRef.current?.navigate('Recommend');
       }
     });
-
-    // Listener 2: Notification hiện khi app đang FOREGROUND
-    const receiveSub = Notifications.addNotificationReceivedListener(notification => {
-      const data = notification.request.content.data;
-      if (data?.screen === 'MealReminder') {
-        useAppStore.getState().showMealReminderModal({
-          dishName:  data.dishName  || 'Món ăn hôm nay',
-          mealLabel: data.mealId === 'lunch' ? 'Bữa trưa' : 'Bữa tối',
-          mealId:    data.mealId   || 'lunch',
-          nutrition: data.nutrition || null,
-        });
-      }
-    });
-
+    // KHÔNG đăng ký addNotificationReceivedListener → notification foreground
+    // sẽ hiển thị ở thanh thông báo hệ thống (nhờ setNotificationHandler ở top-level)
+    // thay vì mở modal trong app
     return () => {
       responseSub.remove();
-      receiveSub.remove();
     };
   }, []);
 
@@ -362,12 +349,56 @@ const App = () => {
     } catch { return null; }
   };
 
-  // ── Đăng ký Expo push token lên backend ──────────────────────────────────
+  // ── Check location mỗi ngày / mỗi lần bật app lên ────────────────────────
+  // Gọi hàm này khi app về foreground. Chỉ re-fetch nếu chưa check hôm nay.
+  const checkLocationOnResume = useCallback(async () => {
+    if (authState !== 'authenticated' || !appReady) return;
+    const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+    if (locationDateRef.current === today) {
+      if (__DEV__) console.log('[Location] Đã check hôm nay, bỏ qua.');
+      return;
+    }
+    if (__DEV__) console.log('[Location] Ngày mới / lần đầu mở app — re-check location');
+    const loc = await getUserLocation();
+    if (loc) {
+      locationDateRef.current = today;
+      // Cập nhật store để HomeScreen tự động dùng tọa độ mới
+      useAppStore.getState().setLocation({
+        lat: Math.round(loc.coords.latitude  * 100) / 100,
+        lon: Math.round(loc.coords.longitude * 100) / 100,
+        province:    useAppStore.getState().location?.province    ?? '',
+        food_region: useAppStore.getState().location?.food_region ?? '',
+      });
+      registerDeviceToken(loc);
+    }
+  }, [authState, appReady]);
+
+  // ── Lắng nghe AppState — chạy checkLocationOnResume khi về foreground ─────
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appStateRef.current !== 'active' && nextState === 'active') {
+        // App vừa được mở / resume từ background
+        checkLocationOnResume();
+      }
+      appStateRef.current = nextState;
+    });
+    return () => sub.remove();
+  }, [checkLocationOnResume]);
+
+
   const registerDeviceToken = async (location) => {
     try {
-      // Lấy Expo Push Token (dùng projectId từ app.json)
-      const { status } = await Notifications.getPermissionsAsync();
-      if (status !== 'granted') return; // Chưa được quyền → skip
+      // Hỏi quyền nếu chưa được cấp — popup sẽ hiện lần đầu tiên
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        if (__DEV__) console.warn('[Push] Notification permission denied');
+        return;
+      }
 
       const tokenData = await Notifications.getExpoPushTokenAsync({
         projectId: 'b0b88ff3-6754-479f-bfbc-68a309e75da5',
@@ -445,7 +476,19 @@ const App = () => {
       await setupNotificationChannel();
 
       // GPS + push token — chạy background, không block splash
-      getUserLocation().then(loc => registerDeviceToken(loc));
+      getUserLocation().then(loc => {
+        if (loc) {
+          // Đánh dấu đã check location hôm nay → AppState listener sẽ bỏ qua khi resume cùng ngày
+          locationDateRef.current = new Date().toISOString().slice(0, 10);
+          useAppStore.getState().setLocation({
+            lat: Math.round(loc.coords.latitude  * 100) / 100,
+            lon: Math.round(loc.coords.longitude * 100) / 100,
+            province:    useAppStore.getState().location?.province    ?? '',
+            food_region: useAppStore.getState().location?.food_region ?? '',
+          });
+        }
+        registerDeviceToken(loc);
+      });
 
       setShowOnboarding(false);
       setAppReady(true);
@@ -509,20 +552,6 @@ const App = () => {
           <Stack.Screen name="Recommend"        component={RecommendScreen}/>
           <Stack.Screen name="AddEditProfile"   component={AddEditProfileScreen}/>
         </Stack.Navigator>
-
-        {/* Modal nhắc ăn — render ở root để hiện được từ bất kỳ màn hình nào */}
-        <MealReminderModal
-          visible={mealReminderModal.visible}
-          dishName={mealReminderModal.dishName}
-          mealLabel={mealReminderModal.mealLabel}
-          mealId={mealReminderModal.mealId}
-          nutrition={mealReminderModal.nutrition}
-          onClose={hideMealReminderModal}
-          onNavigate={() => {
-            hideMealReminderModal();
-            navigationRef.current?.navigate('Recommend');
-          }}
-        />
       </NavigationContainer>
     </SafeAreaView>
   );
