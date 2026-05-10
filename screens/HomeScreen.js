@@ -196,7 +196,6 @@ const HomeScreen = ({ navigation }) => {
   const prevBasketCountRef = React.useRef(-1);
 
   const [refreshing, setRefreshing]         = useState(false);
-  const [weatherData, setWeatherData]       = useState(null);
   const cuisineScope                        = 'global';
   const [dishFilter, setDishFilter]         = useState('all');
   const [isDirty, setIsDirty]               = useState(false);
@@ -229,6 +228,7 @@ const HomeScreen = ({ navigation }) => {
     location, setLocation, allergies, setCurrentSessionId,
     marketBasket, maxPrepTime, costPreference,
     profiles, activeProfileId,
+    weatherData, setWeatherData,
   } = useAppStore();
 
   useEffect(() => {
@@ -247,8 +247,12 @@ const HomeScreen = ({ navigation }) => {
     loadRecentDishesCache().then(cached => {
       if (cached.length > 0) setRankedDishes(cached);
     });
-    fetchWeather(lat, lon);
-  }, []));
+    // Đã có data trong store (từ phiên này) → dùng luôn, không fetch lại
+    const storeWeather = useAppStore.getState().weatherData;
+    if (!storeWeather) {
+      fetchWeather(lat, lon);
+    }
+  }, [location]));
 
   const getUserLocation = async () => {
     try {
@@ -278,14 +282,17 @@ const HomeScreen = ({ navigation }) => {
     try {
       const res = await api.get(`/api/weather?lat=${loc.lat}&lon=${loc.lon}`);
       const hr = new Date().getHours();
-      await setWeatherCache(key, res.data, hr >= 6 && hr < 22 ? 15 : 30); // giảm từ 30/60 → 15/30
-      console.log('Weather:', res.data);
-      setWeatherData(res.data);
+      await setWeatherCache(key, res.data, hr >= 6 && hr < 22 ? 15 : 30);
+      setWeatherData(res.data);   // → lưu vào store, cả phiên dùng giá trị này
       return res.data;
     } catch {
-      const fb = { temperature: 30, condition: 'Không rõ (offline)', humidity: 70, wind_speed: 10, aqi: 85, uv_index: 5, pressure: 1010, season: 'summer' };
-      setWeatherData(fb);
-      return fb;
+      // Fallback offline — chỉ set nếu store chưa có gì (không ghi đè data thật)
+      if (!useAppStore.getState().weatherData) {
+        const fb = { temperature: 30, condition: 'Không rõ (offline)', humidity: 70, wind_speed: 10, aqi: 85, uv_index: 5, pressure: 1010, season: 'summer' };
+        setWeatherData(fb);
+        return fb;
+      }
+      return useAppStore.getState().weatherData;
     }
   };
 
