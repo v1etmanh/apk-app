@@ -10,7 +10,7 @@ import {
   collection, query, where, orderBy, limit,
   getDocs, serverTimestamp,
 } from 'firebase/firestore';
-import { firestore } from './firebaseConfig';
+import { firestore, ensureFirebaseAuth } from './firebaseConfig';
 
 // ─── Device ID (thay cho user auth) ───────────────────────────────────────────
 // Mỗi máy có 1 deviceId duy nhất, dùng làm "user namespace" trên Firestore
@@ -569,6 +569,7 @@ export async function setActiveProfileId(profileId) {
 // ── Load all profiles ────────────────────────────────────────────────────────
 export async function loadAllProfiles() {
   try {
+    await ensureFirebaseAuth(); // [FIX] Firestore read cũng cần auth nếu Rules require auth
     const id = await getDeviceId();
     const snap = await withTimeoutFallback(getDocs(membersCol(id)), 6000, null);
     if (!snap) return [];

@@ -10,6 +10,7 @@ import {
   // [AUD-002] Reset module cache khi logout
   clearDeviceId,
 } from '../utils/database';
+import { ensureFirebaseAuth } from '../utils/firebaseConfig';
 import { loadReminderSettings, DEFAULT_REMINDER_TIMES } from '../services/mealReminderService';
 
 export const useAppStore = create((set, get) => ({
@@ -156,6 +157,10 @@ export const useAppStore = create((set, get) => ({
 
   switchProfile: async (profileId) => {
     try {
+      // [FIX] Đảm bảo Firebase auth sẵn sàng trước các Firestore reads.
+      // switchProfile được gọi ngay sau save lần đầu đăng nhập — Firebase
+      // anonymous auth có thể chưa hoàn tất → reads bị permission-denied.
+      await ensureFirebaseAuth();
       await setActiveProfileId(profileId);
       set({ activeProfileId: profileId });
       // [FIX ID-M013] Load profile + tất cả data song song, set vào store 1 lần (atomic)
