@@ -34,8 +34,15 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "data": [{ "scheme": "dailymate" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "dailymate"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -61,9 +68,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "b0b88ff3-6754-479f-bfbc-68a309e75da5"
+        "projectId": "131e9657-e462-4ad8-8a95-083990f87e3a"
       }
     },
-    "owner": "concop17"
+    "owner": "v1etmanh"
   }
 }

@@ -11,6 +11,8 @@ import {
   getDocs, serverTimestamp,
 } from 'firebase/firestore';
 import { firestore, ensureFirebaseAuth } from './firebaseConfig';
+// ─── Local data — ingredients (offline-first, không cần Firestore) ────────────
+import { ALL_INGREDIENTS, getAllCategories, getIngredientsByCategory } from './ingredientsData';
 
 // ─── Device ID (thay cho user auth) ───────────────────────────────────────────
 // Mỗi máy có 1 deviceId duy nhất, dùng làm "user namespace" trên Firestore
@@ -313,51 +315,28 @@ export async function setWeatherCache(gridKey, weatherData, ttlMinutes = 30) {
   }
 }
 
-// ─── INGREDIENTS REF (read-only — seed từ server, dùng cho MarketBasket) ─────
-// Collection: ingredients_ref/{ingredientId}
-function ingredientsCol() { return collection(firestore, 'ingredients_ref'); }
+// ─── INGREDIENTS REF (read-only — từ local JSON, không cần Firestore) ────────
+// Đã migrate sang assets/data/ingredients.json (offline-first).
+// Giữ nguyên tên hàm để không phá caller (useAppStore, MarketBasketScreen).
 
-export async function loadIngredientCategories() {
-  const snap = await getDocs(ingredientsCol());
-  const cats = new Set();
-  snap.docs.forEach(d => { if (d.data().category) cats.add(d.data().category); });
-  return Array.from(cats).sort().map(c => ({ category: c }));
+export function loadIngredientCategories() {
+  return Promise.resolve(
+    getAllCategories().map(c => ({ category: c }))
+  );
 }
 
-export async function loadIngredientsByCategories(categoryKeys) {
-  if (!categoryKeys || categoryKeys.length === 0) return [];
-  // Firestore 'in' max 10 giá trị — chunk nếu nhiều hơn
-  const results = [];
-  for (let i = 0; i < categoryKeys.length; i += 10) {
-    const chunk = categoryKeys.slice(i, i + 10);
-    const q = query(ingredientsCol(), where('category', 'in', chunk), orderBy('name'));
-    const snap = await getDocs(q);
-    snap.docs.forEach(d => results.push({ id: d.id, ...d.data() }));
-  }
-  return results;
+export function loadIngredientsByCategories(categoryKeys) {
+  if (!categoryKeys || categoryKeys.length === 0) return Promise.resolve([]);
+  const results = categoryKeys.flatMap(cat => getIngredientsByCategory(cat));
+  return Promise.resolve(results);
 }
 
-// FIX (Hiệu suất): TTL-based cache invalidation cho _ingredientCache.
-// Cache sống tối đa 30 phút. Gọi invalidateIngredientCache() khi data thay đổi server-side.
-const INGREDIENT_CACHE_TTL_MS = 30 * 60 * 1000;
-let _ingredientCache = null;
-let _ingredientCacheAt = 0;
+// invalidateIngredientCache là no-op — local JSON không cần invalidate
+export function invalidateIngredientCache() {}
 
-export function invalidateIngredientCache() {
-  _ingredientCache = null;
-  _ingredientCacheAt = 0;
-}
-
-export async function loadAllIngredients() {
-  const now = Date.now();
-  if (_ingredientCache && now - _ingredientCacheAt < INGREDIENT_CACHE_TTL_MS) {
-    return _ingredientCache;
-  }
-  const snap = await getDocs(ingredientsCol());
-  _ingredientCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
-  _ingredientCacheAt = now;
-  return _ingredientCache;
+// loadAllIngredients trả ngay từ memory — sync wrapped in Promise để giữ interface
+export function loadAllIngredients() {
+  return Promise.resolve(ALL_INGREDIENTS);
 }
 
 // ─── CHALLENGE HISTORY ────────────────────────────────────────────────────────

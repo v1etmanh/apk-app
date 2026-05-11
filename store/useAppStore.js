@@ -270,12 +270,13 @@ export const useAppStore = create((set, get) => ({
   initializeMaxPrepTime:   async () => get().initializeSettings(),
   initializeCostPreference: async () => get().initializeSettings(),
 
-  // Load tất cả ingredients vào memory — gọi 1 lần khi app start
+  // Load tất cả ingredients vào memory — đã migrate sang local JSON (assets/data/ingredients.json).
+  // loadAllIngredients() bây giờ là sync wrapped in Promise — không cần network, không block startup.
   initializeIngredients: async () => {
     try {
-      const list = await loadAllIngredients();
+      const list = await loadAllIngredients();  // trả ngay từ local JSON
       set({ allIngredients: list });
-      if (__DEV__) console.log('[Store] allIngredients loaded:', list.length);
+      if (__DEV__) console.log('[Store] allIngredients loaded (local JSON):', list.length);
     } catch (e) { console.error('initializeIngredients:', e); }
   },
 }));
