@@ -226,8 +226,7 @@ const App = () => {
   const navigationRef = useRef(null);
   // appStateRef — track AppState để detect foreground
   const appStateRef   = useRef(AppState.currentState);
-  // locationDateRef — lưu ngày đã check location gần nhất (format YYYY-MM-DD)
-  const locationDateRef = useRef(null);
+
 
   const [authState,      setAuthState]      = useState('loading');
   const [appReady,       setAppReady]       = useState(false);
@@ -349,20 +348,12 @@ const App = () => {
     } catch { return null; }
   };
 
-  // ── Check location mỗi ngày / mỗi lần bật app lên ────────────────────────
-  // Gọi hàm này khi app về foreground. Chỉ re-fetch nếu chưa check hôm nay.
+  // ── Fetch location mỗi lần app mở / resume từ background ────────────────
   const checkLocationOnResume = useCallback(async () => {
     if (authState !== 'authenticated' || !appReady) return;
-    const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-    if (locationDateRef.current === today) {
-      if (__DEV__) console.log('[Location] Đã check hôm nay, bỏ qua.');
-      return;
-    }
-    if (__DEV__) console.log('[Location] Ngày mới / lần đầu mở app — re-check location');
+    if (__DEV__) console.log('[Location] App resume — re-fetch location');
     const loc = await getUserLocation();
     if (loc) {
-      locationDateRef.current = today;
-      // Cập nhật store để HomeScreen tự động dùng tọa độ mới
       useAppStore.getState().setLocation({
         lat: Math.round(loc.coords.latitude  * 100) / 100,
         lon: Math.round(loc.coords.longitude * 100) / 100,
@@ -478,8 +469,6 @@ const App = () => {
       // GPS + push token — chạy background, không block splash
       getUserLocation().then(loc => {
         if (loc) {
-          // Đánh dấu đã check location hôm nay → AppState listener sẽ bỏ qua khi resume cùng ngày
-          locationDateRef.current = new Date().toISOString().slice(0, 10);
           useAppStore.getState().setLocation({
             lat: Math.round(loc.coords.latitude  * 100) / 100,
             lon: Math.round(loc.coords.longitude * 100) / 100,

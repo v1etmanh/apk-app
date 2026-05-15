@@ -30,7 +30,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "com.anonymous.dailymate",
+      "package": "com.vietmanh.dailymate",
       "intentFilters": [
         {
           "action": "VIEW",

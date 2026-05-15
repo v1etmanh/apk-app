@@ -1,4 +1,4 @@
-package com.anonymous.dailymate
+package com.vietmanh.dailymate
 
 import android.app.Application
 import android.content.res.Configuration

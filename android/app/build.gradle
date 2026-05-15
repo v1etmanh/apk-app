@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.anonymous.dailymate'
+    namespace 'com.vietmanh.dailymate'
     defaultConfig {
-        applicationId 'com.anonymous.dailymate'
+        applicationId 'com.vietmanh.dailymate'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

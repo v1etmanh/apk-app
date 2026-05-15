@@ -256,17 +256,17 @@ const HomeScreen = ({ navigation }) => {
 
   const getUserLocation = async () => {
     try {
-      // [FIX ID-M010] Thêm await + khai báo const — tránh implicit global & Promise object
-      // [INFO ID-M018] GPS real-time bị comment out có chủ ý (cache only). Uncomment khi release.
-      // const { status } = await Location.requestForegroundPermissionsAsync();
-      // if (status !== 'granted') return null;
-      // const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      // return { lat: loc.coords.latitude, lon: loc.coords.longitude };
+      // App.js đã fetch GPS lúc start/resume và lưu vào store + last_known
+      // → ưu tiên đọc từ store (luôn mới nhất trong phiên này)
+      const storeLocation = useAppStore.getState().location;
+      if (storeLocation?.lat && storeLocation?.lon) {
+        return { lat: storeLocation.lat, lon: storeLocation.lon };
+      }
+      // Fallback: đọc cache AsyncStorage nếu store chưa có (edge case lần đầu)
       const latStr = await getSetting('last_known_lat');
       const lonStr = await getSetting('last_known_lon');
-      const lat = latStr ? Number(latStr) : 16.047;
-      const lon = lonStr ? Number(lonStr) : 108.206;
-      return { lat, lon };
+      if (latStr && lonStr) return { lat: Number(latStr), lon: Number(lonStr) };
+      return null; // → normalizeLocation() fallback DEFAULT_LOCATION
     } catch { return null; }
   };
 
