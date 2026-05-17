@@ -7,7 +7,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
-import { loadSessions, getSavedDishes, removeSavedDish } from '../utils/database';
+import { loadSessions, removeSavedDish } from '../utils/database';
+import { useAppStore } from '../store/useAppStore';
 
 // ─── Design Tokens ────────────────────────────────────────────────
 const C = {
@@ -242,24 +243,30 @@ const SessionCard = ({ item, index, onPress }) => {
 // ─── Main Screen ───────────────────────────────────────────────────
 const HistoryScreen = ({ navigation }) => {
   const [sessions, setSessions]       = useState([]);
-  const [savedDishes, setSavedDishes] = useState([]);
   const [loading,  setLoading]        = useState(true);
-  const [activeTab, setActiveTab]     = useState('sessions'); // 'sessions' | 'saved'
+  const [activeTab, setActiveTab]     = useState('sessions');
   const [statsSize, setStatsSize]     = useState({ width: 0, height: 0 });
+  // [FIX SAVED-FETCH] Trạng thái loading riêng cho tab món yêu thích
+  const [savedLoading, setSavedLoading] = useState(false);
+
+  // Saved dishes từ store
+  const { savedDishes, toggleSaveDish, loadSavedDishes } = useAppStore();
+
+  const handleRemoveSaved = async (dish) => {
+    await toggleSaveDish(dish);
+  };
 
   // Cat bob animation (header mascot)
   const catBob    = useRef(new Animated.Value(0)).current;
   const catWiggle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Animation loop — chỉ khởi động 1 lần khi mount
     Animated.loop(
       Animated.sequence([
         Animated.timing(catBob, { toValue: -7, duration: 1000, useNativeDriver: true }),
         Animated.timing(catBob, { toValue: 0,  duration: 1000, useNativeDriver: true }),
       ])
     ).start();
-
     Animated.loop(
       Animated.sequence([
         Animated.timing(catWiggle, { toValue: 1,  duration: 1800, useNativeDriver: true }),
@@ -268,32 +275,44 @@ const HistoryScreen = ({ navigation }) => {
     ).start();
   }, []);
 
-  // [FIX] Reload history mỗi khi tab History được focus.
-  // useEffect([]) chỉ chạy 1 lần khi mount — nếu HistoryScreen đã mount sẵn trong
-  // bottom tabs thì navigate về đây sẽ không reload → không thấy session vừa tạo.
-  // useFocusEffect + useCallback đảm bảo loadHistory chạy lại mỗi lần focus.
-  // silent=true: nếu đã có data thì refresh ngầm, không show loading cat nhấp nháy.
+  // Load lịch sử sessions mỗi khi focus
   useFocusEffect(
     useCallback(() => {
-      loadHistory(sessions.length > 0); // có data rồi → silent, chưa có → show loading
-    }, [sessions.length > 0])
+      loadHistory(sessions.length > 0);
+    }, [])
   );
+
+  // [FIX SAVED-FETCH] Khi chuyển sang tab "Món yêu thích" mà store đang trống
+  // → tự fetch từ Firestore thay vì hiện empty state ngay.
+  // Trường hợp này xảy ra khi: initializeApp() chưa chạy xong loadSavedDishes(),
+  // hoặc user mở thẳng tab này trước khi app load xong.
+  useEffect(() => {
+    if (activeTab === 'saved' && savedDishes.length === 0 && !savedLoading) {
+      fetchSavedDishesIfEmpty();
+    }
+  }, [activeTab]);
+
+  const fetchSavedDishesIfEmpty = async () => {
+    setSavedLoading(true);
+    try {
+      await loadSavedDishes(); // cập nhật thẳng vào store
+    } catch (e) {
+      console.warn('[HistoryScreen] fetchSavedDishesIfEmpty:', e);
+    } finally {
+      setSavedLoading(false);
+    }
+  };
 
   const loadHistory = async (silent = false) => {
     try {
-      // silent=true: refresh ngầm khi focus lại, không hiện loading cat
       if (!silent) setLoading(true);
-      const [raw, saved] = await Promise.all([
-        loadSessions(20),
-        getSavedDishes(),
-      ]);
-      const sessions = raw.map(s => ({
+      const raw = await loadSessions(20);
+      const mapped = raw.map(s => ({
         ...s,
         dishes:     Array.isArray(s.top_dishes) ? s.top_dishes : [],
         eatenCount: typeof s.eaten_count === 'number' ? s.eaten_count : 0,
       }));
-      setSessions(sessions);
-      setSavedDishes(saved);
+      setSessions(mapped);
     } catch (e) {
       console.error('loadHistory:', e);
     } finally {
@@ -409,26 +428,42 @@ const HistoryScreen = ({ navigation }) => {
   );
 
   // ── Empty state ──────────────────────────────────────────────────
-  const EmptyState = () => (
-    <View style={st.empty}>
-      <LottieView
-        source={require('../assets/animations/cat_orange.json')}
-        autoPlay loop
-        style={[{ width: 150, height: 150 }, { pointerEvents: 'none' }]}
-      />
-      <Text style={st.emptyTitle}>
-        {activeTab === 'saved' ? 'Chưa có món yêu thích' : 'Chưa có lịch sử nào'}
-      </Text>
-      <Text style={st.emptyText}>
-        {activeTab === 'saved'
-          ? 'Bấm 🔖 trên màn hình gợi ý để lưu món bạn thích!'
-          : 'Hãy để app gợi ý món ăn cho bạn nhé! 🍽️'}
-      </Text>
-    </View>
-  );
+  const EmptyState = () => {
+    // Đang fetch món yêu thích từ Firestore → hiện loading thay vì "chưa có"
+    if (activeTab === 'saved' && savedLoading) {
+      return (
+        <View style={st.empty}>
+          <LottieView
+            source={require('../assets/animations/Cat Pookie.json')}
+            autoPlay loop
+            style={[{ width: 130, height: 130 }, { pointerEvents: 'none' }]}
+          />
+          <Text style={st.emptyTitle}>Đang tải món yêu thích...</Text>
+          <Text style={st.emptyText}>Mèo đang lục Firestore cho bạn 🐱</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={st.empty}>
+        <LottieView
+          source={require('../assets/animations/cat_orange.json')}
+          autoPlay loop
+          style={[{ width: 150, height: 150 }, { pointerEvents: 'none' }]}
+        />
+        <Text style={st.emptyTitle}>
+          {activeTab === 'saved' ? 'Chưa có món yêu thích' : 'Chưa có lịch sử nào'}
+        </Text>
+        <Text style={st.emptyText}>
+          {activeTab === 'saved'
+            ? 'Bấm 🔖 trên màn hình gợi ý để lưu món bạn thích!'
+            : 'Hãy để app gợi ý món ăn cho bạn nhé! 🍽️'}
+        </Text>
+      </View>
+    );
+  };
 
   // ── Saved dish card ──────────────────────────────────────────────
-  const SavedDishCard = ({ item, index }) => {
+  const SavedDishCard = ({ item, index, onRemove }) => {
     const fade  = useRef(new Animated.Value(0)).current;
     const slide = useRef(new Animated.Value(16)).current;
     useEffect(() => {
@@ -439,8 +474,7 @@ const HistoryScreen = ({ navigation }) => {
     }, []);
 
     const handleRemove = async () => {
-      await removeSavedDish(item.dish_id);
-      setSavedDishes(prev => prev.filter(d => String(d.dish_id) !== String(item.dish_id)));
+      if (onRemove) await onRemove(item);
     };
 
     const savedDate = item.saved_at
@@ -513,7 +547,7 @@ const HistoryScreen = ({ navigation }) => {
               onPress={() => navigation.navigate('HistoryDetail', { sessionId: item.id })}
             />
           ) : (
-            <SavedDishCard item={item} index={index} />
+            <SavedDishCard item={item} index={index} onRemove={handleRemoveSaved} />
           )
         }
         keyExtractor={(item, index) =>

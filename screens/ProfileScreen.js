@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useAppStore } from '../store/useAppStore';
 import { deleteProfileMember } from '../utils/database';
+import { removeMealPlanByProfileId } from '../services/mealPlanService';
 
 // ── Assets ────────────────────────────────────────────────────────────────────
 const TEX = {
@@ -134,13 +135,12 @@ const WoodStatCard = ({ icon, label, value, unit, hasValue, accentColor }) => (
 );
 
 // ── MemberRow — hàng thành viên trong card ───────────────────────────────────
-const MemberRow = ({ p, isActive, isLast, onPress, onLongPress }) => (
+const MemberRow = ({ p, isActive, isLast, canDelete, onPress, onEdit, onDelete }) => (
   <>
     <TouchableOpacity
       style={[mr.row, isActive && mr.rowActive]}
       activeOpacity={0.75}
       onPress={onPress}
-      onLongPress={onLongPress}
     >
       {isActive && (
         <View style={[StyleSheet.absoluteFill, { borderRadius: 0, overflow: 'hidden' }]} pointerEvents="none">
@@ -158,10 +158,34 @@ const MemberRow = ({ p, isActive, isLast, onPress, onLongPress }) => (
           {RELATION_LABEL[p.relation] || 'Khác'}{p.age ? ` · ${p.age} tuổi` : ''}
         </Text>
       </View>
-      {isActive
-        ? <View style={mr.activePill}><Text style={mr.activePillText}>✓ Active</Text></View>
-        : <Ionicons name="chevron-forward" size={16} color="#C8A96E" style={{ zIndex: 1 }} />
-      }
+
+      {/* Action buttons bên phải */}
+      <View style={mr.actions}>
+        {/* Nút chỉnh sửa */}
+        <TouchableOpacity
+          style={mr.iconBtn}
+          onPress={onEdit}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="pencil-outline" size={16} color="#9A7040" />
+        </TouchableOpacity>
+
+        {/* Nút xóa — chỉ hiện khi có thể xóa */}
+        {canDelete && (
+          <TouchableOpacity
+            style={[mr.iconBtn, mr.iconBtnDelete]}
+            onPress={onDelete}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="trash-outline" size={16} color="#C0392B" />
+          </TouchableOpacity>
+        )}
+
+        {isActive
+          ? <View style={mr.activePill}><Text style={mr.activePillText}>✓</Text></View>
+          : <Ionicons name="chevron-forward" size={16} color="#C8A96E" style={{ zIndex: 1 }} />
+        }
+      </View>
     </TouchableOpacity>
     {!isLast && <View style={mr.divider} />}
   </>
@@ -205,30 +229,30 @@ const ProfileScreen = ({ navigation }) => {
 
   useFocusEffect(useCallback(() => { loadAllProfilesAction(); }, []));
 
-  const handleMemberLongPress = (p) => {
-    const canDelete = profiles.length > 1;
-    const options = [
-      { text: 'Chỉnh sửa', onPress: () => navigation.getParent()?.navigate('AddEditProfile', { profileId: p.profileId }) },
-    ];
-    if (canDelete) {
-      options.push({
-        text: 'Xóa', style: 'destructive',
-        onPress: () => Alert.alert('Xóa thành viên', `Xóa "${p.displayName}"?`, [
-          { text: 'Hủy', style: 'cancel' },
-          { text: 'Xóa', style: 'destructive', onPress: async () => {
+  // Xóa profile: xóa Firestore + xóa luôn meal plan hôm nay của profile đó
+  const handleDeleteProfile = (p) => {
+    Alert.alert(
+      `Xóa "${p.displayName}"?`,
+      'Thành viên và các món ăn hôm nay của họ sẽ bị xóa.',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa', style: 'destructive',
+          onPress: async () => {
+            // 1. Xóa khỏi Firestore
             await deleteProfileMember(p.profileId);
-            const isActive = p.profileId === activeProfileId;
-            if (isActive) {
+            // 2. Xóa món ăn hôm nay của profile này
+            await removeMealPlanByProfileId(p.profileId);
+            // 3. Nếu đang xóa active profile → switch sang profile khác
+            if (p.profileId === activeProfileId) {
               const rest = profiles.filter(x => x.profileId !== p.profileId);
               if (rest.length > 0) await switchProfile(rest[0].profileId);
             }
             await loadAllProfilesAction();
-          }},
-        ]),
-      });
-    }
-    options.push({ text: 'Đóng', style: 'cancel' });
-    Alert.alert(p.displayName || 'Thành viên', undefined, options);
+          },
+        },
+      ]
+    );
   };
 
   // BMI calculation
@@ -363,8 +387,10 @@ const ProfileScreen = ({ navigation }) => {
                   p={p}
                   isActive={p.profileId === activeProfileId}
                   isLast={i === profiles.length - 1}
+                  canDelete={profiles.length > 1}
                   onPress={() => p.profileId !== activeProfileId && switchProfile(p.profileId)}
-                  onLongPress={() => handleMemberLongPress(p)}
+                  onEdit={() => navigation.getParent()?.navigate('AddEditProfile', { profileId: p.profileId })}
+                  onDelete={() => handleDeleteProfile(p)}
                 />
               ))}
 
@@ -532,7 +558,7 @@ const mr = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 12, paddingHorizontal: 16, minHeight: 64,
   },
-  rowActive: { backgroundColor: 'transparent' }, // paper overlay xử lý
+  rowActive: { backgroundColor: 'transparent' },
   avatar: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(200,169,110,0.15)',
@@ -543,8 +569,22 @@ const mr = StyleSheet.create({
   name: { fontFamily: 'BeVietnamPro-Bold', fontSize: 15, color: '#3D2B1F', marginBottom: 2 },
   nameActive: { fontFamily: 'Lora-Bold', color: '#5C3A1E' },
   sub: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: '#8B7355' },
+  actions: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, zIndex: 1,
+  },
+  iconBtn: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: 'rgba(200,169,110,0.15)',
+    borderWidth: 1, borderColor: 'rgba(200,169,110,0.4)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  iconBtnDelete: {
+    backgroundColor: 'rgba(192,57,43,0.08)',
+    borderColor: 'rgba(192,57,43,0.3)',
+  },
   activePill: {
-    backgroundColor: '#C8A96E', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: '#C8A96E', borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 4,
   },
   activePillText: { fontFamily: 'BeVietnamPro-Bold', fontSize: 11, color: '#FFF8EA' },
   divider: { height: 1, backgroundColor: 'rgba(200,169,110,0.25)', marginHorizontal: 16 },

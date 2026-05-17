@@ -9,6 +9,10 @@ import {
   loadTasteProfileForProfile,
   // [AUD-002] Reset module cache khi logout
   clearDeviceId,
+  // [FIX BUG-C] Xóa AsyncStorage nhạy cảm khi logout
+  clearUserLocalCache,
+  // Saved dishes
+  getSavedDishes, saveDish, removeSavedDish,
 } from '../utils/database';
 import { ensureFirebaseAuth } from '../utils/firebaseConfig';
 import { loadReminderSettings, DEFAULT_REMINDER_TIMES } from '../services/mealReminderService';
@@ -53,10 +57,14 @@ export const useAppStore = create((set, get) => ({
 
   // MarketBasket — giỏ nguyên liệu của phiên hiện tại
   marketBasket: {
-    selectedIngredients: [],  // Array<number> ingredient_id
+    selectedIngredients: [],
     isSkipped:           true,
     boostStrategy:       'strict',
   },
+
+  // Saved dishes — món yêu thích, load 1 lần khi app khởi động
+  savedDishes:    [],
+  savedDishIds:   new Set(), // Set<string> để check nhanh O(1)
 
   setProfile:          (profile)   => set({ profile }),
   setLatestMetrics:    (metrics)   => set({ latestMetrics: metrics }),
@@ -101,6 +109,36 @@ export const useAppStore = create((set, get) => ({
     marketBasket: { selectedIngredients: [], isSkipped: true, boostStrategy: 'strict' },
   }),
 
+  // ── Saved dishes actions ───────────────────────────────────────────────────
+  loadSavedDishes: async () => {
+    try {
+      const dishes = await getSavedDishes();
+      set({
+        savedDishes:  dishes,
+        savedDishIds: new Set(dishes.map(d => String(d.dish_id))),
+      });
+      return dishes;
+    } catch (e) { console.error('loadSavedDishes:', e); return []; }
+  },
+
+  toggleSaveDish: async (dish) => {
+    const id = String(dish.dish_id);
+    const { savedDishIds, savedDishes } = get();
+    if (savedDishIds.has(id)) {
+      // Bỏ lưu
+      await removeSavedDish(id);
+      const updated = savedDishes.filter(d => String(d.dish_id) !== id);
+      set({ savedDishes: updated, savedDishIds: new Set(updated.map(d => String(d.dish_id))) });
+      return false; // isSaved = false
+    } else {
+      // Lưu mới
+      await saveDish(dish);
+      const updated = [dish, ...savedDishes].slice(0, 50);
+      set({ savedDishes: updated, savedDishIds: new Set(updated.map(d => String(d.dish_id))) });
+      return true; // isSaved = true
+    }
+  },
+
   // ── Meal Reminder actions ──────────────────────────────────────────────────
   setReminderEnabled: (val) => set({ reminderEnabled: val }),
   setReminderTimes:   (val) => set({ reminderTimes: val }),
@@ -113,8 +151,13 @@ export const useAppStore = create((set, get) => ({
 
   // [FIX ID-M011] Reset toàn bộ store về trạng thái ban đầu khi logout
   // Gọi từ App.js trong onAuthStateChange khi session = null
-  resetStore: () => {
-    clearDeviceId(); // [AUD-002] Reset cached deviceId — ngăn User B đọc namespace của User A
+  resetStore: async () => {
+    clearDeviceId(); // [AUD-002] Reset cached deviceId
+    // [FIX SAVE-001] PHẢI await clearUserLocalCache() — hàm này async.
+    // Trước đây fire-and-forget gây race condition: store reset xong, login lại,
+    // initializeApp chạy loadSavedDishes() trong khi clearUserLocalCache() chưa
+    // chạy xong → AsyncStorage bị xóa SAU khi đã load → savedDishes = [].
+    await clearUserLocalCache();
     set({
     profile:             null,
     latestMetrics:       null,
@@ -132,6 +175,8 @@ export const useAppStore = create((set, get) => ({
     profiles:            [],
     activeProfileId:     null,
     marketBasket:        { selectedIngredients: [], isSkipped: true, boostStrategy: 'strict' },
+    savedDishes:         [],
+    savedDishIds:        new Set(),
     reminderEnabled:     false,
     reminderTimes:       [
       { id: 'lunch',  label: 'Bữa trưa', hour: 10, minute: 30 },

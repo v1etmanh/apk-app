@@ -57,16 +57,20 @@ export async function getDeviceId() {
  * Fix: ưu tiên Supabase userId (bất biến theo tài khoản, sống qua uninstall).
  * Fallback về deviceId chỉ khi chưa đăng nhập (edge case: guest mode / anonymous).
  *
- * Tất cả hàm Firestore PHẢI gọi getUserNamespace() thay getDeviceId().
+ * [FIX SAVE-003] Dùng getSession() thay getUser():
+ * - getUser() = network call đến Supabase server → chậm, có thể fail khi mạng yếu
+ *   → trả null → fallback sai deviceId → Firestore query path sai → savedDishes trống.
+ * - getSession() = đọc từ SecureStore (local, instant, luôn có ngay sau login)
+ *   → không có network call → userId luôn đúng ngay cả khi offline.
  */
 export async function getUserNamespace() {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.id) return user.id; // ← Supabase userId: ổn định qua uninstall/reinstall
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) return session.user.id;
   } catch (e) {
-    if (__DEV__) console.warn('[DB] getUserNamespace: supabase.auth.getUser failed, fallback to deviceId:', e.message);
+    if (__DEV__) console.warn('[DB] getUserNamespace: supabase.auth.getSession failed, fallback to deviceId:', e.message);
   }
-  return await getUserNamespace(); // fallback
+  return await getDeviceId();
 }
 
 // ─── Cấu trúc collection trên Firestore ───────────────────────────────────────
@@ -214,16 +218,22 @@ export async function saveSession(sessionData) {
 }
 
 export async function loadSessions(limitCount = 20) {
+  // [FIX PERM-001] ensureFirebaseAuth() trước khi query Firestore —
+  // loadSessions() được gọi từ HistoryScreen (useFocusEffect) mà không đi qua
+  // initializeApp(), nên Firebase Anonymous Auth có thể chưa sẵn sàng → permission-denied.
+  await ensureFirebaseAuth();
   const id = await getUserNamespace();
   const q = query(sessionsCol(id), orderBy('created_at', 'desc'), limit(limitCount));
-  const snap = await getDocs(q);
+  const snap = await withTimeoutFallback(getDocs(q), 8000, null);
+  if (!snap) return [];
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 export async function loadSessionById(sessionId) {
+  await ensureFirebaseAuth();
   const id = await getUserNamespace();
-  const snap = await getDoc(sessionRef(id, sessionId));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  const snap = await withTimeoutFallback(getDoc(sessionRef(id, sessionId)), 5000, null);
+  return snap && snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 // ─── RECOMMENDED DISHES ───────────────────────────────────────────────────────
@@ -770,17 +780,50 @@ export async function migrateExistingProfile() {
   }
 }
 
-// ─── SAVED DISHES — món ưa thích do user tự chọn (AsyncStorage) ──────────────
-// Lưu tối đa MAX_SAVED_DISHES món. Key: saved_dishes_v1
+// ─── SAVED DISHES — món ưa thích do user tự chọn ─────────────────────────────
+// Primary: AsyncStorage (instant, offline-safe)
+// Backup:  Firestore saved_dishes/{userId}/items/{dish_id} (sync khi có mạng)
 // Mỗi entry: { dish_id, title, image_url, cook_time_min, final_score, nation, saved_at }
 
 const SAVED_DISHES_KEY = 'saved_dishes_v1';
 const MAX_SAVED_DISHES = 50;
 
+// Ref helpers cho Firestore saved dishes
+function savedDishesCol(userId) {
+  return collection(firestore, 'saved_dishes', userId, 'items');
+}
+function savedDishRef(userId, dishId) {
+  return doc(firestore, 'saved_dishes', userId, 'items', String(dishId));
+}
+
+// [FIX BUG-A] Load từ Firestore khi AsyncStorage trống — phục hồi sau cài lại app
+// [FIX BUG-B] ensureFirebaseAuth() phải được gọi trước Firestore read để tránh
+//   permission-denied khi fallback chạy độc lập (gọi ngoài initializeApp flow).
 export async function getSavedDishes() {
   try {
+    // [FIX SAVE-002] Luôn đảm bảo Firebase auth sẵn sàng TRƯỚC khi check AS,
+    // tránh race condition: AS trống → Firestore query → permission-denied im lặng.
+    // Gọi sớm ở đây thay vì chỉ khi AS trống — chi phí thấp (cache hit nếu đã auth).
+    await ensureFirebaseAuth();
+
     const raw = await AsyncStorage.getItem(SAVED_DISHES_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.length > 0) return parsed;
+    }
+
+    // AsyncStorage trống → thử load từ Firestore (sau cài lại app / sau logout)
+    if (__DEV__) console.log('[DB] getSavedDishes: AS empty, fetching from Firestore...');
+
+    const userId = await getUserNamespace();
+    const q = query(savedDishesCol(userId), orderBy('saved_at', 'desc'), limit(MAX_SAVED_DISHES));
+    const snap = await withTimeoutFallback(getDocs(q), 6000, null);
+    if (!snap || snap.empty) return [];
+    const dishes = snap.docs.map(d => d.data());
+    // Hydrate lại AsyncStorage để lần sau không cần Firestore
+    await AsyncStorage.setItem(SAVED_DISHES_KEY, JSON.stringify(dishes));
+    if (__DEV__) console.log('[DB] getSavedDishes: hydrated', dishes.length, 'dishes from Firestore');
+    return dishes;
   } catch (e) {
     console.warn('[DB] getSavedDishes:', e);
     return [];
@@ -790,7 +833,6 @@ export async function getSavedDishes() {
 export async function saveDish(dish) {
   try {
     const current = await getSavedDishes();
-    // Nếu đã lưu rồi thì bỏ qua
     if (current.some(d => String(d.dish_id) === String(dish.dish_id))) return current;
     const entry = {
       dish_id:       dish.dish_id,
@@ -802,9 +844,21 @@ export async function saveDish(dish) {
       url:           dish.url           || '',
       saved_at:      new Date().toISOString(),
     };
-    // Thêm vào đầu, cắt tối đa MAX_SAVED_DISHES
     const updated = [entry, ...current].slice(0, MAX_SAVED_DISHES);
+    // 1. AsyncStorage — instant
     await AsyncStorage.setItem(SAVED_DISHES_KEY, JSON.stringify(updated));
+    // 2. Firestore — await thẳng để biết có lỗi không (không fire-and-forget nữa)
+    // [FIX BUG-C] ensureFirebaseAuth() trước write — saveDish() được gọi từ
+    // toggleSaveDish() trong store, KHÔNG đi qua initializeApp(). Nếu Firebase
+    // token chưa ready (cold start, hoặc sau resetStore) → permission-denied.
+    try {
+      await ensureFirebaseAuth();
+      const userId = await getUserNamespace();
+      await setDoc(savedDishRef(userId, dish.dish_id), entry);
+      if (__DEV__) console.log('[DB] saveDish Firestore OK — dish_id:', dish.dish_id);
+    } catch (fsErr) {
+      console.warn('[DB] saveDish Firestore FAILED:', fsErr.code, fsErr.message);
+    }
     return updated;
   } catch (e) {
     console.warn('[DB] saveDish:', e);
@@ -816,7 +870,14 @@ export async function removeSavedDish(dishId) {
   try {
     const current = await getSavedDishes();
     const updated = current.filter(d => String(d.dish_id) !== String(dishId));
+    // 1. AsyncStorage
     await AsyncStorage.setItem(SAVED_DISHES_KEY, JSON.stringify(updated));
+    // [FIX BUG-A] 2. Firestore — fire-and-forget nhưng đảm bảo auth trước
+    ensureFirebaseAuth().then(() => getUserNamespace()).then(userId =>
+      deleteDoc(savedDishRef(userId, dishId)).catch(e =>
+        console.warn('[DB] removeSavedDish Firestore sync failed (non-critical):', e.message)
+      )
+    );
     return updated;
   } catch (e) {
     console.warn('[DB] removeSavedDish:', e);
@@ -829,7 +890,23 @@ export async function isDishSaved(dishId) {
   return current.some(d => String(d.dish_id) === String(dishId));
 }
 
-// ─── db object — chỉ còn dùng bởi useAppStore (load profile/metrics/location)
+// [FIX BUG-C] Gọi khi logout — xóa toàn bộ AsyncStorage keys nhạy cảm của user
+// Ngăn User B nhìn thấy saved dishes / weather cache / recent dishes của User A
+export async function clearUserLocalCache() {
+  try {
+    await AsyncStorage.multiRemove([
+      SAVED_DISHES_KEY,
+      RECENT_DISHES_CACHE_KEY,
+    ]);
+    // Xóa hết weather cache keys
+    const allKeys = await AsyncStorage.getAllKeys();
+    const weatherKeys = allKeys.filter(k => k.startsWith(WEATHER_CACHE_PREFIX));
+    if (weatherKeys.length > 0) await AsyncStorage.multiRemove(weatherKeys);
+    if (__DEV__) console.log('[DB] clearUserLocalCache: cleared', SAVED_DISHES_KEY, RECENT_DISHES_CACHE_KEY, `+ ${weatherKeys.length} weather keys`);
+  } catch (e) {
+    console.warn('[DB] clearUserLocalCache:', e.message);
+  }
+}
 export const db = {
   getAllAsync: async (sql) => {
     if (sql.includes('personal_profile')) return [await loadProfile()].filter(Boolean);

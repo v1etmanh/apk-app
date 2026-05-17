@@ -2,10 +2,14 @@
  * services/mealReminderService.js
  * Quản lý toàn bộ vòng đời local notification nhắc ăn hàng ngày.
  *
- * ⚠️  DailyTriggerInput phải có ĐÚNG 3 keys: { hour, minute, repeats: true }
- *     Không thêm bất kỳ key nào khác vào trigger (kể cả channelId, type).
- *     Thêm key thừa → lỗi "Trigger of type: calendar is not supported on Android".
- *     channelId chỉ đặt ở content.channelId, KHÔNG phải trigger.
+ * ⚠️  expo-notifications ≥ 0.29 (SDK 53+): trigger BẮT BUỘC phải có `type`.
+ *     Dùng enum Notifications.SchedulableTriggerInputTypes:
+ *       - DAILY         → { type, hour, minute }  (lặp mỗi ngày)
+ *       - TIME_INTERVAL → { type, seconds, repeats }  (dev/test)
+ *     Trigger dạng { hour, minute, repeats } (không có type) sẽ ném lỗi
+ *     "The trigger object you provided is invalid. It needs to contain a type".
+ *
+ *     channelId chỉ đặt ở content.channelId (Android), KHÔNG phải trigger.
  */
 
 import * as Notifications from 'expo-notifications';
@@ -127,11 +131,11 @@ export async function scheduleReminder(meal, dishInfo = null) {
       ...(Platform.OS === 'android' && { channelId: 'meal-reminders' }),
     },
     trigger: {
-      // repeats: true bắt buộc cho Android để lịch daily không bị fire 1 lần rồi hủy
-      // Không thêm key thừa (channelId, type) vào trigger — đặt channelId ở content
-      hour:    meal.hour,
-      minute:  meal.minute,
-      repeats: true,
+      // expo-notifications ≥ 0.29 (SDK 53+) bắt buộc phải có `type` trong trigger.
+      // DAILY trigger = lặp lại mỗi ngày đúng giờ đó.
+      type:   Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour:   meal.hour,
+      minute: meal.minute,
     },
   });
 }
@@ -189,7 +193,7 @@ export async function scheduleTestNotification() {
       ...(Platform.OS === 'android' && { channelId: 'meal-reminders' }),
     },
     trigger: {
-      type: 'timeInterval',
+      type:    Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
       seconds: 5,
       repeats: true,
     },

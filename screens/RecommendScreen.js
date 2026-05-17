@@ -292,13 +292,11 @@ const RecommendScreen = ({ navigation, route }) => {
   const [totalDishes, setTotalDishes]     = useState(0);
   const [error, setError]                 = useState(null);
   const [basketWarning, setBasketWarning] = useState(null); // object khi pool < 10, null bình thường
-  const { setCurrentSessionId, profile, activeProfileId }    = useAppStore();
+  const { setCurrentSessionId, profile, activeProfileId, savedDishIds, toggleSaveDish } = useAppStore();
 
-  // ── Meal plan state: set của dish_id đã thêm vào bữa hôm nay ──────────────
+  // ── Meal plan state ────────────────────────────────────────────────────────
   const [addedDishIds, setAddedDishIds] = useState(new Set());
-  // ── Saved dishes state: set của dish_id đã bookmark ──────────────────────
-  const [savedDishIds, setSavedDishIds] = useState(new Set());
-  // Toast feedback
+  // savedDishIds lấy từ store — không cần local state nữa
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const [toastMsg, setToastMsg] = useState('');
   // [FIX ID-M015] AbortController — cancel request cũ nếu user bấm "Làm mới" nhiều lần
@@ -311,9 +309,6 @@ const RecommendScreen = ({ navigation, route }) => {
       const plan = await getMealPlan(getTodayDateStr());
       const ids = new Set(plan.items.flatMap(i => i.dishes.map(d => d.dish_id)));
       setAddedDishIds(ids);
-      // Load saved dishes
-      const saved = await getSavedDishes();
-      setSavedDishIds(new Set(saved.map(d => String(d.dish_id))));
     })();
   }, []);
 
@@ -340,20 +335,15 @@ const RecommendScreen = ({ navigation, route }) => {
     showToast(`✅ Đã thêm "${dish.title}" vào bữa hôm nay!`);
   }, [profile, activeProfileId, showToast]);
 
-  // Handler bookmark / bỏ bookmark món
+  // Handler bookmark — dùng store action thay vì local state
   const handleToggleSave = useCallback(async (dish) => {
-    const id = String(dish.dish_id);
-    const isSaved = savedDishIds.has(id);
-    if (isSaved) {
-      await removeSavedDish(id);
-      setSavedDishIds(prev => { const s = new Set(prev); s.delete(id); return s; });
-      showToast(`🔖 Đã bỏ lưu "${dish.title}"`);
-    } else {
-      await saveDish(dish);
-      setSavedDishIds(prev => new Set([...prev, id]));
+    const wasSaved = await toggleSaveDish(dish);
+    if (!wasSaved) {
       showToast(`🔖 Đã lưu "${dish.title}" vào yêu thích!`);
+    } else {
+      showToast(`🔖 Đã bỏ lưu "${dish.title}"`);
     }
-  }, [savedDishIds, showToast]);
+  }, [toggleSaveDish, showToast]);
 
   useEffect(() => {
     fetchFirstPage();

@@ -21,6 +21,7 @@ import { GearSix }         from 'phosphor-react-native/lib/module/icons/GearSix'
 import { PawPrint }        from 'phosphor-react-native/lib/module/icons/PawPrint';
 import { SignOut }         from 'phosphor-react-native/lib/module/icons/SignOut';
 import { Bell }           from 'phosphor-react-native/lib/module/icons/Bell';
+import { Clock }          from 'phosphor-react-native/lib/module/icons/Clock';
 import { getSetting, setSetting, clearAllHistory } from '../utils/database';
 import {
   requestNotificationPermission,
@@ -166,17 +167,21 @@ const SettingsScreen = () => {
   // [FIX NOTIF-SYNC] Đồng bộ switch với system permission mỗi khi màn hình được focus.
   // User có thể vào System Settings tắt notification ngoài app → switch phải phản ánh đúng.
   useFocusEffect(useCallback(() => {
-    (async () => {
+    // Delay nhỏ để OS kịp cập nhật permission status sau khi dialog đóng
+    const timer = setTimeout(async () => {
       const { status } = await Notifications.getPermissionsAsync();
       const systemGranted = status === 'granted';
-      if (!systemGranted && reminderEnabled) {
-        // System đã tắt → tắt luôn trong app + huỷ schedule
-        await cancelAllReminders();
-        await saveReminderSettings(false, reminderTimes);
-        setReminderEnabled(false);
-      }
-    })();
-  }, [reminderEnabled]));
+      setReminderEnabled(prev => {
+        if (!systemGranted && prev) {
+          cancelAllReminders();
+          loadReminderSettings().then(({ times }) => saveReminderSettings(false, times));
+          return false;
+        }
+        return prev;
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []));
 
   const loadSettings = async () => {
     try {
@@ -196,17 +201,11 @@ const SettingsScreen = () => {
         lon:      parseFloat(lon),
         province: province || location?.province,
       });
-      // Load trạng thái reminder — đồng bộ với system permission
+      // Load trạng thái reminder — KHÔNG tự tắt ở đây
+      // Việc sync với system permission đã có useFocusEffect lo (với delay 500ms)
+      // Tự tắt trong loadSettings gây bug: Android chưa update permission kịp → tắt nhầm
       const { enabled, times } = await loadReminderSettings();
-      const { status } = await Notifications.getPermissionsAsync();
-      const systemGranted = status === 'granted';
-      // Nếu system tắt permission nhưng app vẫn lưu enabled=true → tắt luôn
-      const effectiveEnabled = enabled && systemGranted;
-      if (enabled && !systemGranted) {
-        await cancelAllReminders();
-        await saveReminderSettings(false, times);
-      }
-      setReminderEnabled(effectiveEnabled);
+      setReminderEnabled(enabled);
       setReminderTimes(times || DEFAULT_REMINDER_TIMES);
     } catch (e) { console.error('loadSettings:', e); }
   };
@@ -257,10 +256,14 @@ const SettingsScreen = () => {
   const updateReminderTime = async (mealId, newMeal) => {
     const newTimes = reminderTimes.map(t => t.id === mealId ? newMeal : t);
     setReminderTimes(newTimes);
-    if (reminderEnabled) {
-      await rescheduleAllReminders(newTimes);
+    try {
+      if (reminderEnabled) {
+        await rescheduleAllReminders(newTimes);
+      }
+      await saveReminderSettings(reminderEnabled, newTimes);
+    } catch (e) {
+      console.error('updateReminderTime:', e);
     }
-    await saveReminderSettings(reminderEnabled, newTimes);
   };
 
   const save = async (key, val) => {

@@ -257,10 +257,12 @@ const App = () => {
       setAuthState(session ? 'authenticated' : 'unauthenticated');
       if (!session) {
         setAppReady(false);
-        // [FIX ID-M011] Xóa toàn bộ dữ liệu user khỏi store khi logout
-        // Ngăn data leak: user A logout → user B login trên cùng thiết bị
-        // không còn thấy profile/metrics/allergies của user A
-        useAppStore.getState().resetStore();
+        // [FIX SAVE-001] resetStore() giờ là async — phải await để đảm bảo
+        // clearUserLocalCache() xong TRƯỚC khi authState thay đổi kích hoạt
+        // initializeApp() ở lần login tiếp theo.
+        useAppStore.getState().resetStore().catch(e =>
+          console.warn('[App] resetStore error (non-critical):', e.message)
+        );
       }
     });
     return () => subscription.unsubscribe();
@@ -407,7 +409,9 @@ const App = () => {
 
   const registerDeviceToken = async (location) => {
     try {
-      // Hỏi quyền nếu chưa được cấp — popup sẽ hiện lần đầu tiên
+      // Request notification permission — hiện dialog nếu chưa granted
+      // Dùng lại !== 'granted' thay vì === 'undetermined' vì Android
+      // đôi khi trả về giá trị khác sau cài APK mới
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       if (existingStatus !== 'granted') {
@@ -415,7 +419,7 @@ const App = () => {
         finalStatus = status;
       }
       if (finalStatus !== 'granted') {
-        if (__DEV__) console.warn('[Push] Notification permission denied');
+        if (__DEV__) console.warn('[Push] Notification permission not granted:', finalStatus);
         return;
       }
 
@@ -482,30 +486,33 @@ const App = () => {
       // Load settings (bao gồm activeProfileId, location, costPref, v.v.)
       await initializeSettings();
 
-      // Load data song song
+      // Load data song song — tất cả đều cần Firebase auth đã sẵn sàng (đảm bảo ở bước 1)
       await Promise.all([
         loadProfile(),
         loadLatestMetrics(),
         loadAllergies(),
         loadAllProfilesAction(),
         initializeIngredients(),
+        useAppStore.getState().loadSavedDishes(), // load món yêu thích — auth đã xong ở bước 1
       ]);
 
       // Notification channel (Android 8+ bắt buộc)
       await setupNotificationChannel();
 
-      // GPS + push token — chạy background, không block splash
-      getUserLocation().then(loc => {
-        if (loc) {
-          useAppStore.getState().setLocation({
-            lat: Math.round(loc.coords.latitude  * 100) / 100,
-            lon: Math.round(loc.coords.longitude * 100) / 100,
-            province:    useAppStore.getState().location?.province    ?? '',
-            food_region: useAppStore.getState().location?.food_region ?? '',
-          });
-        }
-        registerDeviceToken(loc);
-      });
+      // [FIX PERM] Request GPS + Notification permission SỚM — ngay sau splash
+      // để dialog hiện ra trước mặt user, không chạy ngầm background
+      // GPS trước, notification sau (tránh 2 dialog chồng nhau)
+      const locResult = await getUserLocation();
+      if (locResult) {
+        useAppStore.getState().setLocation({
+          lat: Math.round(locResult.coords.latitude  * 100) / 100,
+          lon: Math.round(locResult.coords.longitude * 100) / 100,
+          province:    useAppStore.getState().location?.province    ?? '',
+          food_region: useAppStore.getState().location?.food_region ?? '',
+        });
+      }
+      // Notification permission + đăng ký token (chạy sau GPS để dialog không chồng)
+      registerDeviceToken(locResult);
 
       setShowOnboarding(false);
       setAppReady(true);

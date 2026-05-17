@@ -161,6 +161,23 @@ export async function isDishInProfilePlan(profileId, dishId) {
 }
 
 /**
+ * Xoá toàn bộ món ăn của 1 profile trong bữa hôm nay.
+ * Gọi khi xóa profile để tránh orphan entries trong meal plan.
+ */
+export async function removeMealPlanByProfileId(profileId) {
+  try {
+    const plan = await getMealPlan();
+    const before = plan.items.length;
+    plan.items = plan.items.filter(i => i.profileId !== profileId);
+    if (plan.items.length !== before) {
+      await saveMealPlan(plan);
+    }
+  } catch (e) {
+    console.warn('[MealPlan] removeMealPlanByProfileId error:', e);
+  }
+}
+
+/**
  * Lấy tất cả dishes trong bữa hôm nay (gộp tất cả profiles, không trùng dish_id)
  * → dùng để đẩy sang MarketBasket
  */

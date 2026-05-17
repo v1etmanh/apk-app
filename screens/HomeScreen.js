@@ -398,7 +398,13 @@ const HomeScreen = ({ navigation }) => {
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name="location-outline" size={16} color={C.textMid} />
-              <Text style={s.locationLabel}> {location?.province || 'Đang xác định...'}</Text>
+              <Text style={s.locationLabel}>
+                {location?.province
+                  ? ` ${location.province}`
+                  : location?.lat && location?.lon
+                    ? ` ${Number(location.lat).toFixed(4)}, ${Number(location.lon).toFixed(4)}`
+                    : ' Đang xác định...'}
+              </Text>
             </View>
             <Text style={s.dateLabel}>
               {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })}
