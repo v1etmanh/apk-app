@@ -338,7 +338,6 @@ const App = () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return null;
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      // [AUD-006] Round 2 decimals (~1.1km) — app chỉ cần city-level, data minimization GDPR
       const lat = Math.round(loc.coords.latitude  * 100) / 100;
       const lon = Math.round(loc.coords.longitude * 100) / 100;
       setSetting('last_known_lat', String(lat));
@@ -348,21 +347,50 @@ const App = () => {
     } catch { return null; }
   };
 
+  // [FIX LOC-002] Chỉ dùng khi resume từ background — KHÔNG request permission
+  // (requestForegroundPermissionsAsync hiển thị dialog → app vào background →
+  //  AppState fire → gọi lại hàm này → vòng lặp vô hạn)
+  const getLocationWithoutRequest = async () => {
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== 'granted') return null;
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const lat = Math.round(loc.coords.latitude  * 100) / 100;
+      const lon = Math.round(loc.coords.longitude * 100) / 100;
+      setSetting('last_known_lat', String(lat));
+      setSetting('last_known_lon', String(lon));
+      return loc;
+    } catch { return null; }
+  };
+
+  const appReadyRef = useRef(false); // [FIX LOC-001] ref để tránh re-create checkLocationOnResume
+
   // ── Fetch location mỗi lần app mở / resume từ background ────────────────
+  // [FIX LOC-001] Dùng ref thay vì deps [authState, appReady] để useCallback không
+  // re-create mỗi khi appReady thay đổi → tránh AppState listener bị remove/add lại
+  // liên tục → tránh setLocation gọi nhiều lần → tránh HomeScreen nhấp nháy.
   const checkLocationOnResume = useCallback(async () => {
-    if (authState !== 'authenticated' || !appReady) return;
+    if (authState !== 'authenticated' || !appReadyRef.current) return;
     if (__DEV__) console.log('[Location] App resume — re-fetch location');
-    const loc = await getUserLocation();
+    // [FIX LOC-002] dùng getLocationWithoutRequest — không hiển thị permission dialog
+    const loc = await getLocationWithoutRequest();
     if (loc) {
-      useAppStore.getState().setLocation({
-        lat: Math.round(loc.coords.latitude  * 100) / 100,
-        lon: Math.round(loc.coords.longitude * 100) / 100,
-        province:    useAppStore.getState().location?.province    ?? '',
-        food_region: useAppStore.getState().location?.food_region ?? '',
-      });
+      const lat = Math.round(loc.coords.latitude  * 100) / 100;
+      const lon = Math.round(loc.coords.longitude * 100) / 100;
+      const current = useAppStore.getState().location;
+      // [FIX LOC-001] Chỉ setLocation nếu toạ độ thực sự thay đổi (>= 0.01 độ ~ 1km)
+      // Tránh trigger re-render HomeScreen khi user không di chuyển
+      if (Math.abs((current?.lat ?? 0) - lat) >= 0.01 || Math.abs((current?.lon ?? 0) - lon) >= 0.01) {
+        useAppStore.getState().setLocation({
+          lat,
+          lon,
+          province:    current?.province    ?? '',
+          food_region: current?.food_region ?? '',
+        });
+      }
       registerDeviceToken(loc);
     }
-  }, [authState, appReady]);
+  }, [authState]); // ← bỏ appReady khỏi deps
 
   // ── Lắng nghe AppState — chạy checkLocationOnResume khi về foreground ─────
   useEffect(() => {
@@ -481,6 +509,7 @@ const App = () => {
 
       setShowOnboarding(false);
       setAppReady(true);
+      appReadyRef.current = true; // [FIX LOC-001] sync ref
     } catch (e) {
       console.error('[App] initializeApp error:', e);
       // KHÔNG setAppReady(true) khi lỗi Firebase auth — retry khi authState thay đổi lại.
@@ -488,6 +517,7 @@ const App = () => {
       const isAuthError = e?.code === 'permission-denied' || e?.message?.includes('permission');
       if (!isAuthError) {
         setAppReady(true);
+        appReadyRef.current = true; // [FIX LOC-001]
       } else {
         console.warn('[App] Firebase permission error — giữ splash, chờ auth ổn định rồi retry');
         // Retry sau 2 giây

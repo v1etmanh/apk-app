@@ -2,10 +2,10 @@ $APK_SRC  = "android\app\build\outputs\apk\release\app-release.apk"
 $APK_DEST = "DailyMate-release.apk"
 
 Write-Host "=== [1/2] Exporting JS bundle ===" -ForegroundColor Cyan
+# --clear đã bị bỏ từ Expo SDK 51+ — xóa Metro cache thủ công nếu cần
 npx expo export:embed `
   --platform android `
   --dev false `
-  --clear `
   --entry-file node_modules/expo/AppEntry.js `
   --bundle-output android/app/src/main/assets/index.android.bundle `
   --assets-dest android/app/src/main/res

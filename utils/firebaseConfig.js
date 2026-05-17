@@ -31,15 +31,54 @@ export const firebaseAuth = isFirstInit
   : getAuth(app);
 
 /**
+ * Chờ Firebase Auth SDK restore session từ AsyncStorage persistence.
+ * Phải gọi trước bất kỳ Firestore read nào để tránh permission-denied khi app khởi động lại.
+ * onAuthStateChanged fire 1 lần ngay khi SDK load xong (với currentUser hoặc null).
+ */
+function waitForFirebaseAuthReady(timeoutMs = 5000) {
+  return new Promise((resolve) => {
+    // Nếu SDK đã có user (hot reload / đã init xong), resolve ngay
+    if (firebaseAuth.currentUser) { resolve(); return; }
+
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) { settled = true; resolve(); } // timeout → không block app
+    }, timeoutMs);
+
+    const unsub = firebaseAuth.onAuthStateChanged(() => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        unsub();
+        resolve();
+      }
+    });
+  });
+}
+
+/**
  * Đảm bảo Firebase có anonymous session → Firestore Rules (request.auth != null) pass.
  * Gọi 1 lần trong initializeApp() của App.js sau khi Supabase session active.
  * KHÔNG ảnh hưởng đến Supabase auth — hoàn toàn độc lập.
+ *
+ * Flow khi mở lại app:
+ *   1. waitForFirebaseAuthReady() — chờ SDK đọc token từ AsyncStorage persistence
+ *   2. Nếu currentUser đã có (token còn hạn) → xong
+ *   3. Nếu không → signInAnonymously để tạo session mới
  */
 export async function ensureFirebaseAuth() {
   try {
-    if (firebaseAuth.currentUser) return; // Đã có session rồi
+    // Bước 1: chờ SDK restore persisted session (quan trọng khi restart app)
+    await waitForFirebaseAuthReady();
+
+    // Bước 2: nếu sau khi chờ vẫn chưa có user → tạo anonymous session mới
+    if (firebaseAuth.currentUser) {
+      if (__DEV__) console.log('[Firebase] Auth ready — user:', firebaseAuth.currentUser.uid.slice(0,8));
+      return;
+    }
+
     await signInAnonymously(firebaseAuth);
-    if (__DEV__) console.log('[Firebase] Anonymous auth OK');
+    if (__DEV__) console.log('[Firebase] Anonymous auth OK — new session');
   } catch (e) {
     console.warn('[Firebase] ensureFirebaseAuth failed:', e.message);
   }

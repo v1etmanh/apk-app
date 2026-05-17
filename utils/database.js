@@ -13,9 +13,11 @@ import {
 import { firestore, ensureFirebaseAuth } from './firebaseConfig';
 // ─── Local data — ingredients (offline-first, không cần Firestore) ────────────
 import { ALL_INGREDIENTS, getAllCategories, getIngredientsByCategory } from './ingredientsData';
+// ─── Supabase (chỉ đọc userId — không import toàn bộ client để tránh circular) ──
+import { supabase } from '../store/suppabase';
 
-// ─── Device ID (thay cho user auth) ───────────────────────────────────────────
-// Mỗi máy có 1 deviceId duy nhất, dùng làm "user namespace" trên Firestore
+// ─── Device ID (fallback khi chưa đăng nhập) ─────────────────────────────────
+// Chỉ dùng làm fallback. Primary namespace là Supabase userId (xem getUserNamespace).
 let _deviceId = null;
 
 // [AUD-002] Dùng khi logout — reset cache để User B không đọc namespace của User A
@@ -46,6 +48,27 @@ export async function getDeviceId() {
   return id;
 }
 
+/**
+ * getUserNamespace() — namespace duy nhất để phân vùng dữ liệu Firestore theo user.
+ *
+ * FIX (BUG NGHIÊM TRỌNG): Trước đây dùng deviceId (UUID lưu SecureStore) làm namespace.
+ * Khi user xóa app → SecureStore bị xóa → UUID mới → không tìm lại được data cũ.
+ *
+ * Fix: ưu tiên Supabase userId (bất biến theo tài khoản, sống qua uninstall).
+ * Fallback về deviceId chỉ khi chưa đăng nhập (edge case: guest mode / anonymous).
+ *
+ * Tất cả hàm Firestore PHẢI gọi getUserNamespace() thay getDeviceId().
+ */
+export async function getUserNamespace() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id) return user.id; // ← Supabase userId: ổn định qua uninstall/reinstall
+  } catch (e) {
+    if (__DEV__) console.warn('[DB] getUserNamespace: supabase.auth.getUser failed, fallback to deviceId:', e.message);
+  }
+  return await getUserNamespace(); // fallback
+}
+
 // ─── Cấu trúc collection trên Firestore ───────────────────────────────────────
 // profiles/{deviceId}                          ← personal_profile
 // body_metrics/{deviceId}/entries/{autoId}     ← body_metrics
@@ -69,8 +92,8 @@ function weatherRef(gridKey)       { return doc(firestore, 'weather_cache', grid
 
 // ─── initDB  (không cần tạo table, Firestore tự tạo) ─────────────────────────
 export async function initDB() {
-  await getDeviceId(); // đảm bảo deviceId tồn tại
-  if (__DEV__) console.log('[DB] Firebase Firestore ready. deviceId:', _deviceId);
+  await getUserNamespace(); // đảm bảo namespace sẵn sàng
+  if (__DEV__) console.log('[DB] Firebase Firestore ready. namespace:', await getUserNamespace());
 }
 
 // ─── Timeout helper — Firestore call không được block >5s ─────────────────────
@@ -100,25 +123,25 @@ async function withTimeoutFallback(promise, ms = 5000, fallback = null) {
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
 export async function saveProfile(data) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   await setDoc(profileRef(id), { ...data, updated_at: new Date().toISOString() }, { merge: true });
 }
 
 export async function loadProfile() {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const snap = await withTimeoutFallback(getDoc(profileRef(id)), 5000, null);
   return snap && snap.exists() ? { id: 1, ...snap.data() } : null;
 }
 
 // ─── BODY METRICS ─────────────────────────────────────────────────────────────
 export async function saveBodyMetrics(data) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const ref = await addDoc(metricsCol(id), { ...data, measured_at: data.measured_at || new Date().toISOString() });
   return ref.id;
 }
 
 export async function loadLatestMetrics() {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const q = query(metricsCol(id), orderBy('measured_at', 'desc'), limit(1));
   const snap = await withTimeoutFallback(getDocs(q), 5000, null);
   if (!snap || snap.empty) return null;
@@ -127,7 +150,7 @@ export async function loadLatestMetrics() {
 
 // FIX (Hiệu suất): thêm limit(100) tránh fetch không giới hạn khi user dùng lâu dài.
 export async function loadAllMetrics(limitCount = 100) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const q = query(metricsCol(id), orderBy('measured_at', 'desc'), limit(limitCount));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -135,7 +158,7 @@ export async function loadAllMetrics(limitCount = 100) {
 
 // ─── ALLERGIES ────────────────────────────────────────────────────────────────
 export async function addAllergy(allergyKey, displayName) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   await setDoc(allergyRef(id, allergyKey), {
     allergy_key: allergyKey,
     display_name: displayName,
@@ -144,12 +167,12 @@ export async function addAllergy(allergyKey, displayName) {
 }
 
 export async function removeAllergy(allergyKey) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   await deleteDoc(allergyRef(id, allergyKey));
 }
 
 export async function loadAllergies() {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const snap = await withTimeoutFallback(getDocs(allergiesCol(id)), 5000, null);
   if (!snap) return [];
   return snap.docs.map(d => d.data());
@@ -160,7 +183,7 @@ export async function setSetting(key, value) {
   await AsyncStorage.setItem(`setting_${key}`, String(value));
   
   try {
-    const id = await getDeviceId();
+    const id = await getUserNamespace();
     await setDoc(settingsRef(id, key), { key, value: String(value) });
     // [FIX ID-M004] guard __DEV__ — không log setting key trong production
     if (__DEV__) console.log('[DB] setSetting Firestore OK:', key);
@@ -174,14 +197,14 @@ export async function getSetting(key) {
    const local = await AsyncStorage.getItem(`setting_${key}`);
   if (local !== null) return local;
   // 2. Fallback lên Firestore
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const snap = await withTimeoutFallback(getDoc(settingsRef(id, key)), 5000, null);
   return snap && snap.exists() ? snap.data().value : null;
 }
 
 // ─── RECOMMENDATION SESSIONS ──────────────────────────────────────────────────
 export async function saveSession(sessionData) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const ref = await addDoc(sessionsCol(id), {
     ...sessionData,
     created_at: sessionData.created_at || new Date().toISOString(),
@@ -191,28 +214,28 @@ export async function saveSession(sessionData) {
 }
 
 export async function loadSessions(limitCount = 20) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const q = query(sessionsCol(id), orderBy('created_at', 'desc'), limit(limitCount));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 export async function loadSessionById(sessionId) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const snap = await getDoc(sessionRef(id, sessionId));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 // ─── RECOMMENDED DISHES ───────────────────────────────────────────────────────
 export async function saveDishesToSession(sessionId, dishes) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const col = dishesCol(id, sessionId);
   const promises = dishes.map(dish => addDoc(col, dish));
   await Promise.all(promises);
 }
 
 export async function loadDishesBySession(sessionId) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const q = query(dishesCol(id, sessionId), orderBy('rank', 'asc'));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -220,7 +243,7 @@ export async function loadDishesBySession(sessionId) {
 
 // ─── DISH FEEDBACK ────────────────────────────────────────────────────────────
 export async function saveFeedback(feedbackData) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const ref = await addDoc(feedbackCol(id), {
     ...feedbackData,
     feedback_at: feedbackData.feedback_at || new Date().toISOString(),
@@ -230,7 +253,7 @@ export async function saveFeedback(feedbackData) {
 }
 
 export async function loadFeedbackBySession(sessionId) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const q = query(feedbackCol(id), where('session_id', '==', sessionId));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -248,7 +271,7 @@ export async function loadFeedbackBySession(sessionId) {
  */
 export async function getRecentDishIds(nSessions = 3) {
   try {
-    const id = await getDeviceId();
+    const id = await getUserNamespace();
     const q = query(sessionsCol(id), orderBy('created_at', 'desc'), limit(nSessions));
     const sessSnap = await withTimeoutFallback(getDocs(q), 6000, null);
     if (!sessSnap || sessSnap.empty) return [];
@@ -427,7 +450,7 @@ export async function computeStreak() {
  */
 export async function pruneOldSessions(maxCount = 20) {
   try {
-    const id = await getDeviceId();
+    const id = await getUserNamespace();
 
     // [AUD-009] limit(maxCount + 5) thay vì fetch unbounded — tránh billing DoS
     const q = query(sessionsCol(id), orderBy('created_at', 'desc'), limit(maxCount + 5));
@@ -473,7 +496,7 @@ export async function pruneOldSessions(maxCount = 20) {
 // FIX (Hiệu suất): fetch tất cả dishes song song, tránh N+1 problem.
 // Với 20 session × 10 dishes, giảm từ ~200 Firestore calls nối đuôi → parallel batch.
 export async function clearAllHistory() {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const sessions = await getDocs(sessionsCol(id));
 
   // Fetch dishes của mọi session song song
@@ -549,7 +572,7 @@ export async function setActiveProfileId(profileId) {
 export async function loadAllProfiles() {
   try {
     await ensureFirebaseAuth(); // [FIX] Firestore read cũng cần auth nếu Rules require auth
-    const id = await getDeviceId();
+    const id = await getUserNamespace();
     const snap = await withTimeoutFallback(getDocs(membersCol(id)), 6000, null);
     if (!snap) return [];
     return snap.docs.map(d => ({ profileId: d.id, ...d.data() }))
@@ -564,7 +587,7 @@ export async function loadAllProfiles() {
 export async function loadProfileById(profileId) {
   if (!profileId) return null;
   try {
-    const id = await getDeviceId();
+    const id = await getUserNamespace();
     const snap = await withTimeoutFallback(getDoc(memberRef(id, profileId)), 5000, null);
     return snap && snap.exists() ? { profileId: snap.id, ...snap.data() } : null;
   } catch (e) {
@@ -579,7 +602,7 @@ export async function saveProfileMember(data) {
   // [AUD-001] __DEV__ guard — không leak profileId/deviceId/path ra production logs
   if (__DEV__) console.log('[DB] saveProfileMember called — profileId:', profileId, '| data keys:', Object.keys(rest));
   if (!profileId) throw new Error('saveProfileMember: profileId required');
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   if (__DEV__) console.log('[DB] saveProfileMember — deviceId:', id, '| path: device_profiles/', id, '/members/', profileId);
   try {
     await setDoc(memberRef(id, profileId), {
@@ -596,7 +619,7 @@ export async function saveProfileMember(data) {
 
 // ── Delete profile member ────────────────────────────────────────────────────
 export async function deleteProfileMember(profileId) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   // Xóa sub-collections allergies trước
   const alSnap = await withTimeoutFallback(getDocs(memberAllergiesCol(id, profileId)), 5000, null);
   const meSnap = await withTimeoutFallback(getDocs(memberMetricsCol(id, profileId)), 5000, null);
@@ -610,14 +633,14 @@ export async function deleteProfileMember(profileId) {
 // ── Scoped Allergies ─────────────────────────────────────────────────────────
 export async function loadAllergiesForProfile(profileId) {
   if (!profileId) return [];
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const snap = await withTimeoutFallback(getDocs(memberAllergiesCol(id, profileId)), 5000, null);
   if (!snap) return [];
   return snap.docs.map(d => d.data());
 }
 
 export async function addAllergyForProfile(profileId, allergyKey, displayName) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   await setDoc(memberAllergyRef(id, profileId, allergyKey), {
     allergy_key: allergyKey,
     display_name: displayName,
@@ -626,14 +649,14 @@ export async function addAllergyForProfile(profileId, allergyKey, displayName) {
 }
 
 export async function removeAllergyForProfile(profileId, allergyKey) {
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   await deleteDoc(memberAllergyRef(id, profileId, allergyKey));
 }
 
 // ── Scoped Body Metrics ──────────────────────────────────────────────────────
 export async function loadLatestMetricsForProfile(profileId) {
   if (!profileId) return null;
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const q = query(memberMetricsCol(id, profileId), orderBy('measured_at', 'desc'), limit(1));
   const snap = await withTimeoutFallback(getDocs(q), 5000, null);
   if (!snap || snap.empty) return null;
@@ -642,7 +665,7 @@ export async function loadLatestMetricsForProfile(profileId) {
 
 export async function saveBodyMetricsForProfile(profileId, data) {
   if (!profileId) return null;
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const ref = await addDoc(memberMetricsCol(id, profileId), {
     ...data,
     measured_at: data.measured_at || new Date().toISOString(),
@@ -652,7 +675,7 @@ export async function saveBodyMetricsForProfile(profileId, data) {
 
 export async function loadAllMetricsForProfile(profileId, limitCount = 100) {
   if (!profileId) return [];
-  const id = await getDeviceId();
+  const id = await getUserNamespace();
   const q = query(memberMetricsCol(id, profileId), orderBy('measured_at', 'desc'), limit(limitCount));
   const snap = await withTimeoutFallback(getDocs(q), 6000, null);
   if (!snap) return [];
@@ -663,7 +686,7 @@ export async function loadAllMetricsForProfile(profileId, limitCount = 100) {
 // Lưu khẩu vị vào device_profiles/{deviceId}/members/{profileId} (merge)
 export async function saveTasteProfileForProfile(profileId, { tasteProfile, hometownProvinceId, tasteMode }) {
   if (!profileId) return;
-  const deviceId = await getDeviceId();
+  const deviceId = await getUserNamespace();
   await setDoc(memberRef(deviceId, profileId), {
     taste_profile:        tasteProfile,
     hometown_province_id: hometownProvinceId ?? null,
@@ -675,7 +698,7 @@ export async function saveTasteProfileForProfile(profileId, { tasteProfile, home
 // Đọc khẩu vị từ member doc
 export async function loadTasteProfileForProfile(profileId) {
   if (!profileId) return null;
-  const deviceId = await getDeviceId();
+  const deviceId = await getUserNamespace();
   const snap = await withTimeoutFallback(getDoc(memberRef(deviceId, profileId)), 5000, null);
   if (!snap || !snap.exists()) return null;
   const data = snap.data();
@@ -692,7 +715,7 @@ export async function migrateExistingProfile() {
     const activeId = await getActiveProfileId();
     if (activeId) return; // Đã migrate rồi, bỏ qua
 
-    const deviceId = await getDeviceId();
+    const deviceId = await getUserNamespace();
 
     // 1. Đọc profile cũ
     const oldSnap = await withTimeoutFallback(getDoc(profileRef(deviceId)), 5000, null);
@@ -735,7 +758,7 @@ export async function migrateExistingProfile() {
     console.warn('[DB] migrateExistingProfile error:', e.message);
     try {
       const fallbackId = 'profile_default';
-      const deviceId = await getDeviceId();
+      const deviceId = await getUserNamespace();
       await setDoc(memberRef(deviceId, fallbackId), {
         displayName: 'Bản thân', relation: 'self', avatar: '🧑',
         isDefault: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),

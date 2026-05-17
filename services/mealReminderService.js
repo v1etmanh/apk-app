@@ -127,9 +127,11 @@ export async function scheduleReminder(meal, dishInfo = null) {
       ...(Platform.OS === 'android' && { channelId: 'meal-reminders' }),
     },
     trigger: {
-      type:    'daily',
+      // repeats: true bắt buộc cho Android để lịch daily không bị fire 1 lần rồi hủy
+      // Không thêm key thừa (channelId, type) vào trigger — đặt channelId ở content
       hour:    meal.hour,
       minute:  meal.minute,
+      repeats: true,
     },
   });
 }

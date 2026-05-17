@@ -147,11 +147,16 @@ export const useAppStore = create((set, get) => ({
       const list = await loadAllProfiles();
       set({ profiles: list });
 
-      // AUTO-ACTIVATE: nếu chưa có profile nào active mà list không rỗng
-      // → tự động active profile đầu tiên để tránh lỗi save/load null profileId
       const currentActiveId = get().activeProfileId;
+
       if (!currentActiveId && list.length > 0) {
+        // Lần đầu — chưa có active profile → pick cái đầu tiên
         await get().switchProfile(list[0].profileId);
+      } else if (currentActiveId) {
+        // [FIX TASTE] Đã có activeProfileId nhưng taste/allergies/metrics chưa được load
+        // vào store (chỉ có từ initializeSettings đọc AsyncStorage, không có Firestore data).
+        // Gọi switchProfile để load đầy đủ: profile + allergies + metrics + tasteProfile.
+        await get().switchProfile(currentActiveId);
       }
 
       return list;

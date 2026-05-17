@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, Animated, Dimensions, ImageBackground, Switch,
+  Alert, Animated, Dimensions, ImageBackground, Switch, Linking,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import LottieView from 'lottie-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import WoodPicker from '../components/ui/WoodPicker';
@@ -161,6 +163,21 @@ const SettingsScreen = () => {
     ).start();
   }, []);
 
+  // [FIX NOTIF-SYNC] Đồng bộ switch với system permission mỗi khi màn hình được focus.
+  // User có thể vào System Settings tắt notification ngoài app → switch phải phản ánh đúng.
+  useFocusEffect(useCallback(() => {
+    (async () => {
+      const { status } = await Notifications.getPermissionsAsync();
+      const systemGranted = status === 'granted';
+      if (!systemGranted && reminderEnabled) {
+        // System đã tắt → tắt luôn trong app + huỷ schedule
+        await cancelAllReminders();
+        await saveReminderSettings(false, reminderTimes);
+        setReminderEnabled(false);
+      }
+    })();
+  }, [reminderEnabled]));
+
   const loadSettings = async () => {
     try {
       const [cook, cost, lang, unit, lat, lon, province] = await Promise.all([
@@ -179,9 +196,17 @@ const SettingsScreen = () => {
         lon:      parseFloat(lon),
         province: province || location?.province,
       });
-      // Load trạng thái reminder
+      // Load trạng thái reminder — đồng bộ với system permission
       const { enabled, times } = await loadReminderSettings();
-      setReminderEnabled(enabled);
+      const { status } = await Notifications.getPermissionsAsync();
+      const systemGranted = status === 'granted';
+      // Nếu system tắt permission nhưng app vẫn lưu enabled=true → tắt luôn
+      const effectiveEnabled = enabled && systemGranted;
+      if (enabled && !systemGranted) {
+        await cancelAllReminders();
+        await saveReminderSettings(false, times);
+      }
+      setReminderEnabled(effectiveEnabled);
       setReminderTimes(times || DEFAULT_REMINDER_TIMES);
     } catch (e) { console.error('loadSettings:', e); }
   };
@@ -189,15 +214,25 @@ const SettingsScreen = () => {
   const handleReminderToggle = async (value) => {
     try {
       if (value) {
-        await setupNotificationChannel();
-        const granted = await requestNotificationPermission();
-        if (!granted) {
-          Alert.alert(
-            'Cần quyền thông báo',
-            'Vui lòng vào Cài đặt điện thoại → Ứng dụng → Daily Mate → Thông báo và bật lên nhé.',
-          );
-          return;
+        // Kiểm tra permission hiện tại trước
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') {
+          // Thử request (chỉ hiện dialog nếu chưa từng hỏi)
+          const { status: newStatus } = await Notifications.requestPermissionsAsync();
+          if (newStatus !== 'granted') {
+            // Đã từng deny → dialog không hiện nữa → mở System Settings
+            Alert.alert(
+              'Cần quyền thông báo',
+              'Vui lòng bật thông báo cho Daily Mate trong Cài đặt điện thoại.',
+              [
+                { text: 'Thôi', style: 'cancel' },
+                { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
+              ],
+            );
+            return; // switch không bật
+          }
         }
+        await setupNotificationChannel();
         await rescheduleAllReminders(reminderTimes);
         await saveReminderSettings(true, reminderTimes);
         setReminderEnabled(true);

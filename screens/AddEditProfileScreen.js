@@ -232,6 +232,7 @@ const AddEditProfileScreen = ({ navigation, route }) => {
             value={displayName}
             onChangeText={setDisplayName}
             maxLength={30}
+            autoCapitalize="words"
           />
 
           <SectionLabel text="Quan hệ" />
