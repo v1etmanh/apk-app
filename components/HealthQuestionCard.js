@@ -22,7 +22,7 @@ export default function HealthQuestionCard({ dishId, questions = [] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const ask = async (question) => {
+  const ask = async (question, showSources = false) => {
     setSelected(question.id);
     setAnswer(null);
     setError('');
@@ -30,7 +30,7 @@ export default function HealthQuestionCard({ dishId, questions = [] }) {
     try {
       const res = await api.post(`/api/v1/dishes/${dishId}/health-question`, {
         question_id: question.id,
-        show_sources: false,
+        show_sources: showSources,
       });
       setAnswer(res.data);
     } catch (e) {
@@ -83,6 +83,20 @@ export default function HealthQuestionCard({ dishId, questions = [] }) {
               <Text style={styles.metrics}>Số liệu đang dùng: {Object.entries(answer.metrics).map(([key, value]) => `${key}: ${value}`).join(' · ')}</Text>
             )}
             <Text style={styles.disclaimer}>{answer.disclaimer}</Text>
+            {!answer.sources && (
+              <TouchableOpacity onPress={() => ask(questions.find(item => item.id === answer.question_id), true)} style={styles.sourcesButton}>
+                <Ionicons name="book-outline" size={14} color={C.primary} />
+                <Text style={styles.sourcesButtonText}>Xem nguồn tham khảo</Text>
+              </TouchableOpacity>
+            )}
+            {Array.isArray(answer.sources) && answer.sources.length > 0 && (
+              <View style={styles.sources}>
+                <Text style={styles.sourcesTitle}>Nguồn tham khảo</Text>
+                {answer.sources.map((source) => (
+                  <Text key={source.source_id} style={styles.sourceText}>• {source.title || source.source_id}</Text>
+                ))}
+              </View>
+            )}
           </View>
         )}
       </PaperCard>
@@ -107,4 +121,9 @@ const styles = {
   answerText: { fontFamily: 'Nunito_400Regular', fontSize: 14, color: C.textMid, lineHeight: 21 },
   metrics: { marginTop: 9, fontFamily: 'Nunito_600SemiBold', fontSize: 11, color: C.primary, lineHeight: 17 },
   disclaimer: { marginTop: 9, fontFamily: 'Nunito_400Regular', fontSize: 11, color: C.textLight, lineHeight: 16 },
+  sourcesButton: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 10, paddingVertical: 4 },
+  sourcesButtonText: { fontFamily: 'Nunito_600SemiBold', fontSize: 12, color: C.primary },
+  sources: { marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: `${GOLD}40` },
+  sourcesTitle: { fontFamily: 'Nunito_700Bold', fontSize: 12, color: C.primary, marginBottom: 4 },
+  sourceText: { fontFamily: 'Nunito_400Regular', fontSize: 11, color: C.textLight, lineHeight: 17 },
 };
