@@ -13,6 +13,7 @@ import PaperCard from '../components/ui/PaperCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import HealthQuestionCard from '../components/HealthQuestionCard';
+import { useAppStore } from '../store/useAppStore';
 
 const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 320;
@@ -58,6 +59,9 @@ const REASON_LABELS = {
 const DishDetailScreen = ({ route, navigation }) => {
   const { dish: initialDish } = route.params;
   const [dish, setDish] = useState(initialDish);
+  const profile = useAppStore(state => state.profile);
+  const latestMetrics = useAppStore(state => state.latestMetrics);
+  const allergies = useAppStore(state => state.allergies);
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -67,8 +71,9 @@ const DishDetailScreen = ({ route, navigation }) => {
   const [loadingDetail, setLoadingDetail]           = useState(true);
   const [feedbackState, setFeedbackState]           = useState({}); // { eaten: 'loading'|'done'|'error' }
   const [dishUrl, setDishUrl]                       = useState(dish.url || ''); // fallback cho url từ API
+  const [healthQuestions, setHealthQuestions]       = useState(initialDish.health_questions || []);
 
-  useEffect(() => { loadDetail(); }, []);
+  useEffect(() => { loadDetail(); }, [profile, latestMetrics, allergies]);
 
   const loadDetail = async () => {
     try {
@@ -77,6 +82,17 @@ const DishDetailScreen = ({ route, navigation }) => {
       const res = await api.get(`/api/v1/dishes/${dishId}`);
       setDish(prev => ({ ...prev, ...res.data }));
       setIngredients(res.data.ingredients || []);
+      const questionRes = await api.post(`/api/v1/dishes/${dishId}/health-questions`, {
+        profile: {
+          ...(profile || {}),
+          latest_metrics: latestMetrics || null,
+          allergies: allergies || [],
+        },
+        recommendation_context: {
+          active_reasons: initialDish.explanation?.active_reasons || [],
+        },
+      });
+      setHealthQuestions(questionRes.data.questions || []);
       // Nếu dish trong params (từ meal plan cũ) không có url → lấy từ API
       if (!dishUrl && res.data.url) {
         setDishUrl(res.data.url);
@@ -320,7 +336,8 @@ const DishDetailScreen = ({ route, navigation }) => {
 
           <HealthQuestionCard
             dishId={dish.dish_id || dish.id}
-            questions={dish.health_questions || []}
+            questions={healthQuestions}
+            profile={profile}
           />
 
           {/* ── Score Breakdown ── */}

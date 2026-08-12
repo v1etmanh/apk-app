@@ -14,9 +14,16 @@ const ICONS = {
   hypertension: ['heart-outline', '#EF4444'],
   gout: ['medical-outline', '#6366F1'],
   ibs: ['leaf-outline', '#A855F7'],
+  calories: ['flame-outline', '#F97316'],
+  weight_loss: ['scale-outline', '#F59E0B'],
+  energy_goal: ['flash-outline', '#84CC16'],
+  satiety: ['restaurant-outline', '#A78BFA'],
+  weather_fit: ['partly-sunny-outline', '#3B82F6'],
+  allergy: ['warning-outline', '#EF4444'],
+  diet_type: ['leaf-outline', '#22C55E'],
 };
 
-export default function HealthQuestionCard({ dishId, questions = [] }) {
+export default function HealthQuestionCard({ dishId, questions = [], profile = null }) {
   const [selected, setSelected] = useState(null);
   const [answer, setAnswer] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -31,6 +38,7 @@ export default function HealthQuestionCard({ dishId, questions = [] }) {
       const res = await api.post(`/api/v1/dishes/${dishId}/health-question`, {
         question_id: question.id,
         show_sources: showSources,
+        profile: profile || {},
       });
       setAnswer(res.data);
     } catch (e) {
@@ -84,7 +92,10 @@ export default function HealthQuestionCard({ dishId, questions = [] }) {
             )}
             <Text style={styles.disclaimer}>{answer.disclaimer}</Text>
             {!answer.sources && (
-              <TouchableOpacity onPress={() => ask(questions.find(item => item.id === answer.question_id), true)} style={styles.sourcesButton}>
+              <TouchableOpacity onPress={() => {
+                const currentQuestion = questions.find(item => item.id === answer.question_id);
+                if (currentQuestion) ask(currentQuestion, true);
+              }} style={styles.sourcesButton}>
                 <Ionicons name="book-outline" size={14} color={C.primary} />
                 <Text style={styles.sourcesButtonText}>Xem nguồn tham khảo</Text>
               </TouchableOpacity>
