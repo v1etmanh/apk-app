@@ -12,6 +12,7 @@ import MetaChip from '../components/ui/MetaChip';
 import PaperCard from '../components/ui/PaperCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import ScreenBackground from '../components/ui/ScreenBackground';
+import HealthQuestionCard from '../components/HealthQuestionCard';
 
 const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 320;
@@ -55,7 +56,8 @@ const REASON_LABELS = {
 };
 
 const DishDetailScreen = ({ route, navigation }) => {
-  const { dish } = route.params;
+  const { dish: initialDish } = route.params;
+  const [dish, setDish] = useState(initialDish);
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -73,6 +75,7 @@ const DishDetailScreen = ({ route, navigation }) => {
       const dishId = dish.dish_id || dish.id;
       if (!dishId) return;
       const res = await api.get(`/api/v1/dishes/${dishId}`);
+      setDish(prev => ({ ...prev, ...res.data }));
       setIngredients(res.data.ingredients || []);
       // Nếu dish trong params (từ meal plan cũ) không có url → lấy từ API
       if (!dishUrl && res.data.url) {
@@ -314,6 +317,11 @@ const DishDetailScreen = ({ route, navigation }) => {
               </PaperCard>
             </View>
           )}
+
+          <HealthQuestionCard
+            dishId={dish.dish_id || dish.id}
+            questions={dish.health_questions || []}
+          />
 
           {/* ── Score Breakdown ── */}
           <View style={s.section}>
