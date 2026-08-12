@@ -71,7 +71,8 @@ const DishDetailScreen = ({ route, navigation }) => {
   const [loadingDetail, setLoadingDetail]           = useState(true);
   const [feedbackState, setFeedbackState]           = useState({}); // { eaten: 'loading'|'done'|'error' }
   const [dishUrl, setDishUrl]                       = useState(dish.url || ''); // fallback cho url từ API
-  const [healthQuestions, setHealthQuestions]       = useState(initialDish.health_questions || []);
+  const [primaryQuestions, setPrimaryQuestions]     = useState(initialDish.health_questions || []);
+  const [moreQuestions, setMoreQuestions]           = useState([]);
 
   useEffect(() => { loadDetail(); }, [profile, latestMetrics, allergies]);
 
@@ -92,7 +93,8 @@ const DishDetailScreen = ({ route, navigation }) => {
           active_reasons: initialDish.explanation?.active_reasons || [],
         },
       });
-      setHealthQuestions(questionRes.data.questions || []);
+      setPrimaryQuestions(questionRes.data.primary_questions || questionRes.data.questions || []);
+      setMoreQuestions(questionRes.data.more_questions || []);
       // Nếu dish trong params (từ meal plan cũ) không có url → lấy từ API
       if (!dishUrl && res.data.url) {
         setDishUrl(res.data.url);
@@ -336,7 +338,8 @@ const DishDetailScreen = ({ route, navigation }) => {
 
           <HealthQuestionCard
             dishId={dish.dish_id || dish.id}
-            questions={healthQuestions}
+            primaryQuestions={primaryQuestions}
+            moreQuestions={moreQuestions}
             profile={profile}
           />
 

@@ -23,7 +23,11 @@ const ICONS = {
   diet_type: ['leaf-outline', '#22C55E'],
 };
 
-export default function HealthQuestionCard({ dishId, questions = [], profile = null }) {
+export default function HealthQuestionCard({ dishId, questions = [], primaryQuestions = [], moreQuestions = [], profile = null }) {
+  const primary = primaryQuestions.length ? primaryQuestions : questions.slice(0, 4);
+  const more = moreQuestions.length ? moreQuestions : questions.slice(4, 11);
+  const allQuestions = [...primary, ...more];
+  const [showMore, setShowMore] = useState(false);
   const [selected, setSelected] = useState(null);
   const [answer, setAnswer] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -48,7 +52,7 @@ export default function HealthQuestionCard({ dishId, questions = [], profile = n
     }
   };
 
-  if (!questions.length) return null;
+  if (!allQuestions.length) return null;
 
   return (
     <View style={styles.section}>
@@ -59,7 +63,7 @@ export default function HealthQuestionCard({ dishId, questions = [], profile = n
           <Text style={styles.introText}>Bấm một câu hỏi, mình xem nhanh chỉ số của món này nhé~</Text>
         </View>
         <View style={styles.questions}>
-          {questions.map((question) => {
+          {(showMore ? allQuestions : primary).map((question) => {
             const [icon, color] = ICONS[question.icon] || ['help-circle-outline', C.accentBlue];
             const active = selected === question.id;
             return (
@@ -76,6 +80,12 @@ export default function HealthQuestionCard({ dishId, questions = [], profile = n
             );
           })}
         </View>
+        {more.length > 0 && (
+          <TouchableOpacity onPress={() => setShowMore(value => !value)} style={styles.moreButton} activeOpacity={0.75}>
+            <Text style={styles.moreButtonText}>{showMore ? 'Thu gọn câu hỏi' : `Xem thêm câu hỏi (${more.length})`}</Text>
+            <Ionicons name={showMore ? 'chevron-up' : 'chevron-down'} size={16} color={C.primary} />
+          </TouchableOpacity>
+        )}
         {loading && (
           <View style={styles.state}>
             <ActivityIndicator color={C.primary} />
@@ -93,7 +103,7 @@ export default function HealthQuestionCard({ dishId, questions = [], profile = n
             <Text style={styles.disclaimer}>{answer.disclaimer}</Text>
             {!answer.sources && (
               <TouchableOpacity onPress={() => {
-                const currentQuestion = questions.find(item => item.id === answer.question_id);
+                const currentQuestion = allQuestions.find(item => item.id === answer.question_id);
                 if (currentQuestion) ask(currentQuestion, true);
               }} style={styles.sourcesButton}>
                 <Ionicons name="book-outline" size={14} color={C.primary} />
@@ -124,6 +134,8 @@ const styles = {
   questions: { gap: 8 },
   question: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 11, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: C.borderLight, backgroundColor: 'rgba(255,255,255,0.5)' },
   questionText: { flex: 1, fontFamily: 'Nunito_600SemiBold', fontSize: 13, color: C.text },
+  moreButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingVertical: 8 },
+  moreButtonText: { fontFamily: 'Nunito_700Bold', fontSize: 12, color: C.primary },
   state: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 14 },
   stateText: { fontFamily: 'Nunito_400Regular', fontSize: 13, color: C.textLight },
   error: { marginTop: 12, fontFamily: 'Nunito_400Regular', fontSize: 13, color: C.accentRed },
