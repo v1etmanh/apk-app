@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import { C, shadow } from '../theme';
 import PaperCard from './ui/PaperCard';
@@ -24,6 +25,7 @@ const ICONS = {
 };
 
 export default function HealthQuestionCard({ dishId, questions = [], primaryQuestions = [], moreQuestions = [], profile = null }) {
+  const { t } = useTranslation();
   const primary = primaryQuestions.length ? primaryQuestions : questions.slice(0, 4);
   const more = moreQuestions.length ? moreQuestions : questions.slice(4, 11);
   const allQuestions = [...primary, ...more];
@@ -46,7 +48,7 @@ export default function HealthQuestionCard({ dishId, questions = [], primaryQues
       });
       setAnswer(res.data);
     } catch (e) {
-      setError('Chưa lấy được câu trả lời. Bạn thử lại sau nhé.');
+      setError(t('dish.answerError'));
     } finally {
       setLoading(false);
     }
@@ -56,11 +58,11 @@ export default function HealthQuestionCard({ dishId, questions = [], primaryQues
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Hỏi đáp dinh dưỡng" icon="sparkles-outline" />
+      <SectionHeader title={t('dish.nutritionQuestions')} icon="sparkles-outline" />
       <PaperCard priority="primary" innerStyle={styles.cardInner}>
         <View style={styles.intro}>
           <Text style={styles.mascot}>🐱</Text>
-          <Text style={styles.introText}>Bấm một câu hỏi, mình xem nhanh chỉ số của món này nhé~</Text>
+          <Text style={styles.introText}>{t('dish.askHint')}</Text>
         </View>
         <View style={styles.questions}>
           {(showMore ? allQuestions : primary).map((question) => {
@@ -82,14 +84,14 @@ export default function HealthQuestionCard({ dishId, questions = [], primaryQues
         </View>
         {more.length > 0 && (
           <TouchableOpacity onPress={() => setShowMore(value => !value)} style={styles.moreButton} activeOpacity={0.75}>
-            <Text style={styles.moreButtonText}>{showMore ? 'Thu gọn câu hỏi' : `Xem thêm câu hỏi (${more.length})`}</Text>
+            <Text style={styles.moreButtonText}>{showMore ? t('dish.fewerQuestions') : t('dish.moreQuestions', { count: more.length })}</Text>
             <Ionicons name={showMore ? 'chevron-up' : 'chevron-down'} size={16} color={C.primary} />
           </TouchableOpacity>
         )}
         {loading && (
           <View style={styles.state}>
             <ActivityIndicator color={C.primary} />
-            <Text style={styles.stateText}>Mèo đầu bếp đang xem giúp bạn...</Text>
+          <Text style={styles.stateText}>{t('dish.chefThinking')}</Text>
           </View>
         )}
         {!!error && <Text style={styles.error}>{error}</Text>}
@@ -98,7 +100,7 @@ export default function HealthQuestionCard({ dishId, questions = [], primaryQues
             <Text style={styles.answerTitle}>✨ {answer.question}</Text>
             <Text style={styles.answerText}>{answer.answer}</Text>
             {answer.metrics && Object.keys(answer.metrics).length > 0 && (
-              <Text style={styles.metrics}>Số liệu đang dùng: {Object.entries(answer.metrics).map(([key, value]) => `${key}: ${value}`).join(' · ')}</Text>
+              <Text style={styles.metrics}>{t('dish.metricsUsed', { metrics: Object.entries(answer.metrics).map(([key, value]) => `${key}: ${value}`).join(' · ') })}</Text>
             )}
             <Text style={styles.disclaimer}>{answer.disclaimer}</Text>
             {!answer.sources && (
@@ -107,12 +109,12 @@ export default function HealthQuestionCard({ dishId, questions = [], primaryQues
                 if (currentQuestion) ask(currentQuestion, true);
               }} style={styles.sourcesButton}>
                 <Ionicons name="book-outline" size={14} color={C.primary} />
-                <Text style={styles.sourcesButtonText}>Xem nguồn tham khảo</Text>
+                <Text style={styles.sourcesButtonText}>{t('dish.sources')}</Text>
               </TouchableOpacity>
             )}
             {Array.isArray(answer.sources) && answer.sources.length > 0 && (
               <View style={styles.sources}>
-                <Text style={styles.sourcesTitle}>Nguồn tham khảo</Text>
+              <Text style={styles.sourcesTitle}>{t('dish.sourcesTitle')}</Text>
                 {answer.sources.map((source) => (
                   <Text key={source.source_id} style={styles.sourceText}>• {source.title || source.source_id}</Text>
                 ))}

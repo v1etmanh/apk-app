@@ -7,6 +7,9 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
 import { useAppStore } from '../store/useAppStore';
+import i18n from '../i18n';
+import { CATEGORY_EN } from '../utils/ingredientsData';
+import { useTranslation } from 'react-i18next';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -64,7 +67,12 @@ const CAT_META = {
   dairy_poultry:        { display: 'Gia cầm & Sữa',       emoji: '🍗' },
   other:                { display: 'Khác',                emoji: '🫙' },
 };
-const getCatMeta = k => CAT_META[k] || { display: k.replace(/_/g, ' '), emoji: '🥬' };
+const getCatMeta = k => {
+  const fallback = CAT_META[k] || { display: k.replace(/_/g, ' '), emoji: '🥬' };
+  return i18n.language === 'en'
+    ? { ...fallback, display: CATEGORY_EN[k] || fallback.display }
+    : fallback;
+};
 
 // ─── WobblyCard ────────────────────────────────────────────────────────────────
 const WobblyCard = ({ children, w, h, fill, stroke, strokeWidth, style }) => {
@@ -117,6 +125,7 @@ const SectionHeader = ({ icon, label }) => (
 
 // ─── IngredientSearchModal ─────────────────────────────────────────────────────
 const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, onToggle, onClose }) => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const meta = getCatMeta(category);
 
@@ -168,10 +177,10 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
             </TouchableOpacity>
             <View style={{ flex: 1, alignItems: 'center' }}>
               <Text style={ms.headerTitle}>{meta.emoji} {meta.display}</Text>
-              <Text style={ms.headerSub}>{ingredients.length} nguyên liệu · {selectedInCat} đã chọn</Text>
+              <Text style={ms.headerSub}>{t('basket.allIngredients', { count: ingredients.length })} · {t('basket.selectedCount', { count: selectedInCat })}</Text>
             </View>
             <TouchableOpacity style={ms.doneBtn} onPress={onClose}>
-              <Text style={ms.doneTxt}>Xong ✓</Text>
+              <Text style={ms.doneTxt}>{t('basket.done')}</Text>
             </TouchableOpacity>
           </ImageBackground>
 
@@ -182,7 +191,7 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
                 <Text style={{ fontSize: 16, marginRight: 6 }}>🔍</Text>
                 <TextInput
                   style={ms.searchInput}
-                  placeholder="Tìm nguyên liệu..."
+                  placeholder={t('basket.search')}
                   placeholderTextColor={C.inkFaint}
                   value={query}
                   onChangeText={setQuery}
@@ -199,7 +208,7 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
           </View>
 
           <Text style={ms.resultCount}>
-            {query ? `${filtered.length} kết quả` : `Tất cả ${filtered.length} nguyên liệu`}
+            {query ? t('basket.searchResults', { count: filtered.length }) : t('basket.allIngredients', { count: filtered.length })}
           </Text>
 
           <FlatList
@@ -218,7 +227,7 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
               </Svg>
             )}
             ListEmptyComponent={
-              <Text style={ms.emptyText}>Không tìm thấy "{query}" 🥲</Text>
+              <Text style={ms.emptyText}>{t('basket.noResult', { query })}</Text>
             }
           />
         </ImageBackground>
@@ -229,6 +238,7 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
 
 // ─── SelectedIngredientsList — Danh sách nguyên liệu đã chọn có thể xoá từng cái
 const SelectedIngredientsList = ({ selectedIds, allIngredients, onRemove, onClearAll }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   const selectedItems = useMemo(
@@ -253,11 +263,11 @@ const SelectedIngredientsList = ({ selectedIds, allIngredients, onRemove, onClea
 
   const handleClearAll = () => {
     Alert.alert(
-      '🗑 Xoá tất cả?',
-      `Bạn có chắc muốn bỏ chọn ${selectedIds.length} nguyên liệu?`,
+      t('basket.clearTitle'),
+      t('basket.clearBody', { count: selectedIds.length }),
       [
-        { text: 'Huỷ', style: 'cancel' },
-        { text: 'Xoá tất cả', style: 'destructive', onPress: onClearAll },
+        { text: t('basket.cancel'), style: 'cancel' },
+        { text: t('basket.clear'), style: 'destructive', onPress: onClearAll },
       ]
     );
   };
@@ -267,7 +277,7 @@ const SelectedIngredientsList = ({ selectedIds, allIngredients, onRemove, onClea
       {/* Header row — toggle expand / collapse */}
       <TouchableOpacity style={sl.headerRow} onPress={() => setExpanded(v => !v)} activeOpacity={0.7}>
         <View style={{ flex: 1 }}>
-          <Text style={sl.title}>✅ Đã chọn {selectedIds.length} nguyên liệu</Text>
+          <Text style={sl.title}>{t('basket.selected')} {t('basket.selectedCount', { count: selectedIds.length })}</Text>
           <WavyUnderline width={200} />
         </View>
         <Text style={sl.expandIcon}>{expanded ? '▲' : '▼'}</Text>
@@ -305,7 +315,7 @@ const SelectedIngredientsList = ({ selectedIds, allIngredients, onRemove, onClea
 
           {/* Nút xoá tất cả */}
           <TouchableOpacity style={sl.clearAllBtn} onPress={handleClearAll} activeOpacity={0.8}>
-            <Text style={sl.clearAllTxt}>🗑 Xoá tất cả nguyên liệu</Text>
+            <Text style={sl.clearAllTxt}>{t('basket.clear')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -315,6 +325,7 @@ const SelectedIngredientsList = ({ selectedIds, allIngredients, onRemove, onClea
 
 // ─── Category Card ─────────────────────────────────────────────────────────────
 const CategoryCard = ({ cat, active, count, total, onPress }) => {
+  const { t } = useTranslation();
   const cardW = (SW - 16 * 2 - 12) / 2;
   const cardH = 108;
   return (
@@ -332,7 +343,7 @@ const CategoryCard = ({ cat, active, count, total, onPress }) => {
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={st.catEmoji}>{cat.emoji}</Text>
             <Text style={[st.catText, active && st.catTextActive]} numberOfLines={2}>{cat.display}</Text>
-            <Text style={st.catCount}>{total} loại</Text>
+            <Text style={st.catCount}>{t('basket.categoryCount', { count: total })}</Text>
           </View>
           {count > 0 && (
             <View style={st.catBadge}>
@@ -347,6 +358,7 @@ const CategoryCard = ({ cat, active, count, total, onPress }) => {
 
 // ─── MarketBasketScreen ────────────────────────────────────────────────────────
 const MarketBasketScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const { allIngredients, setMarketBasket, marketBasket, initializeIngredients } = useAppStore();
 
   // FIX 1: Khởi tạo selectedIds từ store — không bị mất khi quay lại màn hình
@@ -399,14 +411,14 @@ const MarketBasketScreen = ({ navigation }) => {
   // FIX 4: Skip không xoá selection trong store, chỉ mark isSkipped
   const handleSkip = () => {
     Alert.alert(
-      '⚠️ Bỏ qua giỏ nguyên liệu?',
+      t('basket.skipTitle'),
       selectedIds.length > 0
-        ? `Bạn đang có ${selectedIds.length} nguyên liệu đã chọn.\nBỏ qua sẽ không dùng danh sách này cho gợi ý.`
-        : 'Gợi ý món sẽ không ưu tiên theo nguyên liệu sẵn có.',
+        ? t('basket.skipBodySelected', { count: selectedIds.length })
+        : t('basket.skipBodyEmpty'),
       [
-        { text: 'Huỷ', style: 'cancel' },
+        { text: t('basket.cancel'), style: 'cancel' },
         {
-          text: 'Bỏ qua',
+          text: t('basket.skip'),
           style: 'destructive',
           onPress: () => {
             setMarketBasket({ isSkipped: true, selectedIngredients: selectedIds, boostStrategy: 'none' });
@@ -435,11 +447,11 @@ const MarketBasketScreen = ({ navigation }) => {
             <Text style={st.backIcon}>←</Text>
           </TouchableOpacity>
           <View style={st.navCenter}>
-            <Text style={st.navTitle}>🛒 Đi chợ hôm nay</Text>
-            <Text style={st.navSubtitle}>Chọn nguyên liệu bạn đang có</Text>
+            <Text style={st.navTitle}>{t('basket.title')}</Text>
+            <Text style={st.navSubtitle}>{t('basket.subtitle')}</Text>
           </View>
           <TouchableOpacity onPress={handleSkip} style={st.skipBtn}>
-            <Text style={st.skipTxt}>Bỏ qua</Text>
+            <Text style={st.skipTxt}>{t('basket.skip')}</Text>
           </TouchableOpacity>
         </View>
         <View style={st.lottieWrap} pointerEvents="none">
@@ -453,14 +465,14 @@ const MarketBasketScreen = ({ navigation }) => {
       {/* Info / badge bar */}
       {selectedIds.length > 0 ? (
         <View style={st.badgeBar}>
-          <Text style={st.badgeBarTxt}>✅ Đã chọn</Text>
+          <Text style={st.badgeBarTxt}>{t('basket.selected')}</Text>
           <View style={st.badgePill}>
-            <Text style={st.badgePillTxt}>{selectedIds.length} nguyên liệu</Text>
+            <Text style={st.badgePillTxt}>{t('basket.selectedCount', { count: selectedIds.length })}</Text>
           </View>
         </View>
       ) : (
         <View style={st.infoBar}>
-          <Text style={st.infoTxt}>💡 Chọn nhóm → bấm để chọn nguyên liệu cụ thể</Text>
+          <Text style={st.infoTxt}>{t('basket.info')}</Text>
         </View>
       )}
 
@@ -469,7 +481,7 @@ const MarketBasketScreen = ({ navigation }) => {
         {isLoading ? (
           <View style={st.loadWrap}>
             <ActivityIndicator color={C.wood} size="large" />
-            <Text style={st.loadTxt}>Đang tải nguyên liệu...</Text>
+            <Text style={st.loadTxt}>{t('basket.loading')}</Text>
           </View>
         ) : (
           <>
@@ -480,7 +492,7 @@ const MarketBasketScreen = ({ navigation }) => {
                 style={st.contentCard}
                 imageStyle={{ borderRadius: 24 }}>
                 <Text style={st.cornerStamp}>🛒</Text>
-                <SectionHeader icon="🗂" label={`Nhóm nguyên liệu (${categories.length})`} />
+                <SectionHeader icon="🗂" label={t('basket.categories', { count: categories.length })} />
                 {categoryRows.map((row, ri) => (
                   <View key={ri} style={st.catRow}>
                     {row.map(cat => (
@@ -523,7 +535,7 @@ const MarketBasketScreen = ({ navigation }) => {
         <View style={st.tipCard}>
           <Text style={st.tipIcon}>💡</Text>
           <Text style={st.tipText}>
-            Mẹo: Chọn nguyên liệu bạn đang có ở nhà để nhận gợi ý món phù hợp hơn nhé!
+            {t('basket.tip')}
           </Text>
         </View>
         <View style={{ height: 20 }} />
@@ -541,11 +553,11 @@ const MarketBasketScreen = ({ navigation }) => {
             activeOpacity={0.85}>
             {selectedIds.length > 0 ? (
               <Text style={st.applyBtnText}>
-                {'🛒 Áp dụng ' + selectedIds.length + ' nguyên liệu →'}
+                {t('basket.apply', { count: selectedIds.length })}
               </Text>
             ) : (
               <Text style={[st.applyBtnText, { color: C.woodDark }]}>
-                Tiếp tục không chọn nguyên liệu
+                {t('basket.continue')}
               </Text>
             )}
           </TouchableOpacity>

@@ -14,6 +14,7 @@ import SectionHeader from '../components/ui/SectionHeader';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import HealthQuestionCard from '../components/HealthQuestionCard';
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 320;
@@ -57,6 +58,7 @@ const REASON_LABELS = {
 };
 
 const DishDetailScreen = ({ route, navigation }) => {
+  const { t } = useTranslation();
   const { dish: initialDish } = route.params;
   const [dish, setDish] = useState(initialDish);
   const profile = useAppStore(state => state.profile);
@@ -73,6 +75,10 @@ const DishDetailScreen = ({ route, navigation }) => {
   const [dishUrl, setDishUrl]                       = useState(dish.url || ''); // fallback cho url từ API
   const [primaryQuestions, setPrimaryQuestions]     = useState(initialDish.health_questions || []);
   const [moreQuestions, setMoreQuestions]           = useState([]);
+  const explanationLabels = {
+    weather_reason: t('dish.weather'), dish_match: t('dish.match'), ingredient_source_note: t('dish.sourceReason'),
+    nutrition_note: t('dish.nutrition'), ingredient_note: t('dish.basket'), seasonal_note: t('dish.season'),
+  };
 
   useEffect(() => { loadDetail(); }, [profile, latestMetrics, allergies]);
 
@@ -235,7 +241,7 @@ const DishDetailScreen = ({ route, navigation }) => {
           {/* ── Why Recommended (Expert Note) ── */}
           {dish.explanation && Object.keys(dish.explanation).length > 0 && (
             <View style={s.section}>
-              <SectionHeader title="Ghi chú từ bếp" icon="document-text-outline" />
+              <SectionHeader title={t('dish.chefNote')} icon="document-text-outline" />
               <PaperCard priority="primary" innerStyle={{ padding: 18 }}>
 
                 {/* Headline — banner nổi bật đầu card */}
@@ -249,7 +255,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                 {/* ── Active Reasons pills — "Món này fit vì..." ── */}
                 {Array.isArray(dish.explanation.active_reasons) && dish.explanation.active_reasons.length > 0 && (
                   <View style={s.activeReasonsBlock}>
-                    <Text style={s.activeReasonsLabel}>Phù hợp với bạn vì</Text>
+                    <Text style={s.activeReasonsLabel}>{t('dish.fitBecause')}</Text>
                     <View style={s.activeReasonsPills}>
                       {dish.explanation.active_reasons.map((reason) => {
                         const info = REASON_LABELS[reason];
@@ -271,7 +277,8 @@ const DishDetailScreen = ({ route, navigation }) => {
                 )}
 
                 {/* Các row giải thích theo thứ tự trong explanationConfig */}
-                {explanationConfig.map(({ key, label, icon, color }) => {
+                {explanationConfig.map(({ key, label: defaultLabel, icon, color }) => {
+                  const label = explanationLabels[key] || defaultLabel;
                   const value = dish?.explanation?.[key];
                   if (!value) return null;
 
@@ -345,32 +352,32 @@ const DishDetailScreen = ({ route, navigation }) => {
 
           {/* ── Score Breakdown ── */}
           <View style={s.section}>
-            <SectionHeader title="Phân tích độ phù hợp" icon="analytics-outline" />
+            <SectionHeader title={t('dish.compatibility')} icon="analytics-outline" />
             <PaperCard innerStyle={{ padding: 16, gap: 12 }}>
-              <MetricCard label="Tổng thể" value={dish.final_score} color={C.accentGreen || '#38B07A'} icon="checkmark-circle" />
-              {breakdown.hydration > 0 && <MetricCard label="Cấp nước" value={breakdown.hydration} color={C.accentBlue || '#3498DB'} icon="water" />}
-              {breakdown.warming   > 0 && <MetricCard label="Giữ ấm" value={breakdown.warming} color={C.accentGold || '#F59E0B'} icon="thermometer" />}
-              {breakdown.cooling   > 0 && <MetricCard label="Làm mát" value={breakdown.cooling} color="#2DD4BF" icon="snow" />}
-              {breakdown.boost     > 0 && <MetricCard label="Nguyên liệu có sẵn" value={breakdown.boost} color="#A78BFA" icon="basket" />}
+              <MetricCard label={t('dish.overall')} value={dish.final_score} color={C.accentGreen || '#38B07A'} icon="checkmark-circle" />
+              {breakdown.hydration > 0 && <MetricCard label={t('dish.hydration')} value={breakdown.hydration} color={C.accentBlue || '#3498DB'} icon="water" />}
+              {breakdown.warming   > 0 && <MetricCard label={t('dish.warming')} value={breakdown.warming} color={C.accentGold || '#F59E0B'} icon="thermometer" />}
+              {breakdown.cooling   > 0 && <MetricCard label={t('dish.cooling')} value={breakdown.cooling} color="#2DD4BF" icon="snow" />}
+              {breakdown.boost     > 0 && <MetricCard label={t('dish.availableIngredients')} value={breakdown.boost} color="#A78BFA" icon="basket" />}
             </PaperCard>
           </View>
 
           {/* ── Ingredients Pantry ── */}
           <View style={s.section}>
-            <SectionHeader title="Tủ nguyên liệu" icon="cart-outline" />
+            <SectionHeader title={t('dish.pantry')} icon="cart-outline" />
             
             {loadingDetail ? (
               <ActivityIndicator color={C.primary} style={{ marginVertical: 20 }} />
             ) : ingredients.length === 0 ? (
               <View style={s.emptyState}>
                 <Ionicons name="fast-food-outline" size={32} color={C.border} />
-                <Text style={s.emptyText}>Chưa có thông tin nguyên liệu</Text>
+                <Text style={s.emptyText}>{t('dish.noIngredients')}</Text>
               </View>
             ) : (
               <View style={s.pantryContainer}>
                 {mainIngredients.length > 0 && (
                   <View style={s.pantryGroup}>
-                    <Text style={s.pantryTitle}>Nguyên liệu chính</Text>
+                    <Text style={s.pantryTitle}>{t('dish.mainIngredients')}</Text>
                     <View style={s.ingGrid}>
                       {mainIngredients.map(ing => (
                         <View key={ing.id} style={s.ingChipMain}>
@@ -388,7 +395,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                 
                 {sideIngredients.length > 0 && (
                   <View style={[s.pantryGroup, { marginTop: 16 }]}>
-                    <Text style={s.pantryTitle}>Gia vị & Phụ liệu</Text>
+                    <Text style={s.pantryTitle}>{t('dish.sides')}</Text>
                     <View style={s.ingGrid}>
                       {sideIngredients.map(ing => (
                         <View key={ing.id} style={s.ingChipSide}>
@@ -405,7 +412,7 @@ const DishDetailScreen = ({ route, navigation }) => {
           {/* ── Serving suggestion ── */}
           {dish.serving_suggestion ? (
             <View style={s.section}>
-              <SectionHeader title="Gợi ý thưởng thức" icon="restaurant-outline" />
+              <SectionHeader title={t('dish.servingSuggestion')} icon="restaurant-outline" />
               <PaperCard innerStyle={{ padding: 16 }}>
                 <Text style={s.servingText}>{dish.serving_suggestion}</Text>
               </PaperCard>
@@ -422,7 +429,7 @@ const DishDetailScreen = ({ route, navigation }) => {
               <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 16, opacity: 0.9 }} resizeMode="cover" />
               <View style={s.recipeBtnInner}>
                 <Ionicons name="book-outline" size={20} color="#FFFFFF" />
-                <Text style={s.recipeBtnText}>Xem công thức đầy đủ</Text>
+                <Text style={s.recipeBtnText}>{t('dish.fullRecipe')}</Text>
                 <Ionicons name="open-outline" size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
               </View>
             </TouchableOpacity>
@@ -430,7 +437,7 @@ const DishDetailScreen = ({ route, navigation }) => {
 
           {/* ── Feedback Actions ── */}
           <View style={s.feedbackSection}>
-            <Text style={s.feedbackQuestion}>Quyết định của bạn hôm nay?</Text>
+            <Text style={s.feedbackQuestion}>{t('dish.decision')}</Text>
             <View style={s.feedbackRow}>
 
               {/* Đã Ăn */}
@@ -453,7 +460,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                         : <Ionicons name="checkmark-done" size={18} color="#FFF" />}
                 </View>
                 <Text style={[s.actionStampText, { color: C.accentGreen }]}>
-                  {feedbackState.eaten === 'done' ? 'Đã Lưu!' : feedbackState.eaten === 'error' ? 'Lỗi!' : 'Đã Ăn'}
+                  {feedbackState.eaten === 'done' ? t('dish.saved') : feedbackState.eaten === 'error' ? t('common.error') : t('dish.eaten')}
                 </Text>
               </TouchableOpacity>
 
@@ -475,7 +482,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                       : <Ionicons name="star" size={18} color="#FFF" />}
                 </View>
                 <Text style={[s.actionStampText, { color: C.accentGold || '#F59E0B' }]}>
-                  {feedbackState.rated === 'done' ? 'Đã Lưu!' : 'Đánh Giá'}
+                  {feedbackState.rated === 'done' ? t('dish.saved') : t('dish.rating')}
                 </Text>
               </TouchableOpacity>
 
@@ -499,7 +506,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                         : <Ionicons name="close" size={18} color="#FFF" />}
                 </View>
                 <Text style={[s.actionStampText, { color: C.accentRed || '#E74C3C' }]}>
-                  {feedbackState.skipped === 'done' ? 'Đã Lưu!' : feedbackState.skipped === 'error' ? 'Lỗi!' : 'Bỏ Qua'}
+                  {feedbackState.skipped === 'done' ? t('dish.saved') : feedbackState.skipped === 'error' ? t('common.error') : t('dish.skipped')}
                 </Text>
               </TouchableOpacity>
 
@@ -514,13 +521,13 @@ const DishDetailScreen = ({ route, navigation }) => {
           <ImageBackground source={ASSETS.paper} style={s.modalCard} imageStyle={{ borderRadius: 24, opacity: 0.98 }} resizeMode="cover">
             <View style={s.modalInner}>
               <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>Đánh giá món ăn</Text>
+                <Text style={s.modalTitle}>{t('dish.rate')}</Text>
                 <TouchableOpacity onPress={() => setRatingModalVisible(false)} style={s.closeModalBtn}>
                   <Ionicons name="close" size={24} color={C.textLight} />
                 </TouchableOpacity>
               </View>
               
-              <Text style={s.modalSub}>Món "{dish.title}" hôm nay thế nào?</Text>
+              <Text style={s.modalSub}>{t('dish.rateBody', { name: dish.title })}</Text>
               
               <View style={s.starsRow}>
                 {[1, 2, 3, 4, 5].map(star => (
@@ -546,7 +553,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                 activeOpacity={0.8}
               >
                 <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 18, opacity: 0.9 }} />
-                <Text style={s.modalConfirmText}>Gửi Đánh Giá</Text>
+                <Text style={s.modalConfirmText}>{t('dish.submitRating')}</Text>
               </TouchableOpacity>
             </View>
           </ImageBackground>

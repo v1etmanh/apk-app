@@ -22,9 +22,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
-import { supabase } from './store/suppabase';
-import { initDB, setSetting, migrateExistingProfile, getDeviceId, getActiveProfileId, setActiveProfileId, saveProfileMember } from './utils/database';
-import { ensureFirebaseAuth } from './utils/firebaseConfig';
+import { supabase } from './store/supabase';
+import { initDB, setSetting, getSetting, migrateExistingProfile, getDeviceId, getActiveProfileId, setActiveProfileId, saveProfileMember } from './utils/database';
 import { useAppStore } from './store/useAppStore';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -35,6 +34,7 @@ import HomeScreen              from './screens/HomeScreen';
 import HistoryScreen           from './screens/HistoryScreen';
 import ProfileScreen           from './screens/ProfileScreen';
 import SettingsScreen          from './screens/SettingsScreen';
+import FoodVideosScreen        from './screens/FoodVideosScreen';
 import DishDetailScreen        from './screens/DishDetailScreen';
 import MarketBasketScreen      from './screens/MarketBasketScreen';
 import HistoryDetailScreen     from './screens/HistoryDetailScreen';
@@ -49,6 +49,8 @@ import ResetPasswordScreen     from './screens/ResetPasswordScreen';
 import AddEditProfileScreen    from './screens/AddEditProfileScreen';
 import ChosenDishScreen        from './screens/ChosenDishScreen';
 import MealReminderModal       from './components/MealReminderModal';
+import i18n, { restoreLanguage, changeLanguage } from './i18n';
+import { useTranslation } from 'react-i18next';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -77,8 +79,10 @@ const TabIcon = ({ emoji, focused }) => (
 );
 
 // ── Main Tabs ─────────────────────────────────────────────────────────────
-const MainTabs = () => (
-  <Tab.Navigator
+const MainTabs = () => {
+  const { t } = useTranslation();
+  return (
+    <Tab.Navigator
     screenOptions={{
       tabBarActiveTintColor:   '#60A5FA',
       tabBarInactiveTintColor: '#8B7355',
@@ -87,21 +91,29 @@ const MainTabs = () => (
     }}
   >
     <Tab.Screen name="Home"      component={HomeScreen}
-      options={{ tabBarLabel: 'Trang chủ', tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused}/> }}/>
+      options={{ tabBarLabel: t('tabs.home'), tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused}/> }}/>
    
     <Tab.Screen name="ChosenDish" component={ChosenDishScreen}
-      options={{ tabBarLabel: 'Bữa hôm nay', tabBarIcon: ({ focused }) => <TabIcon emoji="🍱" focused={focused}/> }}/>
+      options={{ tabBarLabel: t('tabs.today'), tabBarIcon: ({ focused }) => <TabIcon emoji="🍱" focused={focused}/> }}/>
     <Tab.Screen name="History"   component={HistoryScreen}
-      options={{ tabBarLabel: 'Lịch sử',   tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused}/> }}/>
+      options={{ tabBarLabel: t('tabs.history'),   tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused}/> }}/>
     <Tab.Screen name="Profile"   component={ProfileScreen}
-      options={{ tabBarLabel: 'Hồ sơ',     tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused}/> }}/>
+      options={{ tabBarLabel: t('tabs.profile'),     tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused}/> }}/>
     <Tab.Screen name="Settings"  component={SettingsScreen}
-      options={{ tabBarLabel: 'Cài đặt',   tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused}/> }}/>
+      options={{ tabBarLabel: t('tabs.settings'),   tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused}/> }}/>
+    <Tab.Screen name="FoodVideos" component={FoodVideosScreen}
+      options={{
+        tabBarLabel: t('tabs.videos'),
+        tabBarIcon: ({ focused }) => <TabIcon emoji="🎬" focused={focused}/>,
+      }}/>
   </Tab.Navigator>
-);
+  );
+};
 
 // ── Splash Screen (Lottie Lazy Cat) ──────────────────────────────────────
-const SplashScreen = () => (
+const SplashScreen = () => {
+  const { t } = useTranslation();
+  return (
   <View style={sp.root}>
     {/* Layer 1 — wood background */}
     <Image
@@ -130,7 +142,7 @@ const SplashScreen = () => (
             style={[sp.lottie, { pointerEvents: 'none' }]}
           />
           <Text style={sp.title}>Daily Mate</Text>
-          <Text style={sp.sub}>Đang chuẩn bị món ngon... 🍳</Text>
+          <Text style={sp.sub}>{t('splash.preparing')}</Text>
 
           {/* Loading dots */}
           <View style={sp.dotsRow}>
@@ -143,9 +155,10 @@ const SplashScreen = () => (
     </View>
 
     {/* Footer */}
-    <Text style={sp.footer}>🍜 Bạn đồng hành ẩm thực</Text>
+    <Text style={sp.footer}>{t('splash.companion')}</Text>
   </View>
-);
+  );
+};
 
 // ── Splash styles (design.md compliant) ──────────────────────────────────
 const sp = StyleSheet.create({
@@ -230,6 +243,7 @@ const App = () => {
 
   const [authState,      setAuthState]      = useState('loading');
   const [appReady,       setAppReady]       = useState(false);
+  const [languageReady,  setLanguageReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showReset,      setShowReset]      = useState(false);
 
@@ -250,6 +264,10 @@ const App = () => {
   });
 
   useEffect(() => {
+    restoreLanguage()
+      .catch(error => console.warn('[i18n] Could not restore language:', error?.message))
+      .finally(() => setLanguageReady(true));
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthState(session ? 'authenticated' : 'unauthenticated');
     });
@@ -449,20 +467,25 @@ const App = () => {
 
   const initializeApp = async () => {
     try {
-      // Bước 1: chờ Firebase Auth sẵn sàng HOÀN TOÀN trước khi đụng Firestore.
-      // ensureFirebaseAuth() gọi waitForFirebaseAuth() bên trong — block cho đến khi
-      // onAuthStateChanged fire (session restore từ AsyncStorage) hoặc signInAnonymously xong.
-      // Đây là root cause của "lần đầu đăng nhập không ghi được Firestore":
-      // Firebase persistence là async, currentUser = null cho đến khi SDK load xong.
-      await ensureFirebaseAuth();
-
+      // authState chỉ chuyển sang authenticated sau khi Supabase khôi phục session.
       await initDB();
+
+      // Keep the persisted device setting and i18n preference in sync.
+      // First login: use the language already selected by i18n (device locale
+      // when supported, otherwise vi) and persist it for future launches.
+      const savedLanguage = await getSetting('language');
+      const language = savedLanguage === 'vi' || savedLanguage === 'en'
+        ? savedLanguage
+        : (i18n.language === 'en' ? 'en' : 'vi');
+      await changeLanguage(language);
+      if (savedLanguage !== language) {
+        await setSetting('language', language);
+      }
 
       // Migration: profile cũ → multi-profile schema (chỉ chạy 1 lần)
       await migrateExistingProfile();
 
-      // Guard: nếu migration fail (Firestore write bị reject) và activeProfileId vẫn null
-      // → tạo profile khẩn cấp. Lần này Firebase auth đã chắc chắn ready.
+      // Guard: luôn đảm bảo tài khoản có một hồ sơ Supabase đang hoạt động.
       let earlyProfileId = await getActiveProfileId();
       if (!earlyProfileId) {
         if (__DEV__) console.warn('[App] activeProfileId null sau migration — tạo profile khẩn cấp');
@@ -486,14 +509,14 @@ const App = () => {
       // Load settings (bao gồm activeProfileId, location, costPref, v.v.)
       await initializeSettings();
 
-      // Load data song song — tất cả đều cần Firebase auth đã sẵn sàng (đảm bảo ở bước 1)
+      // Load dữ liệu người dùng từ Supabase và nguyên liệu từ API song song.
       await Promise.all([
         loadProfile(),
         loadLatestMetrics(),
         loadAllergies(),
         loadAllProfilesAction(),
         initializeIngredients(),
-        useAppStore.getState().loadSavedDishes(), // load món yêu thích — auth đã xong ở bước 1
+        useAppStore.getState().loadSavedDishes(),
       ]);
 
       // Notification channel (Android 8+ bắt buộc)
@@ -519,14 +542,15 @@ const App = () => {
       appReadyRef.current = true; // [FIX LOC-001] sync ref
     } catch (e) {
       console.error('[App] initializeApp error:', e);
-      // KHÔNG setAppReady(true) khi lỗi Firebase auth — retry khi authState thay đổi lại.
-      // Chỉ setAppReady(true) nếu lỗi không phải permission/auth để tránh màn hình trắng mãi.
-      const isAuthError = e?.code === 'permission-denied' || e?.message?.includes('permission');
+      // Lỗi xác thực/RLS có thể chỉ là session đang refresh; thử lại ngắn sau đó.
+      const isAuthError = e?.code === 'not-authenticated'
+        || e?.code === '42501'
+        || e?.message?.includes('row-level security');
       if (!isAuthError) {
         setAppReady(true);
         appReadyRef.current = true; // [FIX LOC-001]
       } else {
-        console.warn('[App] Firebase permission error — giữ splash, chờ auth ổn định rồi retry');
+        console.warn('[App] Supabase auth/RLS error — chờ session ổn định rồi retry');
         // Retry sau 2 giây
         setTimeout(() => {
           if (!appReady) initializeApp();
@@ -536,7 +560,7 @@ const App = () => {
   };
 
   // Fonts chưa load hoặc đang khởi tạo → Splash với Lazy Cat
-  if (!fontsLoaded || authState === 'loading' || (authState === 'authenticated' && !appReady)) {
+  if (!fontsLoaded || !languageReady || authState === 'loading' || (authState === 'authenticated' && !appReady)) {
     return <SplashScreen />;
   }
 

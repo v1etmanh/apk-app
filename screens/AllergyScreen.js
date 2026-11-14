@@ -13,6 +13,7 @@ import {
   loadAllIngredients,
 } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -216,7 +217,9 @@ const ScrollBanner = ({ emoji, title, subtitle }) => (
 );
 
 // ─── Mode Toggle ───────────────────────────────────────────────────────────────
-const ModeToggle = ({ mode, onChange }) => (
+const ModeToggle = ({ mode, onChange }) => {
+  const { t } = useTranslation();
+  return (
   <View style={st.toggleWrap}>
     <ImageBackground
       source={require('../assets/textures/paper_cream.png')}
@@ -231,17 +234,19 @@ const ModeToggle = ({ mode, onChange }) => (
             onPress={() => onChange(m)}
             activeOpacity={0.75}>
             <Text style={[st.toggleText, active && st.toggleTextActive]}>
-              {m === 'category' ? '🗂 Nhóm thực phẩm' : '🔍 Nguyên liệu'}
+              {m === 'category' ? t('allergy.categoryMode') : t('allergy.ingredientMode')}
             </Text>
           </TouchableOpacity>
         );
       })}
     </ImageBackground>
   </View>
-);
+  );
+};
 
 // ─── Category Chip ─────────────────────────────────────────────────────────────
 const CategoryChip = ({ item, selected, onToggle }) => {
+  const { t } = useTranslation();
   const cardW = SW - 32;
   const cardH = 76;
   const col = getCatColors(item.key);
@@ -282,7 +287,7 @@ const CategoryChip = ({ item, selected, onToggle }) => {
               {item.display}
             </Text>
             {selected && (
-              <Text style={[st.chipSubLabel, { color: col.accent }]}>Đang tránh ✓</Text>
+              <Text style={[st.chipSubLabel, { color: col.accent }]}>{t('allergy.avoid')}</Text>
             )}
           </View>
 
@@ -332,6 +337,7 @@ const SectionHeader = ({ icon, label }) => (
 
 // ─── Search Modal ──────────────────────────────────────────────────────────────
 const SearchModal = ({ visible, onClose, allIngredients, selectedIds, onToggle, loading }) => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const inputRef = useRef(null);
 
@@ -355,7 +361,7 @@ const SearchModal = ({ visible, onClose, allIngredients, selectedIds, onToggle, 
 
   const renderItem = useCallback(({ item }) => {
     const sel = selectedIds.has(String(item.id));
-    const catLabel = INGREDIENT_CATEGORY_LABELS[item.category] || item.category || '';
+    const catLabel = t('allergy.categories.' + item.category, { defaultValue: INGREDIENT_CATEGORY_LABELS[item.category] || item.category || '' });
     const catEmoji = CATEGORY_EMOJIS[item.category] || '🍽️';
     const col = getCatColors(item.category);
     return (
@@ -402,9 +408,9 @@ const SearchModal = ({ visible, onClose, allIngredients, selectedIds, onToggle, 
               imageStyle={{ opacity: 0.9 }}
             />
             <TouchableOpacity onPress={onClose} style={st.modalBack}>
-              <Text style={st.modalBackText}>← Xong</Text>
+              <Text style={st.modalBackText}>{t('allergy.modalDone')}</Text>
             </TouchableOpacity>
-            <Text style={st.modalTitle}>Chọn nguyên liệu</Text>
+            <Text style={st.modalTitle}>{t('allergy.modalTitle')}</Text>
             <View style={{ width: 60 }} />
           </View>
 
@@ -416,7 +422,7 @@ const SearchModal = ({ visible, onClose, allIngredients, selectedIds, onToggle, 
                 <TextInput
                   ref={inputRef}
                   style={st.searchInput}
-                  placeholder="Tìm theo tên (vd: tôm, cua, sữa...)"
+                  placeholder={t('allergy.search')}
                   placeholderTextColor={C.inkFaint}
                   value={query}
                   onChangeText={setQuery}
@@ -434,7 +440,7 @@ const SearchModal = ({ visible, onClose, allIngredients, selectedIds, onToggle, 
 
           {!query ? (
             <Text style={st.searchHint}>
-              {loading ? 'Đang tải...' : `${allIngredients.length} nguyên liệu · Gõ để tìm`}
+              {loading ? t('allergy.loading') : t('allergy.searchHint', { count: allIngredients.length })}
             </Text>
           ) : null}
 
@@ -459,7 +465,7 @@ const SearchModal = ({ visible, onClose, allIngredients, selectedIds, onToggle, 
                 </Svg>
               )}
               ListEmptyComponent={
-                <Text style={st.emptyText}>Không tìm thấy "{query}" 🥲</Text>
+                <Text style={st.emptyText}>{t('allergy.noResult', { query })}</Text>
               }
             />
           )}
@@ -471,6 +477,7 @@ const SearchModal = ({ visible, onClose, allIngredients, selectedIds, onToggle, 
 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 const AllergyScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const { setAllergies: setStoreAllergies, activeProfileId } = useAppStore();
   const [mode, setMode] = useState('category');
   const [categories, setCategories] = useState([]);
@@ -501,7 +508,7 @@ const AllergyScreen = ({ navigation }) => {
       setAllIngredients(list);
       return list;
     } catch (e) {
-      Alert.alert('Ối!', 'Không tải được danh sách nguyên liệu 😅');
+      Alert.alert(t('common.error'), t('allergy.errorLoad'));
       return [];
     } finally {
       setIngLoading(false);
@@ -512,7 +519,7 @@ const AllergyScreen = ({ navigation }) => {
     const keys = [...new Set(list.map(i => i.category).filter(Boolean))].sort();
     return keys.map(key => ({
       key,
-      display:  CATEGORY_LABELS[key] || key,
+      display:  t('allergy.categories.' + key, { defaultValue: CATEGORY_LABELS[key] || key }),
       emoji:    CATEGORY_EMOJIS[key] || '🍽️',
       selected: selectedKeys.includes(key),
     }));
@@ -558,7 +565,7 @@ const AllergyScreen = ({ navigation }) => {
       setCategories(updated);
       syncStore(updated, selectedIngredients);
     } catch (e) {
-      Alert.alert('Ối!', 'Không thể cập nhật 😅');
+      Alert.alert(t('common.error'), t('allergy.errorUpdate'));
     }
   };
 
@@ -578,7 +585,7 @@ const AllergyScreen = ({ navigation }) => {
         syncStore(categories, updated);
       }
     } catch (e) {
-      Alert.alert('Ối!', 'Không thể cập nhật 😅');
+      Alert.alert(t('common.error'), t('allergy.errorUpdate'));
     }
   }, [selectedIngredients, categories, activeProfileId]);
 
@@ -589,7 +596,7 @@ const AllergyScreen = ({ navigation }) => {
       setSelectedIngredients(updated);
       syncStore(categories, updated);
     } catch (e) {
-      Alert.alert('Ối!', 'Không thể xóa 😅');
+      Alert.alert(t('common.error'), t('allergy.errorDelete'));
     }
   }, [selectedIngredients, categories]);
 
@@ -614,7 +621,7 @@ const AllergyScreen = ({ navigation }) => {
           style={st.backButton}
           activeOpacity={0.7}
         >
-          <Text style={st.backButtonText}>← Quay lại</Text>
+          <Text style={st.backButtonText}>{t('allergy.back')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -623,8 +630,8 @@ const AllergyScreen = ({ navigation }) => {
         {/* Banner */}
         <ScrollBanner
           emoji="🚫"
-          title="Dị ứng & Kiêng kỵ"
-          subtitle="Chúng tôi sẽ loại bỏ các món chứa những thành phần này"
+          title={t('allergy.title')}
+          subtitle={t('allergy.subtitle')}
         />
 
         {/* Summary badge */}
@@ -633,10 +640,10 @@ const AllergyScreen = ({ navigation }) => {
             <View style={st.badge}>
                 <Text style={st.badgeText}>
                   {'✅ '}
-                  {selectedCatCount > 0 ? `${selectedCatCount} nhóm` : ''}
+                  {selectedCatCount > 0 ? t('allergy.summaryGroups', { count: selectedCatCount }) : ''}
                   {selectedCatCount > 0 && selectedIngredients.length > 0 ? ' · ' : ''}
-                  {selectedIngredients.length > 0 ? `${selectedIngredients.length} nguyên liệu` : ''}
-                  {' đang tránh'}
+                  {selectedIngredients.length > 0 ? t('allergy.summaryIngredients', { count: selectedIngredients.length }) : ''}
+                  {t('allergy.summaryTail')}
                 </Text>
               </View>
           </View>
@@ -657,13 +664,13 @@ const AllergyScreen = ({ navigation }) => {
 
               {mode === 'category' ? (
                 <>
-                  <SectionHeader icon="🗂" label="Chọn nhóm thực phẩm cần tránh" />
+                  <SectionHeader icon="🗂" label={t('allergy.chooseGroups')} />
                   {catLoading ? (
                     <ActivityIndicator size="large" color={C.wood} style={{ marginTop: 32, marginBottom: 24 }} />
                   ) : categories.length === 0 ? (
                     <View style={st.emptyState}>
                       <Text style={st.emptyStateIcon}>🍽️</Text>
-                      <Text style={st.emptyStateText}>Không có nhóm thực phẩm nào</Text>
+                      <Text style={st.emptyStateText}>{t('allergy.noGroups')}</Text>
                     </View>
                   ) : (
                     categories.map(item => (
@@ -673,7 +680,7 @@ const AllergyScreen = ({ navigation }) => {
                 </>
               ) : (
                 <>
-                  <SectionHeader icon="🔍" label="Nguyên liệu cụ thể" />
+                  <SectionHeader icon="🔍" label={t('allergy.specific')} />
 
                   {selectedIngredients.length > 0 ? (
                     <View style={st.tagsWrap}>
@@ -694,7 +701,7 @@ const AllergyScreen = ({ navigation }) => {
                         style={{ width: 90, height: 90 }}
                       />
                       <Text style={st.emptyStateText}>
-                        {'Chưa có nguyên liệu nào\nđược thêm vào'}
+                        {t('allergy.noIngredients')}
                       </Text>
                     </View>
                   )}
@@ -713,7 +720,7 @@ const AllergyScreen = ({ navigation }) => {
                       {ingLoading && allIngredients.length === 0 ? (
                         <ActivityIndicator size="small" color={C.cream} />
                       ) : (
-                        <Text style={st.addBtnText}>＋ Thêm nguyên liệu</Text>
+                        <Text style={st.addBtnText}>{t('allergy.add')}</Text>
                       )}
                     </ImageBackground>
                   </TouchableOpacity>
@@ -729,7 +736,7 @@ const AllergyScreen = ({ navigation }) => {
         <View style={st.tipCard}>
           <Text style={st.tipIcon}>💡</Text>
           <Text style={st.tipText}>
-            Mẹo: Chọn theo nhóm để nhanh hơn, hoặc chọn nguyên liệu cụ thể để kiểm soát chính xác hơn nhé!
+            {t('allergy.tip')}
           </Text>
         </View>
 

@@ -6,6 +6,7 @@ import {
 import LottieView from 'lottie-react-native';
 import { C, F, R, shadow } from '../theme';
 import PaperCard from './ui/PaperCard';
+import { useTranslation } from 'react-i18next';
 
 // ── Lottie sources ────────────────────────────────────────────────────────────
 const LOTTIE = {
@@ -55,15 +56,15 @@ function pickBySeed(arr, seed) {
   return arr[Math.abs(seed) % arr.length];
 }
 
-function useModalCopy(mealId, dishName) {
+function useModalCopy(mealId, dishName, t) {
   return useMemo(() => {
-    const set = MODAL_COPY[mealId] ?? MODAL_COPY.lunch;
-    const seed = new Date().getMinutes() + new Date().getHours() * 60;
-    const headingFn = pickBySeed(set.headings, seed);
-    const subtext   = pickBySeed(set.subtexts, seed + 3);
-    return { heading: headingFn(dishName), subtext };
+    const isLunch = mealId !== 'dinner';
+    return {
+      heading: t(isLunch ? 'notifications.lunchTitle' : 'notifications.dinnerTitle', { name: dishName }),
+      subtext: t(isLunch ? 'notifications.lunchBody' : 'notifications.dinnerBody'),
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mealId, dishName]);
+  }, [mealId, dishName, t]);
 }
 
 // ── NutritionChip ─────────────────────────────────────────────────────────────
@@ -87,9 +88,10 @@ export default function MealReminderModal({
   onClose,
   onNavigate,
 }) {
+  const { t } = useTranslation();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(60)).current;
-  const { heading, subtext } = useModalCopy(mealId, dishName || 'món ngon');
+  const { heading, subtext } = useModalCopy(mealId, dishName || t('notifications.todayMeal'), t);
 
   useEffect(() => {
     if (visible) {
@@ -114,11 +116,11 @@ export default function MealReminderModal({
     if (!nutrition) return [];
     const n = [];
     if (nutrition.calories != null) n.push({ emoji: '🔥', label: `${Math.round(nutrition.calories)} kcal`, color: '#E67E22' });
-    if (nutrition.protein  != null) n.push({ emoji: '💪', label: `${Math.round(nutrition.protein)}g protein`, color: '#27AE60' });
-    if (nutrition.fat      != null) n.push({ emoji: '🧈', label: `${Math.round(nutrition.fat)}g chất béo`, color: '#F39C12' });
-    if (nutrition.carbs    != null) n.push({ emoji: '🌾', label: `${Math.round(nutrition.carbs)}g carbs`, color: '#8E44AD' });
+    if (nutrition.protein  != null) n.push({ emoji: '💪', label: `${Math.round(nutrition.protein)}g ${t('notifications.protein')}`, color: '#27AE60' });
+    if (nutrition.fat      != null) n.push({ emoji: '🧈', label: `${Math.round(nutrition.fat)}g ${t('notifications.fat')}`, color: '#F39C12' });
+    if (nutrition.carbs    != null) n.push({ emoji: '🌾', label: `${Math.round(nutrition.carbs)}g ${t('notifications.carbs')}`, color: '#8E44AD' });
     return n;
-  }, [nutrition]);
+  }, [nutrition, t]);
 
   return (
     <Modal
@@ -163,11 +165,11 @@ export default function MealReminderModal({
             <View style={styles.actions}>
               {!!dishName && typeof onNavigate === 'function' && (
                 <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={onNavigate} activeOpacity={0.8}>
-                  <Text style={styles.btnPrimaryText}>Xem chi tiết 🍽️</Text>
+                  <Text style={styles.btnPrimaryText}>{t('dish.fullRecipe')} 🍽️</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={onClose} activeOpacity={0.8}>
-                <Text style={styles.btnSecondaryText}>Bỏ qua</Text>
+                <Text style={styles.btnSecondaryText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </PaperCard>

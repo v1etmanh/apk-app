@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 import { useAppStore } from '../store/useAppStore';
 import { deleteProfileMember } from '../utils/database';
@@ -126,7 +127,7 @@ const WoodStatCard = ({ icon, label, value, unit, hasValue, accentColor }) => (
         ) : (
           <View style={sc.addRow}>
             <Ionicons name="add" size={12} color="#FDF5E6" />
-            <Text style={sc.addText}>Thêm</Text>
+            <Text style={sc.addText}>{label}</Text>
           </View>
         )}
       </View>
@@ -135,7 +136,9 @@ const WoodStatCard = ({ icon, label, value, unit, hasValue, accentColor }) => (
 );
 
 // ── MemberRow — hàng thành viên trong card ───────────────────────────────────
-const MemberRow = ({ p, isActive, isLast, canDelete, onPress, onEdit, onDelete }) => (
+const MemberRow = ({ p, isActive, isLast, canDelete, onPress, onEdit, onDelete }) => {
+  const { t } = useTranslation();
+  return (
   <>
     <TouchableOpacity
       style={[mr.row, isActive && mr.rowActive]}
@@ -152,10 +155,10 @@ const MemberRow = ({ p, isActive, isLast, canDelete, onPress, onEdit, onDelete }
       </View>
       <View style={{ flex: 1, zIndex: 1 }}>
         <Text style={[mr.name, isActive && mr.nameActive]} numberOfLines={1}>
-          {p.displayName || 'Chưa đặt tên'}
+          {p.displayName || t('profiles.unnamed')}
         </Text>
         <Text style={mr.sub} numberOfLines={1}>
-          {RELATION_LABEL[p.relation] || 'Khác'}{p.age ? ` · ${p.age} tuổi` : ''}
+          {t('profiles.' + (p.relation || 'other'), { defaultValue: t('profiles.other') })}{p.age ? ' · ' + t('profiles.years', { count: p.age }) : ''}
         </Text>
       </View>
 
@@ -189,7 +192,8 @@ const MemberRow = ({ p, isActive, isLast, canDelete, onPress, onEdit, onDelete }
     </TouchableOpacity>
     {!isLast && <View style={mr.divider} />}
   </>
-);
+  );
+};
 
 // ── MenuItem — hàng cài đặt ──────────────────────────────────────────────────
 const MenuItem = ({ icon, iconColor, iconBgColor, label, sub, onPress, isLast }) => (
@@ -225,21 +229,22 @@ const SectionStamp = ({ label }) => (
 // ─────────────────────────────────────────────────────────────────────────────
 const ProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { profile, latestMetrics, profiles, activeProfileId, switchProfile, loadAllProfilesAction } = useAppStore();
 
   useFocusEffect(useCallback(() => { loadAllProfilesAction(); }, []));
 
-  // Xóa profile: xóa Firestore + xóa luôn meal plan hôm nay của profile đó
+  // Xóa profile Supabase + xóa luôn meal plan hôm nay của profile đó
   const handleDeleteProfile = (p) => {
     Alert.alert(
-      `Xóa "${p.displayName}"?`,
-      'Thành viên và các món ăn hôm nay của họ sẽ bị xóa.',
+      t('profileScreen.deleteTitle', { name: p.displayName }),
+      t('profileScreen.deleteBody'),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Xóa', style: 'destructive',
+          text: t('settings.clearAll'), style: 'destructive',
           onPress: async () => {
-            // 1. Xóa khỏi Firestore
+            // 1. Xóa khỏi Supabase
             await deleteProfileMember(p.profileId);
             // 2. Xóa món ăn hôm nay của profile này
             await removeMealPlanByProfileId(p.profileId);
@@ -256,29 +261,29 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   // BMI calculation
-  let bmi = null, bmiLabel = 'BMI';
+  let bmi = null, bmiLabel = t('profileScreen.bmi.title');
   if (latestMetrics?.height_cm && latestMetrics?.weight_kg) {
     const h = latestMetrics.height_cm / 100;
     const val = latestMetrics.weight_kg / (h * h);
     bmi = val.toFixed(1);
-    if (val < 18.5) bmiLabel = 'Thiếu cân';
-    else if (val < 25) bmiLabel = 'Bình thường';
-    else if (val < 30) bmiLabel = 'Thừa cân';
-    else bmiLabel = 'Béo phì';
+    if (val < 18.5) bmiLabel = t('profileScreen.bmi.underweight');
+    else if (val < 25) bmiLabel = t('profileScreen.bmi.normal');
+    else if (val < 30) bmiLabel = t('profileScreen.bmi.overweight');
+    else bmiLabel = t('profileScreen.bmi.obese');
   }
 
   const menuItems = [
-    { icon: 'person-outline', iconBgColor: '#C8A96E', label: 'Thông tin cá nhân',
-      sub: profile ? `${profile.age} tuổi · ${DIET_LABEL[profile.diet_type] || '–'}` : 'Chưa thiết lập',
+    { icon: 'person-outline', iconBgColor: '#C8A96E', label: t('profileScreen.personalInfo'),
+      sub: profile ? t('profileScreen.age', { count: profile.age }) + ' · ' + t('profileScreen.diet.' + profile.diet_type, { defaultValue: '–' }) : t('profileScreen.notSet'),
       onPress: () => navigation.getParent()?.navigate('EditPersonal') },
-    { icon: 'barbell-outline', iconBgColor: '#8B9E6A', label: 'Chỉ số cơ thể',
-      sub: latestMetrics ? `${latestMetrics.weight_kg} kg · BMI ${bmi}` : 'Chưa thiết lập',
+    { icon: 'barbell-outline', iconBgColor: '#8B9E6A', label: t('profileScreen.bodyMetrics'),
+      sub: latestMetrics ? t('profileScreen.kgBmi', { weight: latestMetrics.weight_kg, bmi: bmi || '–' }) : t('profileScreen.notSet'),
       onPress: () => navigation.getParent()?.navigate('BodyMetrics') },
-    { icon: 'warning-outline', iconBgColor: '#C88A5A', label: 'Dị ứng & Chế độ ăn',
-      sub: 'Quản lý thực phẩm cần tránh',
+    { icon: 'warning-outline', iconBgColor: '#C88A5A', label: t('profileScreen.allergies'),
+      sub: t('profileScreen.allergiesSub'),
       onPress: () => navigation.getParent()?.navigate('Allergy') },
-    { icon: 'restaurant-outline', iconBgColor: '#A06E6E', label: 'Khẩu vị của tôi',
-      sub: 'Sở thích hương vị cá nhân',
+    { icon: 'restaurant-outline', iconBgColor: '#A06E6E', label: t('profileScreen.taste'),
+      sub: t('profileScreen.tasteSub'),
       onPress: () => navigation.getParent()?.navigate('TasteProfile') },
   ];
 
@@ -301,19 +306,19 @@ const ProfileScreen = ({ navigation }) => {
 
           {/* Tên người dùng */}
           <Text style={s.heroName} numberOfLines={1}>
-            {profile?.displayName || profiles[0]?.displayName || 'Hồ sơ của bạn'}
+            {profile?.displayName || profiles[0]?.displayName || t('profileScreen.yourProfile')}
           </Text>
 
           {/* Pills khẩu vị + hoạt động */}
           <View style={s.pillsRow}>
             {profile?.diet_type && (
-              <WoodChip icon="restaurant-outline" label={DIET_LABEL[profile.diet_type]} />
+              <WoodChip icon="restaurant-outline" label={t('profileScreen.diet.' + profile.diet_type, { defaultValue: profile.diet_type })} />
             )}
             {profile?.activity_level && (
-              <WoodChip icon="bicycle-outline" label={ACTIVITY_LABEL[profile.activity_level] || 'Nhẹ nhàng'} />
+              <WoodChip icon="bicycle-outline" label={t('profileScreen.activity.' + profile.activity_level, { defaultValue: t('profileScreen.activity.lightly_active') })} />
             )}
             {profile?.age && (
-              <WoodChip icon="calendar-outline" label={`${profile.age} tuổi`} />
+              <WoodChip icon="calendar-outline" label={t('profileScreen.age', { count: profile.age })} />
             )}
           </View>
         </View>
@@ -324,26 +329,26 @@ const ProfileScreen = ({ navigation }) => {
             <View style={[StyleSheet.absoluteFill, { borderRadius: 16, overflow: 'hidden' }]} pointerEvents="none">
               <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.9 }} resizeMode="cover" />
             </View>
-            <Text style={s.setupTitle}>👋 Chào mừng! Hãy thiết lập hồ sơ</Text>
-            <Text style={s.setupSub}>Điền đầy đủ thông tin để nhận gợi ý món ăn phù hợp nhất.</Text>
+            <Text style={s.setupTitle}>{t('profileScreen.welcome')}</Text>
+            <Text style={s.setupSub}>{t('profileScreen.welcomeBody')}</Text>
             <View style={s.setupSteps}>
               {!profile?.age && (
                 <TouchableOpacity style={s.setupStep} onPress={() => navigation.getParent()?.navigate('EditPersonal')}>
                   <View style={s.setupStepDot}><Text style={s.setupStepNum}>1</Text></View>
-                  <Text style={s.setupStepText}>Thông tin cá nhân (tuổi, giới tính...)</Text>
+                  <Text style={s.setupStepText}>{t('profileScreen.stepPersonal')}</Text>
                   <Ionicons name="chevron-forward" size={14} color="#C8A96E" />
                 </TouchableOpacity>
               )}
               {!latestMetrics?.weight_kg && (
                 <TouchableOpacity style={s.setupStep} onPress={() => navigation.getParent()?.navigate('BodyMetrics')}>
                   <View style={s.setupStepDot}><Text style={s.setupStepNum}>2</Text></View>
-                  <Text style={s.setupStepText}>Chỉ số cơ thể (cân nặng, chiều cao)</Text>
+                <Text style={s.setupStepText}>{t('profileScreen.stepBody')}</Text>
                   <Ionicons name="chevron-forward" size={14} color="#C8A96E" />
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={s.setupStep} onPress={() => navigation.getParent()?.navigate('Allergy')}>
                 <View style={s.setupStepDot}><Text style={s.setupStepNum}>3</Text></View>
-                <Text style={s.setupStepText}>Dị ứng thực phẩm (nếu có)</Text>
+                <Text style={s.setupStepText}>{t('profileScreen.stepAllergy')}</Text>
                 <Ionicons name="chevron-forward" size={14} color="#C8A96E" />
               </TouchableOpacity>
             </View>
@@ -353,13 +358,13 @@ const ProfileScreen = ({ navigation }) => {
         {/* ══ STATS ROW ══════════════════════════════════════════════════════ */}
         <View style={s.statsRow}>
           <WoodStatCard
-            icon="scale-outline" label="Cân nặng"
+            icon="scale-outline" label={t('profileScreen.weight')}
             value={latestMetrics?.weight_kg ?? '–'} unit="kg"
             hasValue={Boolean(latestMetrics?.weight_kg)}
             accentColor="rgba(100,180,255,0.22)"
           />
           <WoodStatCard
-            icon="resize-outline" label="Chiều cao"
+            icon="resize-outline" label={t('profileScreen.height')}
             value={latestMetrics?.height_cm ?? '–'} unit="cm"
             hasValue={Boolean(latestMetrics?.height_cm)}
             accentColor="rgba(160,220,130,0.22)"
@@ -373,7 +378,7 @@ const ProfileScreen = ({ navigation }) => {
         </View>
 
         {/* ══ MEMBERS ════════════════════════════════════════════════════════ */}
-        <SectionStamp label="🏠  Thành viên gia đình" />
+        <SectionStamp label={t('profileScreen.family')} />
 
         <View style={[s.cardShadow, nativeShadow('#8B5E3C', 0.18, 8, { width: 0, height: 4 }, 5)]}>
           <View style={s.card}>
@@ -401,14 +406,14 @@ const ProfileScreen = ({ navigation }) => {
                 onPress={() => navigation.getParent()?.navigate('AddEditProfile')}
               >
                 <Ionicons name="add-circle-outline" size={17} color="#9A7040" />
-                <Text style={s.addMemberText}>Thêm thành viên mới</Text>
+                <Text style={s.addMemberText}>{t('profileScreen.addMember')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
         {/* ══ SETTINGS ═══════════════════════════════════════════════════════ */}
-        <SectionStamp label="⚙️  Thiết lập" />
+        <SectionStamp label={t('profileScreen.setup')} />
 
         <View style={[s.cardShadow, nativeShadow('#8B5E3C', 0.18, 8, { width: 0, height: 4 }, 5)]}>
           <View style={s.card}>

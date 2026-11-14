@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 import { C, R, F, shadow } from '../theme';
 import {
   saveChallengeHistory, markChallengeCompleted,
@@ -16,6 +17,7 @@ const DIFFICULTY_LABEL = { easy:'🟢 Dễ', medium:'🟡 Vừa', hard:'🔴 Kh�
 const NATION_FLAG = { Vietnam:'🇻🇳', Japan:'🇯🇵', Korea:'🇰🇷', Thailand:'🇹🇭', Italy:'🇮🇹' };
 
 export default function CookingChallengeScreen({ navigation }) {
+  const { t } = useTranslation();
   const { location } = useAppStore();
   const [loading, setLoading]     = useState(true);
   const [challenge, setChallenge] = useState(null);
@@ -44,7 +46,7 @@ export default function CookingChallengeScreen({ navigation }) {
       const s = await computeStreak(); setStreak(s);
     } catch (e) {
       console.error('[Challenge]', e);
-      Alert.alert('Oops! 😅', 'Không thể tải thử thách. Kiểm tra kết nối nhé!');
+      Alert.alert(t('common.error'), t('common.retry'));
     } finally { setLoading(false); }
   };
 
@@ -53,16 +55,14 @@ export default function CookingChallengeScreen({ navigation }) {
     await markChallengeCompleted(todayKey);
     setCompleted(true);
     const s = await computeStreak(); setStreak(s+1);
-    Alert.alert('🎉 Tuyệt vời!',
-      `Bạn đã hoàn thành thử thách hôm nay!${s>0 ? `\n🔥 Chuỗi ${s+1} ngày liên tiếp!` : ''}`,
-      [{ text:'Yay!' }]);
+    Alert.alert(t('challenge.completed'), t('challenge.streak', { count: s + 1 }), [{ text: t('common.ok') }]);
   };
 
   if (loading) return (
     <View style={styles.center}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFF0" />
       <ActivityIndicator size="large" color="#60A5FA" />
-      <Text style={styles.loadingText}>Đang chọn thử thách cho bạn... 🍳</Text>
+      <Text style={styles.loadingText}>{t('challenge.loading')}</Text>
     </View>
   );
 
@@ -70,9 +70,9 @@ export default function CookingChallengeScreen({ navigation }) {
     <View style={styles.center}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFF0" />
       <Text style={styles.emptyIcon}>🍽️</Text>
-      <Text style={styles.emptyText}>Chưa có thử thách hôm nay</Text>
+      <Text style={styles.emptyText}>{t('challenge.empty')}</Text>
       <TouchableOpacity style={styles.retryBtn} onPress={loadChallenge}>
-        <Text style={styles.retryText}>Thử lại 🔄</Text>
+        <Text style={styles.retryText}>{t('common.retry')} 🔄</Text>
       </TouchableOpacity>
     </View>
   );
@@ -90,7 +90,7 @@ export default function CookingChallengeScreen({ navigation }) {
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerBadge}>🏆 Thử thách hôm nay</Text>
+          <Text style={styles.headerBadge}>{t('challenge.title')}</Text>
           <Text style={styles.headerDate}>{dateLabel}</Text>
         </View>
       </View>
@@ -104,7 +104,7 @@ export default function CookingChallengeScreen({ navigation }) {
         {completed && (
           <View style={styles.doneOverlay}>
             <Text style={styles.doneOverlayEmoji}>✅</Text>
-            <Text style={styles.doneOverlayText}>Đã hoàn thành!</Text>
+            <Text style={styles.doneOverlayText}>{t('challenge.completed')}</Text>
           </View>
         )}
       </View>
@@ -114,21 +114,21 @@ export default function CookingChallengeScreen({ navigation }) {
         <Text style={styles.dishTitle}>{challenge.title}</Text>
         <View style={styles.metaRow}>
           <View style={styles.metaChip}><Text style={styles.metaChipText}>{flag} {challenge.nation || 'Việt Nam'}</Text></View>
-          <View style={styles.metaChip}><Text style={styles.metaChipText}>⏱ {challenge.cook_time_min} phút</Text></View>
+          <View style={styles.metaChip}><Text style={styles.metaChipText}>⏱ {t('common.minutes', { count: challenge.cook_time_min })}</Text></View>
           <View style={styles.metaChip}><Text style={styles.metaChipText}>{DIFFICULTY_LABEL[challenge.difficulty] || '🟡 Vừa'}</Text></View>
         </View>
       </View>
 
       {/* Why today */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🌟 Tại sao hôm nay?</Text>
+        <Text style={styles.sectionTitle}>{t('challenge.why')}</Text>
         <Text style={styles.bodyText}>{challenge.why_today}</Text>
       </View>
 
       {/* Tips */}
       {challenge.tips?.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>💡 Mẹo nhỏ</Text>
+          <Text style={styles.sectionTitle}>{t('challenge.tip')}</Text>
           {challenge.tips.map((tip, i) => (
             <Text key={i} style={styles.tipItem}>• {tip}</Text>
           ))}
@@ -139,7 +139,7 @@ export default function CookingChallengeScreen({ navigation }) {
       {streak > 0 && (
         <View style={styles.streakBanner}>
           <Text style={styles.streakEmoji}>🔥</Text>
-          <Text style={styles.streakText}>Chuỗi {streak} ngày liên tiếp!</Text>
+          <Text style={styles.streakText}>{t('challenge.streak', { count: streak })}</Text>
         </View>
       )}
 
@@ -149,7 +149,7 @@ export default function CookingChallengeScreen({ navigation }) {
           style={[styles.ctaBtnPrimary, completed && styles.ctaBtnDone]}
           onPress={handleDone} activeOpacity={0.85}>
           <Text style={styles.ctaBtnPrimaryText}>
-            {completed ? '👀 Xem chi tiết' : '✅ Tôi đã nấu xong!'}
+            {completed ? '👀 ' + t('dish.fullRecipe') : '✅ ' + t('challenge.completed')}
           </Text>
         </TouchableOpacity>
         {!completed && (
@@ -157,7 +157,7 @@ export default function CookingChallengeScreen({ navigation }) {
             style={styles.ctaBtnGhost}
             onPress={() => navigation.navigate('DishDetail', { dish:challenge })}
             activeOpacity={0.85}>
-            <Text style={styles.ctaBtnGhostText}>📖 Xem hướng dẫn đầy đủ</Text>
+            <Text style={styles.ctaBtnGhostText}>{t('challenge.fullGuide')}</Text>
           </TouchableOpacity>
         )}
       </View>

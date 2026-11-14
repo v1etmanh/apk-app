@@ -9,6 +9,7 @@ import LottieView from 'lottie-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 import {
   saveSession, saveDishesToSession,
   loadSessions, loadDishesBySession,
@@ -51,19 +52,19 @@ const normalizeLocation = (loc) => (
 // Removed local T object, using C from theme
 
 // ── AQI label ─────────────────────────────────────────────────────────────────
-const aqiInfo = (aqi) => {
-  if (aqi <= 50)  return { label: 'Tốt',        color: C.accentGreen, textColor: '#275231', bgColor: 'rgba(74, 124, 89, 0.12)' };
-  if (aqi <= 100) return { label: 'Trung bình', color: C.amber,       textColor: '#8A5D00', bgColor: 'rgba(200, 134, 10, 0.12)' };
-  if (aqi <= 150) return { label: 'Không tốt',  color: '#C8601A',     textColor: '#9E450E', bgColor: 'rgba(200, 96, 26, 0.12)' };
-  return               { label: 'Nguy hiểm',    color: '#B84040',     textColor: '#8C2B2B', bgColor: 'rgba(184, 64, 64, 0.12)' };
+const aqiInfo = (aqi, t = (key) => key) => {
+  if (aqi <= 50)  return { label: t('home.good'),        color: C.accentGreen, textColor: '#275231', bgColor: 'rgba(74, 124, 89, 0.12)' };
+  if (aqi <= 100) return { label: t('home.average'), color: C.amber,       textColor: '#8A5D00', bgColor: 'rgba(200, 134, 10, 0.12)' };
+  if (aqi <= 150) return { label: t('home.unhealthy'),  color: '#C8601A',     textColor: '#9E450E', bgColor: 'rgba(200, 96, 26, 0.12)' };
+  return               { label: t('home.dangerous'),    color: '#B84040',     textColor: '#8C2B2B', bgColor: 'rgba(184, 64, 64, 0.12)' };
 };
 
-const uvInfo = (uv) => {
-  if (uv <= 2)  return { label: 'Thấp',       color: C.accentGreen, textColor: '#275231', bgColor: 'rgba(74, 124, 89, 0.12)' };
-  if (uv <= 5)  return { label: 'Vừa phải',   color: C.amber,       textColor: '#8A5D00', bgColor: 'rgba(200, 134, 10, 0.12)' };
-  if (uv <= 7)  return { label: 'Cao',        color: '#C8601A',     textColor: '#9E450E', bgColor: 'rgba(200, 96, 26, 0.12)' };
-  if (uv <= 10) return { label: 'Rất cao',    color: '#C06010',     textColor: '#94460A', bgColor: 'rgba(192, 96, 16, 0.12)' };
-  return               { label: 'Cực kỳ cao', color: '#B84040',     textColor: '#8C2B2B', bgColor: 'rgba(184, 64, 64, 0.12)' };
+const uvInfo = (uv, t = (key) => key) => {
+  if (uv <= 2)  return { label: t('home.low'),       color: C.accentGreen, textColor: '#275231', bgColor: 'rgba(74, 124, 89, 0.12)' };
+  if (uv <= 5)  return { label: t('home.average'),   color: C.amber,       textColor: '#8A5D00', bgColor: 'rgba(200, 134, 10, 0.12)' };
+  if (uv <= 7)  return { label: t('home.high'),        color: '#C8601A',     textColor: '#9E450E', bgColor: 'rgba(200, 96, 26, 0.12)' };
+  if (uv <= 10) return { label: t('home.veryHigh'),    color: '#C06010',     textColor: '#94460A', bgColor: 'rgba(192, 96, 16, 0.12)' };
+  return               { label: t('home.extreme'), color: '#B84040',     textColor: '#8C2B2B', bgColor: 'rgba(184, 64, 64, 0.12)' };
 };
 
 const getSeasonInfo = (seasonStr = '') => {
@@ -192,6 +193,7 @@ const LOC_BANNER_KEY = 'location_banner_dismissed_date';
 
 // ─────────────────────────────────────────────────────────────────────────────
 const HomeScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const isLoadingRef       = React.useRef(false);
   const prevBasketCountRef = React.useRef(-1);
 
@@ -378,8 +380,8 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const icon = weatherIcon(weatherData?.condition, weatherData?.temperature);
-  const aqi  = aqiInfo(weatherData?.aqi ?? 0);
-  const uv   = uvInfo(weatherData?.uv_index ?? 0);
+  const aqi  = aqiInfo(weatherData?.aqi ?? 0, t);
+  const uv   = uvInfo(weatherData?.uv_index ?? 0, t);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -403,7 +405,7 @@ const HomeScreen = ({ navigation }) => {
                   ? ` ${location.province}`
                   : location?.lat && location?.lon
                     ? ` ${Number(location.lat).toFixed(4)}, ${Number(location.lon).toFixed(4)}`
-                    : ' Đang xác định...'}
+                    : ` ${t('home.determining')}`}
               </Text>
             </View>
             <Text style={s.dateLabel}>
@@ -424,10 +426,10 @@ const HomeScreen = ({ navigation }) => {
                   <Text style={s.profileSwitcherAvatar}>{active?.avatar || '🧑'}</Text>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={s.profileSwitcherName} numberOfLines={1}>
-                      {active?.displayName || 'Hồ sơ'}
+                      {active?.displayName || t('home.profile')}
                     </Text>
                     {profiles.length > 1 && (
-                      <Text style={s.profileSwitcherHint}>Đổi ▾</Text>
+                      <Text style={s.profileSwitcherHint}>{t('home.switch')}</Text>
                     )}
                   </View>
                 </>
@@ -448,16 +450,16 @@ const HomeScreen = ({ navigation }) => {
           <View style={s.locBanner}>
             <Text style={s.locBannerIcon}>📍</Text>
             <View style={{ flex: 1 }}>
-              <Text style={s.locBannerTitle}>Cho phép truy cập vị trí?</Text>
+              <Text style={s.locBannerTitle}>{t('home.locationPermission')}</Text>
               <Text style={s.locBannerBody}>
-                Biết vị trí của bạn giúp Daily Mate gợi ý món ăn hợp thời tiết, giá cả và đặc sản vùng miền chính xác hơn.
+                {t('home.locationBody')}
               </Text>
               <View style={s.locBannerActions}>
                 <TouchableOpacity style={s.locBannerBtn} onPress={handleAllowLocation} activeOpacity={0.8}>
-                  <Text style={s.locBannerBtnText}>✅ Cho phép</Text>
+                  <Text style={s.locBannerBtnText}>{t('home.allow')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleDismissLocBanner} activeOpacity={0.7}>
-                  <Text style={s.locBannerDismiss}>Để sau</Text>
+                  <Text style={s.locBannerDismiss}>{t('home.later')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -479,9 +481,9 @@ const HomeScreen = ({ navigation }) => {
         {/* ── 3-col Wood Metric Cards ── */}
         {weatherData ? (
           <View style={s.woodRow}>
-            <WoodMetricCell iconName="Drop"  value={weatherData.humidity}   unit="%"    label="Độ ẩm"   accentColor="rgba(100,180,255,0.18)" />
-            <WoodMetricCell iconName="Wind"  value={weatherData.wind_speed} unit="km/h" label="Sức gió" accentColor="rgba(160,220,160,0.18)" />
-            <WoodMetricCell iconName="Gauge" value={weatherData.pressure}   unit="hPa"  label="Áp suất" accentColor="rgba(255,180,100,0.18)" />
+            <WoodMetricCell iconName="Drop"  value={weatherData.humidity}   unit="%"    label={t('home.humidity')}   accentColor="rgba(100,180,255,0.18)" />
+            <WoodMetricCell iconName="Wind"  value={weatherData.wind_speed} unit="km/h" label={t('home.wind')} accentColor="rgba(160,220,160,0.18)" />
+            <WoodMetricCell iconName="Gauge" value={weatherData.pressure}   unit="hPa"  label={t('home.pressure')} accentColor="rgba(255,180,100,0.18)" />
           </View>
         ) : (
           <View style={[s.woodRow, { justifyContent: 'center', paddingVertical: 24 }]}>
@@ -495,14 +497,14 @@ const HomeScreen = ({ navigation }) => {
             <View style={s.cardRow}>
               <View style={s.rowCenter}>
                 <Ionicons name="leaf-outline" size={18} color={C.textMid} />
-                <Text style={s.cardLabel}> Chất lượng không khí</Text>
+                <Text style={s.cardLabel}> {t('home.airQuality')}</Text>
               </View>
               <View style={[s.statusBadge, { backgroundColor: aqi.bgColor, borderColor: aqi.color }]}>
                 <Text style={[s.cardBadge, { color: aqi.textColor }]}>{aqi.label}</Text>
               </View>
             </View>
             <View style={s.metricReadoutRow}>
-              <Text style={s.metricReadoutLabel}>Mức hiện tại</Text>
+              <Text style={s.metricReadoutLabel}>{t('home.currentLevel')}</Text>
               <Text style={[s.metricReadoutValue, { color: aqi.textColor }]}>
                 <Text style={s.metricPrefix}>AQI </Text>
                 {Math.round(weatherData.aqi)}
@@ -523,7 +525,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={s.cardRow}>
               <View style={s.rowCenter}>
                 <Ionicons name="sunny-outline" size={18} color={C.textMid} />
-                <Text style={s.cardLabel}> Chỉ số UV</Text>
+                <Text style={s.cardLabel}> {t('home.uvIndex')}</Text>
               </View>
               <View style={[s.statusBadge, { backgroundColor: uv.bgColor, borderColor: uv.color }]}>
                 <Text style={[s.cardBadge, { color: uv.textColor }]}>
@@ -532,7 +534,7 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </View>
             <View style={s.metricReadoutRow}>
-              <Text style={s.metricReadoutLabel}>Vị trí trên thang đo</Text>
+              <Text style={s.metricReadoutLabel}>{t('home.scalePosition')}</Text>
               <Text style={[s.metricReadoutValue, { color: uv.textColor }]}>
                 <Text style={s.metricPrefix}>UV </Text>
                 {weatherData.uv_index?.toFixed(1)}
@@ -568,7 +570,7 @@ const HomeScreen = ({ navigation }) => {
               <View style={s.rowCenter}>
                 <Ionicons name="trophy-outline" size={24} color={C.amber} />
                 <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={s.challengeEyebrow}>THỬ THÁCH HÔM NAY</Text>
+                  <Text style={s.challengeEyebrow}>{t('home.challengeToday')}</Text>
                   <Text style={s.challengeTitle} numberOfLines={1}>{challengeTitle}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={C.amber} style={s.cardTrailingIcon} />
@@ -586,10 +588,10 @@ const HomeScreen = ({ navigation }) => {
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={s.basketTitle}>
-                  {basketBadge > 0 ? `Đã chọn ${basketBadge} nguyên liệu` : 'Bạn đã mua gì hôm nay?'}
+                  {basketBadge > 0 ? t('home.basketSelected', { count: basketBadge }) : t('home.basketQuestion')}
                 </Text>
                 <Text style={s.basketSub}>
-                  {basketBadge > 0 ? 'App sẽ ưu tiên món dùng đúng đồ bạn có' : 'Tap để cập nhật giỏ hàng'}
+                  {basketBadge > 0 ? t('home.basketPriority') : t('home.basketUpdate')}
                 </Text>
               </View>
               {basketBadge > 0 && (
@@ -612,10 +614,10 @@ const HomeScreen = ({ navigation }) => {
               style={[s.basketHintCat, { pointerEvents: 'none' }]}
             />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={s.basketHintEyebrow}>💡 Mẹo nhỏ</Text>
+              <Text style={s.basketHintEyebrow}>{t('home.tip')}</Text>
               <Text style={s.basketHintText}>
-                Có nguyên liệu trong tủ mà{'\n'}chưa biết nấu gì?{' '}
-                <Text style={s.basketHintAccent}>Tick chọn vào đây</Text>
+                {t('home.tipBody')}{' '}
+                <Text style={s.basketHintAccent}>{t('home.tipAction')}</Text>
                 {' '}— app tự gợi ý món phù hợp! 🍳
               </Text>
             </View>
@@ -624,7 +626,7 @@ const HomeScreen = ({ navigation }) => {
 
         {/* ── Selection Toggles ── */}
         <View style={s.filtersContainer}>
-          <Text style={s.filtersEyebrow}>TÙY CHỌN TÌM KIẾM</Text>
+          <Text style={s.filtersEyebrow}>{t('home.searchOptions')}</Text>
 
           {/* Dish Type Options */}
           <ScrollView
@@ -634,9 +636,9 @@ const HomeScreen = ({ navigation }) => {
             style={s.filtersScroll}
           >
             {[
-              { k: 'all',       l: '🍽️ Tất cả' },
-              { k: 'soup',      l: '🥣 Canh' },
-              { k: 'main_dish', l: '🍖 Món mặn' },
+              { k: 'all',       l: t('home.all') },
+              { k: 'soup',      l: t('home.soup') },
+              { k: 'main_dish', l: t('home.mainDish') },
             ].map(({ k, l }) => (
               <TouchableOpacity
                 key={k}
@@ -661,7 +663,7 @@ const HomeScreen = ({ navigation }) => {
         {/* ── Search CTA ── */}
         <View style={{ marginHorizontal: 24, marginTop: 16 }}>
           <WoodButton
-            title={isDirty ? '✨ Tìm lại với bộ lọc mới' : '🔍 Tìm món cho tôi'}
+            title={isDirty ? t('home.searchAgain') : t('home.findDish')}
             onPress={goSearch}
             isLoading={isLoadingRef.current}
           />

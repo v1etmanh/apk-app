@@ -15,8 +15,9 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getSetting, setSetting } from '../utils/database';
+import i18n from '../i18n';
 
-// ── Firestore/AsyncStorage keys ──────────────────────────────────────────────
+// ── Supabase/AsyncStorage keys ───────────────────────────────────────────────
 const KEY_ENABLED = 'meal_reminder_enabled';
 const KEY_TIMES   = 'meal_reminder_times';
 
@@ -92,16 +93,22 @@ function pickRandom(arr, seed) {
 }
 
 function buildNotifCopy(meal, dish) {
-  const seed = Date.now() / 1000 / 300; // đổi mỗi 5 phút
+  const name = dish.name || i18n.t('notifications.todayMeal');
+  const hasNutrition = dish.nutrition?.calories != null;
   if (meal.id === 'lunch') {
-    const titleFn = pickRandom(LUNCH_TITLES, seed);
-    const bodyFn  = pickRandom(LUNCH_BODIES, seed + 1);
-    return { title: titleFn(dish.name), body: bodyFn(dish) };
-  } else {
-    const titleFn = pickRandom(DINNER_TITLES, seed);
-    const bodyFn  = pickRandom(DINNER_BODIES, seed + 1);
-    return { title: titleFn(dish.name), body: bodyFn(dish) };
+    return {
+      title: i18n.t('notifications.lunchTitle', { name }),
+      body: hasNutrition
+        ? i18n.t('notifications.lunchNutrition', { calories: dish.nutrition.calories })
+        : i18n.t('notifications.lunchBody'),
+    };
   }
+  return {
+    title: i18n.t('notifications.dinnerTitle', { name }),
+    body: hasNutrition
+      ? i18n.t('notifications.dinnerNutrition', { calories: dish.nutrition.calories })
+      : i18n.t('notifications.dinnerBody'),
+  };
 }
 
 // ── Schedule một meal ─────────────────────────────────────────────────────────

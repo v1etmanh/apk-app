@@ -12,9 +12,9 @@ import {
   getRecentDishIds, loadSessions, loadDishesBySession,
   pruneOldSessions, getSavedDishes, saveDish, removeSavedDish,
 } from '../utils/database';
-import { ensureFirebaseAuth } from '../utils/firebaseConfig';
 import LottieView from 'lottie-react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { C } from '../theme';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard from '../components/ui/PaperCard';
@@ -31,7 +31,7 @@ const ASSETS = {
 };
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const MAX_SESSIONS_STORED = 20; // Số session tối đa lưu trên Firestore
+const MAX_SESSIONS_STORED = 20; // Số phiên tối đa lưu trên Supabase
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const scoreColor = (score) => {
@@ -41,35 +41,16 @@ const scoreColor = (score) => {
   return C.textSecondary || '#A0784A';
 };
 
-const LOADING_MSGS = [
-  {
-    eyebrow: 'ĐỀ XUẤT HÔM NAY',
-    title: 'Đang tuyển chọn món dành cho bạn',
-    detail: 'Hệ thống đang đối chiếu thời tiết, khẩu vị và nguyên liệu hiện có.',
-  },
-  {
-    eyebrow: 'PHÂN TÍCH NGỮ CẢNH',
-    title: 'Đọc vị thời tiết và nhịp ăn hôm nay',
-    detail: 'Ưu tiên những món hợp thời điểm, dễ ăn và đúng nhu cầu hiện tại.',
-  },
-  {
-    eyebrow: 'CÁ NHÂN HÓA GỢI Ý',
-    title: 'Tinh chỉnh theo khẩu vị riêng của bạn',
-    detail: 'Bộ lọc đang cân bằng sở thích, thời gian nấu và mức chi phí mong muốn.',
-  },
-  {
-    eyebrow: 'SẮP HOÀN TẤT',
-    title: 'Một danh sách gợi ý đẹp và hợp lý đang tới',
-    detail: 'Chỉ thêm một chút nữa để hiện ra những lựa chọn đáng thử nhất.',
-  },
-];
+const getLoadingMsgs = t => t('recommend.loading', { returnObjects: true });
 
 // ── Loading screen ────────────────────────────────────────────────────────────
 const LoadingView = () => {
+  const { t } = useTranslation();
+  const loadingMsgs = getLoadingMsgs(t);
   const [idx, setIdx] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setIdx(i => (i + 1) % LOADING_MSGS.length), 1800);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setIdx(i => (i + 1) % loadingMsgs.length), 1800);
+    return () => clearInterval(timer);
   }, []);
   return (
     <ScreenBackground texture="sky">
@@ -82,11 +63,11 @@ const LoadingView = () => {
         />
         <ImageBackground source={ASSETS.wood} style={s.loadingCard} imageStyle={{ borderRadius: 20, opacity: 0.88 }} resizeMode="cover">
           <View style={s.loadingCardInner}>
-            <Text style={s.loadingEyebrow}>{LOADING_MSGS[idx].eyebrow}</Text>
-            <Text style={s.loadingText}>{LOADING_MSGS[idx].title}</Text>
-            <Text style={s.loadingDetail}>{LOADING_MSGS[idx].detail}</Text>
+            <Text style={s.loadingEyebrow}>{loadingMsgs[idx].eyebrow}</Text>
+            <Text style={s.loadingText}>{loadingMsgs[idx].title}</Text>
+            <Text style={s.loadingDetail}>{loadingMsgs[idx].detail}</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
-              {LOADING_MSGS.map((_, i) => (
+              {loadingMsgs.map((_, i) => (
                 <View key={i} style={{
                   width: i === idx ? 20 : 6, height: 6, borderRadius: 3,
                   backgroundColor: i === idx ? C.text : 'rgba(92,58,30,0.10)',
@@ -105,6 +86,7 @@ const LoadingView = () => {
 
 // ── Top dish card (rank 1–3, horizontal scroll) ───────────────────────────────
 const TopCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }) => {
+  const { t } = useTranslation();
   const isFirst = item.rank === 1;
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
@@ -173,7 +155,7 @@ const TopCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave })
                   color={isAdded ? '#22C55E' : '#60A5FA'}
                 />
                 <Text style={[s.addMealText, isAdded && s.addMealTextDone]}>
-                  {isAdded ? 'Đã thêm vào bữa' : 'Thêm vào bữa'}
+                  {isAdded ? t('recommend.addedToMeal') : t('recommend.addToMeal')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -196,7 +178,9 @@ const TopCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave })
 };
 
 // ── List row (rank 4+) ────────────────────────────────────────────────────────
-const ListRow = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }) => (
+const ListRow = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }) => {
+  const { t } = useTranslation();
+  return (
   <TouchableOpacity onPress={onPress} activeOpacity={0.82}>
     <ImageBackground
       source={ASSETS.paper}
@@ -254,7 +238,7 @@ const ListRow = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave })
                 color={isAdded ? '#22C55E' : '#60A5FA'}
               />
               <Text style={[s.addMealText, isAdded && s.addMealTextDone, { fontSize: 11 }]}>
-                {isAdded ? 'Đã thêm' : 'Thêm vào bữa'}
+                {isAdded ? t('recommend.added') : t('recommend.add')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -275,11 +259,13 @@ const ListRow = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave })
       </View>
     </ImageBackground>
   </TouchableOpacity>
-);
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 const RecommendScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { searchParams = {} } = route.params || {};
   const PAGE_SIZE = 10;
 
@@ -332,16 +318,16 @@ const RecommendScreen = ({ navigation, route }) => {
     };
     await addDishToMealPlan(profileInfo, dish);
     setAddedDishIds(prev => new Set([...prev, dish.dish_id]));
-    showToast(`✅ Đã thêm "${dish.title}" vào bữa hôm nay!`);
+    showToast(t('recommend.addedToast', { name: dish.title }));
   }, [profile, activeProfileId, showToast]);
 
   // Handler bookmark — dùng store action thay vì local state
   const handleToggleSave = useCallback(async (dish) => {
     const wasSaved = await toggleSaveDish(dish);
     if (!wasSaved) {
-      showToast(`🔖 Đã lưu "${dish.title}" vào yêu thích!`);
+      showToast(t('recommend.savedToast', { name: dish.title }));
     } else {
-      showToast(`🔖 Đã bỏ lưu "${dish.title}"`);
+      showToast(t('recommend.unsavedToast', { name: dish.title }));
     }
   }, [toggleSaveDish, showToast]);
 
@@ -443,11 +429,6 @@ const RecommendScreen = ({ navigation, route }) => {
   const persistSession = async (result, params) => {
     const safeParams = params || {};
     try {
-      // [FIX] Đảm bảo Firebase auth sẵn sàng trước khi write Firestore.
-      // persistSession chạy ngay sau khi nhận response API — có thể Firebase
-      // anonymous auth chưa hoàn tất (đặc biệt lần đầu đăng nhập) → permission-denied.
-      await ensureFirebaseAuth();
-
       const ranked = result.ranked_dishes || [];
       const sid = await saveSession({
         created_at: new Date().toISOString(),
@@ -486,9 +467,9 @@ const RecommendScreen = ({ navigation, route }) => {
 
   const weather = searchParams?.weather;
   const weatherPill = weather ? `${weather.temperature}°C · ${weather.condition || ''}` : null;
-  const cuisineLabel = searchParams?.cuisine_scope === 'global' ? 'Toàn cầu' : 'Việt Nam';
-  const typeLabel = searchParams?.dish_type_filter === 'soup'      ? 'Canh' :
-                    searchParams?.dish_type_filter === 'main_dish' ? 'Món mặn' : 'Tất cả';
+  const cuisineLabel = searchParams?.cuisine_scope === 'global' ? t('recommend.global') : t('recommend.vietnam');
+  const typeLabel = searchParams?.dish_type_filter === 'soup'      ? t('recommend.soup') :
+                    searchParams?.dish_type_filter === 'main_dish' ? t('recommend.mainDish') : t('recommend.all');
 
   if (isLoading) {
     return (
@@ -517,12 +498,12 @@ const RecommendScreen = ({ navigation, route }) => {
             style={[s.headerAction, s.backBtn]}
             activeOpacity={0.78}
             accessibilityRole="button"
-            accessibilityLabel="Quay lai"
+            accessibilityLabel={t('recommend.back')}
           >
             <Ionicons name="chevron-back" size={18} color={C.textMid} />
-            <Text style={s.backText}> Quay lại</Text>
+            <Text style={s.backText}> {t('recommend.back')}</Text>
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Gợi ý món ăn</Text>
+          <Text style={s.headerTitle}>{t('recommend.title')}</Text>
           <View style={{ flexDirection: 'row', gap: 6 }}>
             {/* Nút Bữa hôm nay */}
            
@@ -531,10 +512,10 @@ const RecommendScreen = ({ navigation, route }) => {
               style={[s.headerAction, s.refreshBtn]}
               activeOpacity={0.78}
               accessibilityRole="button"
-              accessibilityLabel="Lam moi goi y mon an"
+              accessibilityLabel={t('recommend.refresh')}
             >
               <Ionicons name="refresh" size={17} color={C.accentGold} />
-              <Text style={s.refreshText}> Làm mới</Text>
+              <Text style={s.refreshText}> {t('recommend.refresh')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -571,7 +552,7 @@ const RecommendScreen = ({ navigation, route }) => {
           <View style={{ flex: 1 }} />
           <MetaChip 
             variant="accent" 
-            label={totalDishes > 0 ? `${totalDishes} gợi ý` : `${dishes.length} gợi ý`} 
+            label={t('recommend.suggestions', { count: totalDishes > 0 ? totalDishes : dishes.length })}
             style={s.resultChip}
           />
         </View>
@@ -580,7 +561,7 @@ const RecommendScreen = ({ navigation, route }) => {
       {/* ── Offline banner ── */}
       {error === 'offline' && (
         <View style={s.offlineBanner}>
-          <Text style={s.offlineText}>📡 Đang hiển thị dữ liệu đã lưu (offline)</Text>
+          <Text style={s.offlineText}>{t('recommend.offline')}</Text>
         </View>
       )}
 
@@ -590,24 +571,21 @@ const RecommendScreen = ({ navigation, route }) => {
           <View style={s.basketWarnHeader}>
             <Text style={s.basketWarnIcon}>⚠️</Text>
             <Text style={s.basketWarnTitle}>
-              Chỉ tìm thấy {basketWarning.count} món từ giỏ nguyên liệu của bạn
+              {t('recommend.warningTitle', { count: basketWarning.count })}
             </Text>
           </View>
           <Text style={s.basketWarnBody}>
-            Những món này đến đúng từ nguyên liệu bạn đã chọn, nhưng các thông số sức khỏe
-            (natri, chỉ số đường huyết…) có thể chưa được lọc tối ưu theo tình trạng của bạn.
+            {t('recommend.warningBody')}
           </Text>
           <Text style={s.basketWarnBody}>
-            Để đảm bảo an toàn, bạn có thể tìm kiếm thêm trên{' '}
-            <Text style={s.basketWarnLink}>Google</Text> hoặc{' '}
-            <Text style={s.basketWarnLink}>nền tảng y tế</Text> để xác nhận món phù hợp với sức khỏe của bạn.
+            {t('recommend.warningSafety')}
           </Text>
           <TouchableOpacity
             onPress={() => setBasketWarning(null)}
             style={s.basketWarnDismiss}
             activeOpacity={0.7}
           >
-            <Text style={s.basketWarnDismissText}>Đã hiểu, đóng thông báo</Text>
+            <Text style={s.basketWarnDismissText}>{t('recommend.warningClose')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -617,7 +595,7 @@ const RecommendScreen = ({ navigation, route }) => {
         {/* ── Top 3 horizontal scroll ── */}
         {dishes.length > 0 && (
           <>
-            <SectionHeader title="✨ Gợi ý hàng đầu" />
+            <SectionHeader title={t('recommend.top')} />
 
             <ScrollView
               horizontal showsHorizontalScrollIndicator={false}
@@ -641,7 +619,7 @@ const RecommendScreen = ({ navigation, route }) => {
         {/* ── List rows rank 4+ ── */}
         {dishes.length > 3 && (
           <View style={{ marginTop: 16 }}>
-            <SectionHeader title="Gợi ý khác" />
+            <SectionHeader title={t('recommend.other')} />
             {dishes.slice(3).map((item, idx) => (
               <ListRow
                 key={item.dish_id != null ? `list_${item.dish_id}` : `list_rank_${item.rank ?? idx + 3}`}
@@ -665,7 +643,7 @@ const RecommendScreen = ({ navigation, route }) => {
                     {isLoadingMore
                       ? <ActivityIndicator color={C.text} />
                       : <Text style={s.loadMoreText}>
-                          Xem thêm gợi ý · Trang {currentPage + 1}/{totalPages} ↓
+                          {t('recommend.loadMore', { page: currentPage + 1, total: totalPages })}
                         </Text>
                     }
                   </View>
@@ -679,12 +657,12 @@ const RecommendScreen = ({ navigation, route }) => {
         {error === 'empty' && (
           <View style={{ alignItems: 'center', paddingVertical: 60 }}>
             <Text style={{ fontSize: 52 }}>🍽️</Text>
-            <Text style={[s.sectionTitle, { marginHorizontal: 0, marginTop: 12 }]}>Chưa có gợi ý nào</Text>
-            <Text style={s.emptyMeta}>Kiểm tra kết nối mạng</Text>
+            <Text style={[s.sectionTitle, { marginHorizontal: 0, marginTop: 12 }]}>{t('recommend.noSuggestions')}</Text>
+            <Text style={s.emptyMeta}>{t('recommend.checkNetwork')}</Text>
             <TouchableOpacity onPress={fetchFirstPage} activeOpacity={0.80} style={{ marginTop: 20 }}>
               <ImageBackground source={ASSETS.wood} style={s.retryBtn} imageStyle={{ borderRadius: 18, opacity: 0.88 }} resizeMode="cover">
                 <View style={{ backgroundColor: 'rgba(92,58,30,0.22)', borderRadius: 18, paddingVertical: 13, paddingHorizontal: 32 }}>
-                  <Text style={s.retryText}>Thử lại</Text>
+                  <Text style={s.retryText}>{t('recommend.retry')}</Text>
                 </View>
               </ImageBackground>
             </TouchableOpacity>

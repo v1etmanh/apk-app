@@ -3,11 +3,10 @@
     "name": "Daily Mate",
     "slug": "daily-mate",
     "scheme": "dailymate",
-    "version": "1.0.0",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -51,20 +50,26 @@
     },
     "plugins": [
       "expo-notifications",
+      "expo-build-properties",
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser",
       [
-        "expo-build-properties",
+        "expo-localization",
         {
-          "android": {
-            "newArchEnabled": true
-          },
-          "ios": {
-            "newArchEnabled": true
+          "supportedLocales": {
+            "ios": [
+              "vi",
+              "en"
+            ],
+            "android": [
+              "vi",
+              "en"
+            ]
           }
         }
       ],
-      "expo-font",
-      "expo-secure-store",
-      "expo-web-browser"
+      "expo-video"
     ],
     "extra": {
       "eas": {

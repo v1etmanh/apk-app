@@ -14,7 +14,6 @@ import {
   // Saved dishes
   getSavedDishes, saveDish, removeSavedDish,
 } from '../utils/database';
-import { ensureFirebaseAuth } from '../utils/firebaseConfig';
 import { loadReminderSettings, DEFAULT_REMINDER_TIMES } from '../services/mealReminderService';
 
 export const useAppStore = create((set, get) => ({
@@ -36,7 +35,7 @@ export const useAppStore = create((set, get) => ({
   tasteProfile:        null,   // { sweet, sour, salty, bitter, umami, spicy, astringent }
   hometownProvinceId:  null,   // int | null
   tasteMode:           'hometown', // 'manual' | 'hometown'
-  provinces:           [],     // cache 63 tỉnh từ Firestore
+  provinces:           [],     // cache danh sách tỉnh từ local JSON
 
   // Multi-profile
   profiles:        [],    // Array<ProfileMember>
@@ -199,7 +198,7 @@ export const useAppStore = create((set, get) => ({
         await get().switchProfile(list[0].profileId);
       } else if (currentActiveId) {
         // [FIX TASTE] Đã có activeProfileId nhưng taste/allergies/metrics chưa được load
-        // vào store (chỉ có từ initializeSettings đọc AsyncStorage, không có Firestore data).
+        // vào store (initializeSettings chỉ đọc cài đặt, không tải dữ liệu hồ sơ).
         // Gọi switchProfile để load đầy đủ: profile + allergies + metrics + tasteProfile.
         await get().switchProfile(currentActiveId);
       }
@@ -210,10 +209,6 @@ export const useAppStore = create((set, get) => ({
 
   switchProfile: async (profileId) => {
     try {
-      // [FIX] Đảm bảo Firebase auth sẵn sàng trước các Firestore reads.
-      // switchProfile được gọi ngay sau save lần đầu đăng nhập — Firebase
-      // anonymous auth có thể chưa hoàn tất → reads bị permission-denied.
-      await ensureFirebaseAuth();
       await setActiveProfileId(profileId);
       set({ activeProfileId: profileId });
       // [FIX ID-M013] Load profile + tất cả data song song, set vào store 1 lần (atomic)
@@ -320,13 +315,12 @@ export const useAppStore = create((set, get) => ({
   initializeMaxPrepTime:   async () => get().initializeSettings(),
   initializeCostPreference: async () => get().initializeSettings(),
 
-  // Load tất cả ingredients vào memory — đã migrate sang local JSON (assets/data/ingredients.json).
-  // loadAllIngredients() bây giờ là sync wrapped in Promise — không cần network, không block startup.
-  initializeIngredients: async () => {
+  // Load nguyên liệu từ API; database layer tự cache và fallback local khi offline.
+  initializeIngredients: async (language) => {
     try {
-      const list = await loadAllIngredients();  // trả ngay từ local JSON
+      const list = await loadAllIngredients(language);
       set({ allIngredients: list });
-      if (__DEV__) console.log('[Store] allIngredients loaded (local JSON):', list.length);
+      if (__DEV__) console.log('[Store] allIngredients loaded:', list.length);
     } catch (e) { console.error('initializeIngredients:', e); }
   },
 }));

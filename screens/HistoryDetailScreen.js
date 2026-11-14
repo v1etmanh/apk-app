@@ -7,6 +7,7 @@ import {
 import Svg, { Path, Rect, Circle, Defs, Filter, FeTurbulence, FeDisplacementMap } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
 import { loadDishesBySession, loadFeedbackBySession } from '../utils/database';
+import { useTranslation } from 'react-i18next';
 
 // ─── Design Tokens ────────────────────────────────────────────────
 const COLORS = {
@@ -28,9 +29,9 @@ const { width: SW } = Dimensions.get('window');
 
 // ─── ACTION CONFIG ─────────────────────────────────────────────────
 const ACTION_LABEL = {
-  eaten:   { text: 'Đã ăn',    emoji: '😋', color: COLORS.inkLight, bg: '#D4EDDA', stamp: '✓' },
-  skipped: { text: 'Bỏ qua',   emoji: '⏭️', color: '#9B4444',       bg: '#F5D5D5', stamp: '✗' },
-  rated:   { text: 'Đánh giá', emoji: '⭐', color: '#8B6914',       bg: '#F5EAC0', stamp: '★' },
+  eaten:   { textKey: 'historyDetail.eatenAction', emoji: '😋', color: COLORS.inkLight, bg: '#D4EDDA', stamp: '✓' },
+  skipped: { textKey: 'historyDetail.skippedAction', emoji: '⏭️', color: '#9B4444',       bg: '#F5D5D5', stamp: '✗' },
+  rated:   { textKey: 'historyDetail.ratedAction', emoji: '⭐', color: '#8B6914',       bg: '#F5EAC0', stamp: '★' },
 };
 
 // ─── Wobbly SVG Card Border ────────────────────────────────────────
@@ -65,7 +66,7 @@ const WobblyBorder = ({ width, height, color = COLORS.dashed, strokeWidth = 2 })
 };
 
 // ─── Stamp Badge ───────────────────────────────────────────────────
-const StampBadge = ({ action }) => {
+const StampBadge = ({ action, t }) => {
   if (!action) return null;
   const rotations = [-8, 6, -4, 10, -6];
   const rot = rotations[Math.floor(Math.random() * rotations.length)];
@@ -75,7 +76,7 @@ const StampBadge = ({ action }) => {
       { backgroundColor: action.bg, transform: [{ rotate: `${rot}deg` }] }
     ]}>
       <Text style={[st.stampEmoji]}>{action.emoji}</Text>
-      <Text style={[st.stampText, { color: action.color }]}>{action.text}</Text>
+      <Text style={[st.stampText, { color: action.color }]}>{t(action.textKey)}</Text>
     </View>
   );
 };
@@ -87,6 +88,7 @@ const PaperTape = ({ color = '#C8E6F5', style }) => (
 
 // ─── Dish Card ─────────────────────────────────────────────────────
 const DishCard = ({ dish, fb, index, onPress }) => {
+  const { t } = useTranslation();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
@@ -134,7 +136,7 @@ const DishCard = ({ dish, fb, index, onPress }) => {
             <View style={st.metaRow}>
               {dish.cook_time_min > 0 && (
                 <View style={st.metaChip}>
-                  <Text style={st.metaChipText}>⏱ {dish.cook_time_min} phút</Text>
+                  <Text style={st.metaChipText}>{t('historyDetail.minutes', { count: dish.cook_time_min })}</Text>
                 </View>
               )}
               {dish.nation && (
@@ -147,7 +149,7 @@ const DishCard = ({ dish, fb, index, onPress }) => {
 
           {/* Stamp badge hoặc chevron nếu chưa có action */}
           {action
-            ? <StampBadge action={action} />
+            ? <StampBadge action={action} t={t} />
             : <Text style={st.chevron}>›</Text>
           }
         </View>
@@ -169,6 +171,7 @@ const DishCard = ({ dish, fb, index, onPress }) => {
 
 // ─── Main Screen ───────────────────────────────────────────────────
 const HistoryDetailScreen = ({ route, navigation }) => {
+  const { t } = useTranslation();
   const { sessionId } = route.params;
   const [dishes,  setDishes]  = useState([]);
   const [feedback,setFeedback]= useState({});
@@ -222,8 +225,8 @@ const HistoryDetailScreen = ({ route, navigation }) => {
             autoPlay loop
             style={{ width: 140, height: 140 }}
           />
-          <Text style={st.loadingText}>Đang tải dữ liệu...</Text>
-          <Text style={st.loadingSubtext}>Mèo đang ngủ gật 😴</Text>
+          <Text style={st.loadingText}>{t('historyDetail.loading')}</Text>
+          <Text style={st.loadingSubtext}>{t('historyDetail.loadingSub')}</Text>
         </View>
       </ImageBackground>
     );
@@ -259,8 +262,8 @@ const HistoryDetailScreen = ({ route, navigation }) => {
 
           {/* Title */}
           <View style={st.headerCenter}>
-            <Text style={st.headerSub}>nhật ký món ăn</Text>
-            <Text style={st.headerTitle}>Chi tiết phiên gợi ý</Text>
+            <Text style={st.headerSub}>{t('historyDetail.diary')}</Text>
+            <Text style={st.headerTitle}>{t('historyDetail.title')}</Text>
           </View>
 
           {/* Calico cat mascot — bobbing */}
@@ -292,7 +295,7 @@ const HistoryDetailScreen = ({ route, navigation }) => {
           <View style={[st.summaryBubble, { backgroundColor: '#D4E8F5' }]}>
             <Text style={st.summaryEmoji}>🍽️</Text>
             <Text style={st.summaryNum}>{dishes.length}</Text>
-            <Text style={st.summaryLabel}>món gợi ý</Text>
+            <Text style={st.summaryLabel}>{t('historyDetail.suggested')}</Text>
           </View>
 
           <View style={st.summaryDivider} />
@@ -300,7 +303,7 @@ const HistoryDetailScreen = ({ route, navigation }) => {
           <View style={[st.summaryBubble, { backgroundColor: '#D4EDC4' }]}>
             <Text style={st.summaryEmoji}>😋</Text>
             <Text style={st.summaryNum}>{eatenCount}</Text>
-            <Text style={st.summaryLabel}>đã ăn</Text>
+            <Text style={st.summaryLabel}>{t('historyDetail.eaten')}</Text>
           </View>
 
           <View style={st.summaryDivider} />
@@ -308,14 +311,14 @@ const HistoryDetailScreen = ({ route, navigation }) => {
           <View style={[st.summaryBubble, { backgroundColor: '#F5E8C8' }]}>
             <Text style={st.summaryEmoji}>⏭️</Text>
             <Text style={st.summaryNum}>{dishes.length - eatenCount}</Text>
-            <Text style={st.summaryLabel}>bỏ qua</Text>
+            <Text style={st.summaryLabel}>{t('historyDetail.skipped')}</Text>
           </View>
         </View>
 
         {/* ── Section label ── */}
         <View style={st.sectionLabel}>
           <View style={st.sectionLine} />
-          <Text style={st.sectionText}>✦ danh sách món ✦</Text>
+          <Text style={st.sectionText}>{t('historyDetail.dishList')}</Text>
           <View style={st.sectionLine} />
         </View>
 
@@ -327,8 +330,8 @@ const HistoryDetailScreen = ({ route, navigation }) => {
               autoPlay loop
               style={{ width: 160, height: 160 }}
             />
-            <Text style={st.emptyTitle}>Không có dữ liệu</Text>
-            <Text style={st.emptyText}>Mèo cam đã ăn hết rồi... 🍜</Text>
+            <Text style={st.emptyTitle}>{t('historyDetail.noData')}</Text>
+            <Text style={st.emptyText}>{t('historyDetail.noDataSub')}</Text>
           </View>
         ) : (
           dishes.map((dish, i) => (
@@ -345,7 +348,7 @@ const HistoryDetailScreen = ({ route, navigation }) => {
         {/* ── Footer cat decoration ── */}
         {dishes.length > 0 && (
           <View style={st.footer}>
-            <Text style={st.footerText}>~ hết danh sách ~</Text>
+            <Text style={st.footerText}>{t('historyDetail.end')}</Text>
             <Text style={st.footerDeco}>🐾 🐾</Text>
           </View>
         )}

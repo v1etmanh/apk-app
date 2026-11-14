@@ -11,20 +11,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { C } from '../theme';
+import { useTranslation } from 'react-i18next';
 
 const { height: SH } = Dimensions.get('window');
 const ASSETS = { paper: require('../assets/textures/paper_cream.png') };
 
-const RELATION_LABEL = {
-  self:    'Bản thân',
-  child:   'Con',
-  parent:  'Cha / Mẹ',
-  spouse:  'Vợ / Chồng',
-  sibling: 'Anh / Chị / Em',
-  other:   'Khác',
-};
-
 const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(SH)).current;
   const fadeAnim  = useRef(new Animated.Value(0)).current;
@@ -70,13 +63,13 @@ const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
         <View style={st.handle} />
 
         {/* Title */}
-        <Text style={st.title}>👥 Chọn thành viên</Text>
+        <Text style={st.title}>{t('profiles.choose')}</Text>
 
         {/* Profile list */}
         <ScrollView style={st.list} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
           {profiles.length === 0 ? (
             <View style={st.emptyRow}>
-              <Text style={st.emptyText}>Chưa có thành viên nào</Text>
+              <Text style={st.emptyText}>{t('profiles.empty')}</Text>
             </View>
           ) : profiles.map((p) => {
             const isActive = p.profileId === activeProfileId;
@@ -95,18 +88,18 @@ const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
                 {/* Info */}
                 <View style={st.profileInfo}>
                   <Text style={[st.profileName, isActive && st.profileNameActive]} numberOfLines={1}>
-                    {p.displayName || 'Chưa đặt tên'}
+                    {p.displayName || t('profiles.unnamed')}
                   </Text>
                   <Text style={st.profileRelation}>
-                    {RELATION_LABEL[p.relation] || 'Khác'}
-                    {p.age ? ` · ${p.age} tuổi` : p.birth_year ? ` · SN ${p.birth_year}` : ''}
+                    {t(`profiles.${p.relation}`, { defaultValue: t('profiles.other') })}
+                    {p.age ? ` · ${t('profiles.years', { count: p.age })}` : p.birth_year ? ` · ${t('profiles.birthYear', { year: p.birth_year })}` : ''}
                   </Text>
                 </View>
 
                 {/* Checkmark / Active badge */}
                 {isActive ? (
                   <View style={st.activeBadge}>
-                    <Text style={st.activeBadgeText}>✓ Đang dùng</Text>
+                    <Text style={st.activeBadgeText}>{t('profiles.active')}</Text>
                   </View>
                 ) : (
                   <View style={st.arrowWrap}>
@@ -124,7 +117,7 @@ const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
         {/* Add new button */}
         <TouchableOpacity style={st.addBtn} activeOpacity={0.8} onPress={() => { onClose(); onAddNew?.(); }}>
           <Text style={st.addBtnIcon}>＋</Text>
-          <Text style={st.addBtnText}>Thêm thành viên</Text>
+          <Text style={st.addBtnText}>{t('profiles.add')}</Text>
         </TouchableOpacity>
       </Animated.View>
     </Modal>

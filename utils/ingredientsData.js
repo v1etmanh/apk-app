@@ -1,5 +1,5 @@
 // utils/ingredientsData.js
-// Local JSON data layer cho ingredients — thay thế Firestore loadAllIngredients().
+// Local JSON fallback cho ingredients khi API không khả dụng.
 //
 // Single source of truth: assets/data/ingredients.json (exported từ server)
 // Không cần network. Hoạt động offline hoàn toàn.
@@ -7,11 +7,38 @@
 // Fields mỗi ingredient: { id: number, name: string, name_en: string, category: string }
 
 import ingredientsRaw from '../assets/data/ingredients.json';
+import i18n from '../i18n';
+
+const CATEGORY_EN = {
+  'Dầu & Mỡ': 'Oils & Fats',
+  'Gia vị': 'Seasonings',
+  'Hải sản': 'Seafood',
+  'Ngũ cốc & Tinh bột': 'Grains & Starches',
+  'Rau củ': 'Vegetables',
+  'Sữa & Trứng': 'Dairy & Eggs',
+  'Thịt': 'Meat',
+  'Trái cây': 'Fruits',
+  'Đã chế biến': 'Processed Foods',
+  'Đậu & Hạt': 'Legumes & Nuts',
+  'Đồ uống': 'Beverages',
+};
 
 /** Toàn bộ danh sách ingredients, đã sort theo tên tiếng Việt */
 export const ALL_INGREDIENTS = [...ingredientsRaw.data].sort((a, b) =>
   (a.name || '').localeCompare(b.name || '', 'vi')
 );
+
+/** UI projection: keep Vietnamese category keys for grouping, localize labels/names. */
+export function getIngredientsForLanguage(language = i18n.language) {
+  if (!String(language).startsWith('en')) return ALL_INGREDIENTS;
+  return ALL_INGREDIENTS.map((ingredient) => ({
+    ...ingredient,
+    name_vi: ingredient.name,
+    name: ingredient.name_en || ingredient.name,
+    name_en: '',
+    category_en: CATEGORY_EN[ingredient.category] || ingredient.category,
+  }));
+}
 
 /** Map id → ingredient để lookup O(1) */
 const _byId = new Map(ALL_INGREDIENTS.map(i => [i.id, i]));
@@ -63,5 +90,7 @@ export function searchIngredients(query) {
     (i.name_en || '').toLowerCase().includes(q)
   );
 }
+
+export { CATEGORY_EN };
 
 export default ALL_INGREDIENTS;

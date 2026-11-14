@@ -45,6 +45,7 @@ import { Sparkle } from 'phosphor-react-native/lib/module/icons/Sparkle';
 
 import { loadProfileById, saveProfileMember } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -138,17 +139,20 @@ const StampChip = ({ Icon, text, active, onPress }) => (
 );
 
 // ─── Chip group ───────────────────────────────────────────────────────────────
-const ChipGroup = ({ label, Icon, options, value, onChange }) => (
+const ChipGroup = ({ label, Icon, options, value, onChange, translationPath }) => {
+  const { t } = useTranslation();
+  return (
   <View style={st.block}>
     <SectionLabel text={label} Icon={Icon} />
     <View style={st.chips}>
       {options.map(o => (
-        <StampChip key={o.key} Icon={o.Icon} text={o.text}
+        <StampChip key={o.key} Icon={o.Icon} text={translationPath ? t(translationPath + '.' + o.key) : o.text}
           active={value === o.key} onPress={() => onChange(o.key)} />
       ))}
     </View>
   </View>
-);
+  );
+};
 
 // ─── Card wrapper với wobbly frame ────────────────────────────────────────────
 const NoteCard = ({ children, style }) => {
@@ -173,6 +177,7 @@ const NoteCard = ({ children, style }) => {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 const EditPersonalScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const [age, setAge]           = useState('25');
   const [gender, setGender]     = useState('female');
   const [dietType, setDietType] = useState('omnivore');
@@ -218,7 +223,7 @@ const toggleHealth = (key) => {
   const handleSave = async () => {
     const ageNum = parseInt(age);
     if (!age || isNaN(ageNum) || ageNum < 10 || ageNum > 100) {
-      Alert.alert('Ối!', 'Tuổi phải từ 10 đến 100 nhé 😊'); return;
+      Alert.alert(t('personal.invalidAge'), t('personal.invalidAgeBody')); return;
     }
 
     // [FIX] activeProfileId có thể null ở lần đầu đăng nhập nếu store chưa kịp set.
@@ -229,7 +234,7 @@ const toggleHealth = (key) => {
       profileId = await getActiveProfileId();
     }
     if (!profileId) {
-      Alert.alert('Ối!', 'Không tìm thấy hồ sơ. Vui lòng thử lại sau.');
+      Alert.alert(t('personal.missing'), t('personal.missingBody'));
       return;
     }
 
@@ -245,11 +250,11 @@ const toggleHealth = (key) => {
       };
       await saveProfileMember({ profileId, ...data });
       setProfile({ profileId, ...data, created_at: now });
-      Alert.alert('Đã lưu ✓', 'Thông tin cá nhân đã được cập nhật.');
+      Alert.alert(t('personal.saved'), t('personal.savedBody'));
       navigation.goBack();
     } catch (e) {
       console.error('[EditPersonal] handleSave error:', e?.message, e);
-      Alert.alert('Ối!', `Không thể lưu. Thử lại nhé 🙏\n${__DEV__ ? e?.message : ''}`);
+      Alert.alert(t('personal.error'), t('personal.errorBody'));
     } finally { setSaving(false); }
   };
 
@@ -280,7 +285,7 @@ const toggleHealth = (key) => {
           onPress={() => navigation.goBack()} 
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Quay lại"
+          accessibilityLabel={t('common.back')}
         >
           <View style={st.backBtnInner}>
             <CaretRight weight="bold" size={22} color={C.ink} style={{ transform: [{ rotate: '180deg' }] }} />
@@ -288,7 +293,7 @@ const toggleHealth = (key) => {
         </TouchableOpacity>
 
         <View style={st.titleWrap}>
-          <Text style={st.navTitle} numberOfLines={1}>Thông tin cá nhân</Text>
+          <Text style={st.navTitle} numberOfLines={1}>{t('personal.title')}</Text>
           <View style={st.titleUnderline} />
         </View>
 
@@ -313,7 +318,7 @@ const toggleHealth = (key) => {
         {/* Age stepper card */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <SectionLabel text="Tuổi" Icon={Cake} />
+            <SectionLabel text={t('personal.age')} Icon={Cake} />
             <View style={st.ageRow}>
               <TouchableOpacity style={st.stepper} onPress={() => stepAge(-1)} activeOpacity={0.7}>
                 <View style={st.stepInner}>
@@ -330,7 +335,7 @@ const toggleHealth = (key) => {
                   maxLength={3}
                   textAlign="center"
                 />
-                <Text style={st.ageUnit}>tuổi</Text>
+                <Text style={st.ageUnit}>{t('personal.years')}</Text>
               </View>
 
               <TouchableOpacity style={st.stepper} onPress={() => stepAge(1)} activeOpacity={0.7}>
@@ -345,39 +350,39 @@ const toggleHealth = (key) => {
         {/* Gender */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Giới tính" Icon={IdentificationBadge} options={GENDER_OPTS} value={gender} onChange={setGender} />
+            <ChipGroup label={t('personal.gender')} Icon={IdentificationBadge} options={GENDER_OPTS} value={gender} onChange={setGender} translationPath="personal.genderOptions" />
           </View>
         </NoteCard>
 
         {/* Diet */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Chế độ ăn" Icon={BowlFood} options={DIET_OPTS} value={dietType} onChange={setDietType} />
+            <ChipGroup label={t('personal.diet')} Icon={BowlFood} options={DIET_OPTS} value={dietType} onChange={setDietType} translationPath="personal.dietOptions" />
           </View>
         </NoteCard>
 
         {/* Goal */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Mục tiêu" Icon={Target} options={GOAL_OPTS} value={goal} onChange={setGoal} />
+            <ChipGroup label={t('personal.goal')} Icon={Target} options={GOAL_OPTS} value={goal} onChange={setGoal} translationPath="personal.goalOptions" />
           </View>
         </NoteCard>
 
         {/* Activity */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Mức vận động" Icon={PersonSimpleRun} options={ACTIVITY_OPTS} value={activity} onChange={setActivity} />
+            <ChipGroup label={t('personal.activity')} Icon={PersonSimpleRun} options={ACTIVITY_OPTS} value={activity} onChange={setActivity} translationPath="personal.activityOptions" />
           </View>
         </NoteCard>
 <NoteCard style={st.cardSpacing}>
   <View style={st.cardPad}>
-    <SectionLabel text="Tình trạng sức khoẻ" Icon={Sparkle} />
+    <SectionLabel text={t('personal.health')} Icon={Sparkle} />
     <View style={st.chips}>
       {HEALTH_OPTS.map(o => (
         <StampChip
           key={o.key}
           Icon={o.Icon}
-          text={o.text}
+          text={t('personal.healthOptions.' + o.key)}
           active={o.key === 'none'
             ? healthConditions.length === 0
             : healthConditions.includes(o.key)}
@@ -399,7 +404,7 @@ const toggleHealth = (key) => {
               <WobblyFrame width={SW - 40} height={60} color="#8B5E3C" strokeWidth={2} />
               <View style={st.saveBtnContent}>
                 <Text style={st.saveBtnText}>
-                  {saving ? '✦ Đang lưu...' : '✦ Lưu thông tin'}
+                  {saving ? t('personal.saving') : t('personal.save')}
                 </Text>
               </View>
             </ImageBackground>

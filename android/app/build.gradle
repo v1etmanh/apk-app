@@ -87,13 +87,22 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
+    // Keep CMake/Ninja's generated object paths short on Windows. React Native's
+    // New Architecture encodes source paths into CMake object paths, which can
+    // exceed Windows' 260-character limit under the project directory.
+    externalNativeBuild {
+        cmake {
+            buildStagingDirectory file("D:/dm_cxx")
+        }
+    }
+
     namespace 'com.vietmanh.dailymate'
     defaultConfig {
         applicationId 'com.vietmanh.dailymate'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 7
+        versionName "1.0.7"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

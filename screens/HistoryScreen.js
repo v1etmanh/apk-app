@@ -9,6 +9,7 @@ import Svg, { Path, Circle, Line } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
 import { loadSessions, removeSavedDish } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 
 // ─── Design Tokens ────────────────────────────────────────────────
 const C = {
@@ -31,6 +32,7 @@ const CARD_W = SW - 32;
 
 // ─── Loading Screen — Cat Pookie Ghibli style ─────────────────────
 const LoadingScreen = () => {
+  const { t } = useTranslation();
   const fadeAnim   = useRef(new Animated.Value(0)).current;
   const dotAnim1   = useRef(new Animated.Value(0)).current;
   const dotAnim2   = useRef(new Animated.Value(0)).current;
@@ -87,8 +89,8 @@ const LoadingScreen = () => {
           <View style={st.loadingBubbleTail} />
           <View style={st.loadingBubble}>
             <Text style={st.loadingBubbleText}>
-              Đang lục lịch sử{' '}
-              <Text style={{ opacity: 0.6 }}>ăn uống của bạn...</Text>
+              {t('history.loadingTitle')}{' '}
+              <Text style={{ opacity: 0.6 }}>{t('history.loadingBody')}</Text>
             </Text>
 
             {/* Dots nhảy */}
@@ -104,25 +106,26 @@ const LoadingScreen = () => {
         </View>
 
         {/* Caption nhỏ phía dưới */}
-        <Text style={st.loadingCaption}>🍜 Mèo đang nhớ lại những bữa ngon...</Text>
+        <Text style={st.loadingCaption}>{t('history.loadingCaption')}</Text>
       </View>
     </Animated.View>
   );
 };
 
 // ─── Format date ───────────────────────────────────────────────────
-const formatDate = (dateString) => {
+const formatDate = (dateString, t, language) => {
   const date = new Date(dateString);
+  const locale = language === 'en' ? 'en-US' : 'vi-VN';
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   if (date.toDateString() === today.toDateString())
-    return { label: 'Hôm nay', sub: date.toLocaleDateString('vi-VN') };
+    return { label: t('history.today'), sub: date.toLocaleDateString(locale) };
   if (date.toDateString() === yesterday.toDateString())
-    return { label: 'Hôm qua', sub: date.toLocaleDateString('vi-VN') };
+    return { label: t('history.yesterday'), sub: date.toLocaleDateString(locale) };
   return {
-    label: date.toLocaleDateString('vi-VN', { weekday: 'long' }),
-    sub: date.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' }),
+    label: date.toLocaleDateString(locale, { weekday: 'long' }),
+    sub: date.toLocaleDateString(locale, { day: 'numeric', month: 'numeric' }),
   };
 };
 
@@ -165,6 +168,7 @@ const timeIcon = (dateStr) => {
 
 // ─── Session Card ──────────────────────────────────────────────────
 const SessionCard = ({ item, index, onPress }) => {
+  const { t, i18n } = useTranslation();
   const fade  = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(24)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -177,8 +181,8 @@ const SessionCard = ({ item, index, onPress }) => {
     ]).start();
   }, []);
 
-  const { label, sub } = formatDate(item.created_at);
-  const timeStr = new Date(item.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const { label, sub } = formatDate(item.created_at, t, i18n.language);
+  const timeStr = new Date(item.created_at).toLocaleTimeString(i18n.language === 'en' ? 'en-US' : 'vi-VN', { hour: '2-digit', minute: '2-digit' });
 
   const handlePressIn  = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start();
   const handlePressOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true }).start();
@@ -211,13 +215,13 @@ const SessionCard = ({ item, index, onPress }) => {
         <View style={st.chipRow}>
           <View style={[st.chip, { backgroundColor: '#D4E8F5' }]}>
             <Text style={[st.chipText, { color: '#3A6B8A' }]}>
-              🍽 {item.dish_count ?? item.dishes.length} món
+              {t('history.dishCount', { count: item.dish_count ?? item.dishes.length })}
             </Text>
           </View>
           {item.eatenCount > 0 && (
             <View style={[st.chip, { backgroundColor: '#D4EDC4' }]}>
               <Text style={[st.chipText, { color: '#3A6E3A' }]}>
-                😋 đã ăn {item.eatenCount}
+                {t('history.eatenCount', { count: item.eatenCount })}
               </Text>
             </View>
           )}
@@ -242,6 +246,7 @@ const SessionCard = ({ item, index, onPress }) => {
 
 // ─── Main Screen ───────────────────────────────────────────────────
 const HistoryScreen = ({ navigation }) => {
+  const { t, i18n } = useTranslation();
   const [sessions, setSessions]       = useState([]);
   const [loading,  setLoading]        = useState(true);
   const [activeTab, setActiveTab]     = useState('sessions');
@@ -283,7 +288,7 @@ const HistoryScreen = ({ navigation }) => {
   );
 
   // [FIX SAVED-FETCH] Khi chuyển sang tab "Món yêu thích" mà store đang trống
-  // → tự fetch từ Firestore thay vì hiện empty state ngay.
+  // → tự fetch từ Supabase thay vì hiện empty state ngay.
   // Trường hợp này xảy ra khi: initializeApp() chưa chạy xong loadSavedDishes(),
   // hoặc user mở thẳng tab này trước khi app load xong.
   useEffect(() => {
@@ -333,9 +338,9 @@ const HistoryScreen = ({ navigation }) => {
       >
         <View style={st.topBarContent}>
           <View style={st.titleBlock}>
-            <Text style={st.titleSub}>nhật ký ẩm thực</Text>
-            <Text style={st.titleMain}>Lịch sử gợi ý</Text>
-            <Text style={st.titleDesc}>Những lần app đã gợi ý món cho bạn 🍜</Text>
+            <Text style={st.titleSub}>{t('history.foodDiary')}</Text>
+            <Text style={st.titleMain}>{t('history.title')}</Text>
+            <Text style={st.titleDesc}>{t('history.description')}</Text>
           </View>
           <Animated.View style={[
             st.catWrap,
@@ -373,9 +378,9 @@ const HistoryScreen = ({ navigation }) => {
           <Text style={st.statEmoji}>📋</Text>
           <View style={st.statValueRow}>
             <Text style={st.statNum}>{sessions.length}</Text>
-            <Text style={st.statUnit}>lần</Text>
+            <Text style={st.statUnit}>{t('history.times')}</Text>
           </View>
-          <Text style={st.statLabel}>Lần gợi ý</Text>
+          <Text style={st.statLabel}>{t('history.suggestions')}</Text>
         </View>
         <View style={st.statCenter}>
           <Text style={st.statPaw}>🐾</Text>
@@ -386,16 +391,16 @@ const HistoryScreen = ({ navigation }) => {
           <Text style={st.statEmoji}>😋</Text>
           <View style={st.statValueRow}>
             <Text style={[st.statNum, { color: '#5A9E6A' }]}>{totalEaten}</Text>
-            <Text style={st.statUnit}>món</Text>
+            <Text style={st.statUnit}>{t('history.dishes')}</Text>
           </View>
-          <Text style={st.statLabel}>Món đã ăn</Text>
+          <Text style={st.statLabel}>{t('history.eaten')}</Text>
         </View>
       </View>
 
       <View style={st.sectionRow}>
         <View style={st.sectionLine} />
         <View style={st.sectionBadge}>
-          <Text style={st.sectionText}>✦ tháng này ✦</Text>
+          <Text style={st.sectionText}>{t('history.thisMonth')}</Text>
         </View>
         <View style={st.sectionLine} />
       </View>
@@ -408,7 +413,7 @@ const HistoryScreen = ({ navigation }) => {
           onPress={() => setActiveTab('sessions')}
         >
           <Text style={[st.tabText, activeTab === 'sessions' && st.tabTextActive]}>
-            📋 Lịch sử gợi ý
+            {t('history.suggestionHistory')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -417,7 +422,7 @@ const HistoryScreen = ({ navigation }) => {
           onPress={() => setActiveTab('saved')}
         >
           <Text style={[st.tabText, activeTab === 'saved' && st.tabTextActive]}>
-            🔖 Món yêu thích
+            {t('history.favorites')}
             {savedDishes.length > 0 && (
               <Text style={st.tabBadge}>  {savedDishes.length}</Text>
             )}
@@ -429,7 +434,7 @@ const HistoryScreen = ({ navigation }) => {
 
   // ── Empty state ──────────────────────────────────────────────────
   const EmptyState = () => {
-    // Đang fetch món yêu thích từ Firestore → hiện loading thay vì "chưa có"
+    // Đang fetch món yêu thích từ Supabase → hiện loading thay vì "chưa có"
     if (activeTab === 'saved' && savedLoading) {
       return (
         <View style={st.empty}>
@@ -438,8 +443,8 @@ const HistoryScreen = ({ navigation }) => {
             autoPlay loop
             style={[{ width: 130, height: 130 }, { pointerEvents: 'none' }]}
           />
-          <Text style={st.emptyTitle}>Đang tải món yêu thích...</Text>
-          <Text style={st.emptyText}>Mèo đang lục Firestore cho bạn 🐱</Text>
+          <Text style={st.emptyTitle}>{t('history.loadingFavorites')}</Text>
+          <Text style={st.emptyText}>{t('history.searchingFavorites')}</Text>
         </View>
       );
     }
@@ -451,12 +456,10 @@ const HistoryScreen = ({ navigation }) => {
           style={[{ width: 150, height: 150 }, { pointerEvents: 'none' }]}
         />
         <Text style={st.emptyTitle}>
-          {activeTab === 'saved' ? 'Chưa có món yêu thích' : 'Chưa có lịch sử nào'}
+          {activeTab === 'saved' ? t('history.noFavorites') : t('history.noHistory')}
         </Text>
         <Text style={st.emptyText}>
-          {activeTab === 'saved'
-            ? 'Bấm 🔖 trên màn hình gợi ý để lưu món bạn thích!'
-            : 'Hãy để app gợi ý món ăn cho bạn nhé! 🍽️'}
+          {activeTab === 'saved' ? t('history.saveHint') : t('history.historyHint')}
         </Text>
       </View>
     );
@@ -478,7 +481,7 @@ const HistoryScreen = ({ navigation }) => {
     };
 
     const savedDate = item.saved_at
-      ? new Date(item.saved_at).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })
+      ? new Date(item.saved_at).toLocaleDateString(i18n.language === 'en' ? 'en-US' : 'vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })
       : '';
 
     return (
@@ -499,7 +502,7 @@ const HistoryScreen = ({ navigation }) => {
             <Text style={st.savedTitle} numberOfLines={2}>{item.title}</Text>
             <View style={st.savedMeta}>
               {item.cook_time_min > 0 && (
-                <Text style={st.savedMetaText}>⏱ {item.cook_time_min}p</Text>
+                <Text style={st.savedMetaText}>{t('history.minutes', { count: item.cook_time_min })}</Text>
               )}
               {item.final_score > 0 && (
                 <Text style={st.savedMetaText}>⭐ {(item.final_score * 100).toFixed(0)}%</Text>
@@ -509,7 +512,7 @@ const HistoryScreen = ({ navigation }) => {
               ) : null}
             </View>
             {savedDate ? (
-              <Text style={st.savedDate}>Lưu ngày {savedDate}</Text>
+              <Text style={st.savedDate}>{t('history.savedDate', { date: savedDate })}</Text>
             ) : null}
           </View>
           <TouchableOpacity onPress={handleRemove} style={st.savedRemoveBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>

@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Rect } from 'react-native-svg';
 
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 import { C } from '../theme';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import {
@@ -47,7 +48,9 @@ const RELATION_LABEL = {
 };
 
 // ── DishPill — mỗi món nhỏ gọn trong card ────────────────────────────────────
-const DishPill = ({ dish, profileId, onRemove, onPress }) => (
+const DishPill = ({ dish, profileId, onRemove, onPress }) => {
+  const { t } = useTranslation();
+  return (
   <TouchableOpacity style={dp.wrap} onPress={onPress} activeOpacity={0.78}>
     {/* Texture paper */}
     <View style={[StyleSheet.absoluteFill, { borderRadius: 16, overflow: 'hidden' }]} pointerEvents="none">
@@ -72,7 +75,7 @@ const DishPill = ({ dish, profileId, onRemove, onPress }) => (
         {dish.cook_time_min > 0 ? `⏱ ${dish.cook_time_min}p` : ''}
         {dish.nation ? `  ${dish.nation}` : ''}
       </Text>
-      <Text style={dp.hint}>Nhấn để xem cách nấu →</Text>
+      <Text style={dp.hint}>{t('today.hint')}</Text>
     </View>
 
     {/* Remove button */}
@@ -80,12 +83,15 @@ const DishPill = ({ dish, profileId, onRemove, onPress }) => (
       <Ionicons name="close-circle" size={20} color="#C8A96E" />
     </TouchableOpacity>
   </TouchableOpacity>
-);
+  );
+};
 
 // ── AddDishButton — dashed ghost button (design.md) ──────────────────────────
 
 // ── ProfileCard — card cho từng thành viên ────────────────────────────────────
-const ProfileCard = ({ entry, onRemoveDish, onAddDish, onPressDish }) => (
+const ProfileCard = ({ entry, onRemoveDish, onAddDish, onPressDish }) => {
+  const { t } = useTranslation();
+  return (
   /* Shadow wrapper bên ngoài (KHÔNG overflow:hidden) */
   <View style={[s.cardShadow, nativeShadow('#8B5E3C', 0.18, 8, { width: 0, height: 4 }, 5)]}>
     <View style={s.card}>
@@ -102,11 +108,11 @@ const ProfileCard = ({ entry, onRemoveDish, onAddDish, onPressDish }) => (
             <Text style={s.avatarEmoji}>{entry.avatar || '🧑'}</Text>
           </View>
           <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={s.profileName} numberOfLines={1}>{entry.displayName || 'Thành viên'}</Text>
-            <Text style={s.profileRelation}>{RELATION_LABEL[entry.relation] || entry.relation}</Text>
+            <Text style={s.profileName} numberOfLines={1}>{entry.displayName || t('profiles.unnamed')}</Text>
+            <Text style={s.profileRelation}>{t(`profiles.${entry.relation}`, { defaultValue: t('profiles.other') })}</Text>
           </View>
           <View style={s.dishCountBadge}>
-            <Text style={s.dishCountText}>{entry.dishes.length} món</Text>
+            <Text style={s.dishCountText}>{t('common.dishes', { count: entry.dishes.length })}</Text>
           </View>
         </View>
 
@@ -126,7 +132,7 @@ const ProfileCard = ({ entry, onRemoveDish, onAddDish, onPressDish }) => (
             ))
           : (
             <View style={s.emptyDishRow}>
-              <Text style={s.emptyDishText}>Chưa chọn món nào 🍽️</Text>
+              <Text style={s.emptyDishText}>{t('today.emptyDish')}</Text>
             </View>
           )
         }
@@ -136,29 +142,34 @@ const ProfileCard = ({ entry, onRemoveDish, onAddDish, onPressDish }) => (
       </View>
     </View>
   </View>
-);
+  );
+};
 
 // ── Empty state (chưa có profile nào trong plan) ──────────────────────────────
-const EmptyState = ({ onGoRecommend }) => (
+const EmptyState = ({ onGoRecommend }) => {
+  const { t } = useTranslation();
+  return (
   <View style={s.emptyWrap}>
     <Text style={s.emptyEmoji}>🍱</Text>
-    <Text style={s.emptyTitle}>Bữa hôm nay trống trải quá!</Text>
+    <Text style={s.emptyTitle}>{t('today.emptyTitle')}</Text>
     <Text style={s.emptyBody}>
-      Mở màn hình gợi ý, chọn món cho từng thành viên{'\n'}rồi quay lại đây nhé~ 😊
+      {t('today.emptyBody')}
     </Text>
     <View style={[s.ctaShadow, nativeShadow('#60A5FA', 0.30, 8, { width: 0, height: 4 }, 6)]}>
       <TouchableOpacity style={s.ctaPrimary} onPress={onGoRecommend} activeOpacity={0.82}>
         <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
           <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.45 }} resizeMode="cover" />
         </View>
-        <Text style={s.ctaText}>💡 Xem gợi ý món ăn</Text>
+        <Text style={s.ctaText}>{t('today.seeRecommendations')}</Text>
       </TouchableOpacity>
     </View>
   </View>
-);
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 const ChosenDishScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { profiles, activeProfileId, switchProfile } = useAppStore();
 
@@ -201,12 +212,12 @@ const ChosenDishScreen = ({ navigation }) => {
   // ── Reset hôm nay ─────────────────────────────────────────────────────────
   const handleReset = () => {
     Alert.alert(
-      'Xoá thực đơn hôm nay?',
-      'Tất cả món đã chọn sẽ bị xoá. Bạn có chắc không?',
+      t('today.reset'),
+      t('today.noDishBody'),
       [
-        { text: 'Huỷ', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Xoá', style: 'destructive',
+          text: t('settings.clearAll'), style: 'destructive',
           onPress: async () => {
             await resetTodayMealPlan();
             setPlan({ date: getTodayDateStr(), items: [] });
@@ -220,7 +231,7 @@ const ChosenDishScreen = ({ navigation }) => {
   const handleMarketBasket = () => {
     const allDishes = plan.items.flatMap(i => i.dishes);
     if (allDishes.length === 0) {
-      Alert.alert('Chưa có món nào', 'Thêm ít nhất 1 món trước khi tổng hợp món ăn cho mâm cơm gia đình nhé nhé!');
+      Alert.alert(t('today.noDishTitle'), t('today.noDishBody'));
       return;
     }
     navigation.navigate('MarketBasket', { fromMealPlan: true, dishes: allDishes });
@@ -244,13 +255,13 @@ const ChosenDishScreen = ({ navigation }) => {
         {/* Row 1: title + reset */}
         <View style={s.headerRow}>
           <View>
-            <Text style={s.headerTitle}>🍱 Bữa hôm nay</Text>
+            <Text style={s.headerTitle}>{t('today.title')}</Text>
             <Text style={s.headerDate}>{displayDate}</Text>
           </View>
           {plan.items.length > 0 && (
             <TouchableOpacity onPress={handleReset} style={s.resetBtn} activeOpacity={0.75}>
               <Ionicons name="trash-outline" size={15} color="#9A7040" />
-              <Text style={s.resetText}>Đặt lại</Text>
+              <Text style={s.resetText}>{t('today.reset')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -259,7 +270,7 @@ const ChosenDishScreen = ({ navigation }) => {
         {totalDishes > 0 && (
           <View style={s.summaryPill}>
             <Text style={s.summaryText}>
-              {plan.items.length} thành viên · {totalDishes} món
+              {plan.items.length} · {t('common.dishes', { count: totalDishes })}
             </Text>
           </View>
         )}
@@ -268,7 +279,7 @@ const ChosenDishScreen = ({ navigation }) => {
       {/* ── Body ── */}
       {loading ? (
         <View style={s.centerFlex}>
-          <Text style={s.loadingText}>Đang tải thực đơn... 🍳</Text>
+          <Text style={s.loadingText}>{t('today.loading')}</Text>
         </View>
       ) : plan.items.length === 0 ? (
         <EmptyState onGoRecommend={() => navigation.navigate('Recommend')} />
@@ -318,7 +329,7 @@ const ChosenDishScreen = ({ navigation }) => {
               <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
                 <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.45 }} resizeMode="cover" />
               </View>
-              <Text style={s.ctaText}>🛒 Tổng hợp món ăn bạn đã chọn  ({totalDishes} món)</Text>
+              <Text style={s.ctaText}>{t('today.summarize', { count: totalDishes })}</Text>
             </TouchableOpacity>
           </View>
         </View>

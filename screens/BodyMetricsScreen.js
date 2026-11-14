@@ -24,6 +24,7 @@ import {
   saveBodyMetricsForProfile,
 } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -45,12 +46,12 @@ const C = {
 
 // ─── BMI helpers ──────────────────────────────────────────────────────────────
 const BMI_INFO = (bmi) => {
-  if (!bmi) return { label: 'Chưa có', color: C.stamp,  bg: C.cream,    emoji: '⚖️' };
+  if (!bmi) return { labelKey: 'bodyMetrics.noData', color: C.stamp,  bg: C.cream,    emoji: '⚖️' };
   const b = parseFloat(bmi);
-  if (b < 18.5) return { label: 'Thiếu cân',   color: C.blue,   bg: '#DBEAFE', emoji: '🌱' };
-  if (b < 25)   return { label: 'Bình thường', color: C.green,  bg: C.greenBg, emoji: '✅' };
-  if (b < 30)   return { label: 'Thừa cân',    color: C.yellow, bg: '#FEF9C3', emoji: '⚠️' };
-  return             { label: 'Béo phì',      color: C.red,    bg: '#FEE2E2', emoji: '🚨' };
+  if (b < 18.5) return { labelKey: 'bodyMetrics.underweight', color: C.blue,   bg: '#DBEAFE', emoji: '🌱' };
+  if (b < 25)   return { labelKey: 'bodyMetrics.normal', color: C.green,  bg: C.greenBg, emoji: '✅' };
+  if (b < 30)   return { labelKey: 'bodyMetrics.overweight', color: C.yellow, bg: '#FEF9C3', emoji: '⚠️' };
+  return             { labelKey: 'bodyMetrics.obese',      color: C.red,    bg: '#FEE2E2', emoji: '🚨' };
 };
 
 const calcBMI = (h, w) => {
@@ -133,6 +134,7 @@ const StatCard = ({ emoji, value, unit, label, accentColor }) => {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 const BodyMetricsScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const [metrics, setMetrics]   = useState([]);
   const [height, setHeight]     = useState('');
   const [weight, setWeight]     = useState('');
@@ -162,21 +164,21 @@ const BodyMetricsScreen = ({ navigation }) => {
       if (profiles.length > 0) {
         await switchProfile(profiles[0].profileId);
       } else {
-        Alert.alert('Chưa có hồ sơ', 'Hãy tạo hồ sơ cá nhân trước khi lưu chỉ số nhé!');
+        Alert.alert(t('bodyMetrics.noProfile'), t('bodyMetrics.noProfileBody'));
         return;
       }
     }
 
     const h = parseFloat(height), w = parseFloat(weight);
     if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
-      Alert.alert('Ối! 😅', 'Chiều cao và cân nặng phải là số dương nhé!'); return;
+      Alert.alert(t('bodyMetrics.invalid'), t('bodyMetrics.positive')); return;
     }
     // [FIX ID-M017] Validate range — tránh BMI vô nghĩa gây recommendation sai
     if (h < 50 || h > 250) {
-      Alert.alert('Chiều cao không hợp lệ 📏', 'Chiều cao phải từ 50 đến 250 cm nhé!'); return;
+      Alert.alert(t('bodyMetrics.heightInvalid'), t('bodyMetrics.heightRange')); return;
     }
     if (w < 20 || w > 300) {
-      Alert.alert('Cân nặng không hợp lệ ⚖️', 'Cân nặng phải từ 20 đến 300 kg nhé!'); return;
+      Alert.alert(t('bodyMetrics.weightInvalid'), t('bodyMetrics.weightRange')); return;
     }
     try {
       await saveBodyMetricsForProfile(activeProfileId, {
@@ -187,8 +189,8 @@ const BodyMetricsScreen = ({ navigation }) => {
       setNote('');
       await loadMetrics();
       lottieRef.current?.play();
-      Alert.alert('Đã lưu! 🎉', 'Chỉ số cơ thể đã được cập nhật.');
-    } catch (e) { Alert.alert('Ối! 😅', 'Không thể lưu dữ liệu'); }
+      Alert.alert(t('bodyMetrics.saveSuccess'), t('bodyMetrics.saveSuccessBody'));
+    } catch (e) { Alert.alert(t('bodyMetrics.saveError'), t('bodyMetrics.saveErrorBody')); }
   };
 
   const bmi     = calcBMI(latestMetrics?.height_cm, latestMetrics?.weight_kg);
@@ -212,7 +214,7 @@ const BodyMetricsScreen = ({ navigation }) => {
           </View>
         </TouchableOpacity>
         <View style={st.titleWrap}>
-          <Text style={st.navTitle}>Chỉ số cơ thể</Text>
+          <Text style={st.navTitle}>{t('bodyMetrics.title')}</Text>
           <View style={st.titleLine} />
         </View>
         <View style={{ width: 44 }} />
@@ -237,7 +239,7 @@ const BodyMetricsScreen = ({ navigation }) => {
             {/* Center — status badge */}
             <View style={st.bmiCenter}>
               <View style={[st.bmiPill, { backgroundColor: bmiInfo.color }]}>
-                <Text style={st.bmiPillText}>{bmiInfo.label}</Text>
+                <Text style={st.bmiPillText}>{t(bmiInfo.labelKey)}</Text>
               </View>
               <Text style={st.bmiEmoji}>{bmiInfo.emoji}</Text>
             </View>
@@ -257,20 +259,20 @@ const BodyMetricsScreen = ({ navigation }) => {
 
         {/* ── Stats Row ── */}
         <View style={st.statsRow}>
-          <StatCard emoji="⚖️" value={latestMetrics?.weight_kg} unit="kg"  label="Cân nặng"  accentColor={C.blue}   />
-          <StatCard emoji="📐" value={latestMetrics?.height_cm} unit="cm"  label="Chiều cao" accentColor={C.green}  />
-          <StatCard emoji="📊" value={metrics.length}           unit="lần" label="Lần đo"    accentColor={C.yellow} />
+          <StatCard emoji="⚖️" value={latestMetrics?.weight_kg} unit={t('bodyMetrics.kg')}  label={t('bodyMetrics.weight')}  accentColor={C.blue}   />
+          <StatCard emoji="📐" value={latestMetrics?.height_cm} unit={t('bodyMetrics.cm')}  label={t('bodyMetrics.height')} accentColor={C.green}  />
+          <StatCard emoji="📊" value={metrics.length}           unit={t('bodyMetrics.times')} label={t('bodyMetrics.history')}    accentColor={C.yellow} />
         </View>
 
         {/* ── Form Card ── */}
         <Card style={st.formCard}>
           <View style={st.cardPad}>
-            <SLabel icon="✏️" text="Cập nhật chỉ số" />
+            <SLabel icon="✏️" text={t('bodyMetrics.update')} />
 
             <View style={st.inputRow}>
               {[
-                { label: 'Chiều cao', val: height, set: setHeight, unit: 'cm' },
-                { label: 'Cân nặng',  val: weight, set: setWeight, unit: 'kg' },
+                { label: t('bodyMetrics.height'), val: height, set: setHeight, unit: t('bodyMetrics.cm') },
+                { label: t('bodyMetrics.weight'),  val: weight, set: setWeight, unit: t('bodyMetrics.kg') },
               ].map(({ label, val, set, unit }) => (
                 <View key={label} style={st.inputGroup}>
                   <Text style={st.inputLabel}>{label}</Text>
@@ -296,7 +298,7 @@ const BodyMetricsScreen = ({ navigation }) => {
                 style={st.noteText}
                 value={note}
                 onChangeText={setNote}
-                placeholder="Ghi chú (tuỳ chọn)"
+                placeholder={t('bodyMetrics.note')}
                 placeholderTextColor="#B8A898"
                 multiline
                 maxLength={120}
@@ -314,7 +316,7 @@ const BodyMetricsScreen = ({ navigation }) => {
                 <View style={st.saveBtnOverlay}>
                   {/* decorative scroll ends */}
                   <View style={st.scrollEnd} />
-                  <Text style={st.saveBtnText}>✓  Lưu chỉ số  🎯</Text>
+                  <Text style={st.saveBtnText}>{t('bodyMetrics.save')}  🎯</Text>
                   <View style={st.scrollEnd} />
                 </View>
               </ImageBackground>
