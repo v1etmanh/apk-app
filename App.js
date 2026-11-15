@@ -49,6 +49,7 @@ import OnboardingTabScreen    from './screens/onboarding/OnboardingTabScreen';
 import ProfileOnboardingScreen from './screens/onboarding/ProfileOnboardingScreen';
 import { needsOnboarding }    from './services/onboardingService';
 import RecommendScreen         from './screens/RecommendScreen';
+import IngredientSuggestScreen from './screens/IngredientSuggestScreen';
 import ResetPasswordScreen     from './screens/ResetPasswordScreen';
 import AddEditProfileScreen    from './screens/AddEditProfileScreen';
 import ChosenDishScreen        from './screens/ChosenDishScreen';
@@ -629,6 +630,7 @@ const App = () => {
           <Stack.Screen name="Allergy"          component={AllergyScreen}/>
           <Stack.Screen name="TasteProfile"     component={TasteProfileScreen}/>
           <Stack.Screen name="Recommend"        component={RecommendScreen}/>
+          <Stack.Screen name="IngredientSuggest" component={IngredientSuggestScreen}/>
           <Stack.Screen name="AddEditProfile"   component={AddEditProfileScreen}/>
           <Stack.Screen name="TasteOnboarding"  component={TasteOnboardingScreen}/>
           <Stack.Screen name="ProfileOnboarding" component={ProfileOnboardingScreen}/>

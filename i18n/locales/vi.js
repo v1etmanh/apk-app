@@ -114,7 +114,7 @@ export default {
     resetSuccess: 'Mật khẩu đã được cập nhật. Đăng nhập lại nhé!',
     companion: '🍜 Daily Mate — Bạn đồng hành ẩm thực', emailPlaceholder: 'hello@example.com', passwordPlaceholder: '••••••••', minPassword: 'Tối thiểu 6 ký tự', confirmNewPassword: 'Nhập lại mật khẩu mới',
   },
-  home: {
+  home: { modeTitle: 'BẠN MUỐN TÌM MÓN THẾ NÀO?', modeSuggest: 'Gợi ý cho tôi', modeSuggestSub: 'Nguyên liệu hợp thời tiết & sức khỏe', modeFridge: 'Từ tủ lạnh', modeFridgeSub: 'Chọn đồ bạn đang có', ctaSuggest: '✨ Gợi ý nguyên liệu cho tôi', ctaFridge: '🧊 Chọn đồ trong tủ lạnh', 
     findDish: '🔍 Tìm món cho tôi',
     searchAgain: '✨ Tìm lại với bộ lọc mới',
     location: 'Vị trí',
@@ -284,12 +284,36 @@ export default {
     banner: { title: 'Cập nhật khẩu vị (1 phút)', body: 'Quẹt 8 món để gợi ý sát gu bạn hơn.', dismiss: 'Để sau' },
   },
   mealFilter: {
-    title: 'Bữa này', tools: 'Dụng cụ / cách nấu', cost: 'Chi phí', time: 'Thời gian nấu', mode: 'Chế độ',
+    tools: 'Dụng cụ / cách nấu', 
     toolOptions: { pot: '🍲 Nồi', pan: '🍳 Chảo', fryer_oven: '🔥 Chiên / Nướng', steamer: '♨️ Hấp', no_cook: '🥗 Gỏi / không nấu' },
-    costOptions: { 1: 'Tiết kiệm', 2: 'Vừa phải', 3: 'Thoải mái' }, tolerance: '± 1 mức', any: 'Bất kỳ',
-    timeOptions: { 15: '15 phút', 30: '30 phút', 45: '45 phút', 60: '60+ phút' },
-    modes: { suggest: '✨ Gợi ý món', fridge: '🧊 Từ tủ lạnh' },
+    
+    
+    
     relaxed: 'Không có món khớp hết bộ lọc nên đã nới: {{list}}',
     relaxedNames: { cooking_tools: 'dụng cụ', cost: 'chi phí', cook_time: 'thời gian' },
+  },
+  ingredientSuggest: {
+    why: {
+      allergy: 'Ít gợi ý {{group}} vì dị ứng trong hồ sơ đang loại {{count}} nguyên liệu ({{list}}).',
+      diet: 'Ít gợi ý {{group}} vì chế độ ăn hiện tại loại {{count}} nguyên liệu.',
+      no_dishes: 'Ít món phù hợp với bộ lọc hiện tại (dụng cụ bếp, loại món) nên ít gợi ý {{group}}.',
+      editAllergy: 'Xem / sửa dị ứng', editDiet: 'Đổi chế độ ăn',
+    },
+    title: 'Chọn nguyên liệu',
+    introHot: 'Trời {{temp}}°C — ưu tiên nguyên liệu mát, nhiều nước 🌿',
+    introCold: 'Trời {{temp}}°C — ưu tiên nguyên liệu ấm bụng 🔥',
+    introMild: 'Thời tiết dễ chịu — cân bằng theo khẩu vị của bạn 🍃',
+    hint: 'Đã chọn sẵn vài nguyên liệu hợp nhất. Bỏ hoặc thêm tùy bạn rồi xem món.',
+    sections: { protein: 'Đạm', vegetable: 'Rau củ' },
+    dishCount: '{{count}} món', emptySection: 'Chưa có gợi ý phù hợp.',
+    refresh: 'Gợi ý nguyên liệu khác', addOther: 'Thêm nguyên liệu khác',
+    searchPlaceholder: 'Tìm nguyên liệu (vd: tôm, bí đao...)',
+    loading: 'Đang chọn nguyên liệu hợp với hôm nay...', error: 'Không tải được gợi ý. Kiểm tra mạng rồi thử lại nhé.',
+    cta: 'Xem món từ {{count}} nguyên liệu →', ctaNone: 'Chọn ít nhất 1 nguyên liệu', skip: 'Bỏ qua, gợi ý món luôn',
+  },
+  resultFilters: {
+    any: 'Bất kỳ', tolerance: '± 1 mức',
+    cost: { 1: 'Tiết kiệm', 2: 'Vừa phải', 3: 'Thoải mái' },
+    time: { 15: '≤ 15 phút', 30: '≤ 30 phút', 45: '≤ 45 phút', 60: '60+ phút' },
   },
 };

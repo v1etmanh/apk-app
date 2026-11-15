@@ -23,7 +23,8 @@ import PaperCard from '../components/ui/PaperCard';
 import WoodButton from '../components/ui/WoodButton';
 import WeatherAnimationSprite from '../components/ui/WeatherAnimationSprite';
 import ProfileSwitcherSheet from '../components/ProfileSwitcherSheet';
-import MealFilterPanel, { DEFAULT_MEAL_FILTERS, toRequestMealFilters } from '../components/MealFilterPanel';
+import MealFilterPanel, { DEFAULT_MEAL_FILTERS, sanitizeMealFilters } from '../components/MealFilterPanel';
+import { buildBaseSearchParams } from '../utils/searchParams';
 import { shouldShowTasteBanner, dismissTasteBanner } from '../services/onboardingService';
 import { Drop } from 'phosphor-react-native/lib/module/icons/Drop';
 import { Wind } from 'phosphor-react-native/lib/module/icons/Wind';
@@ -206,7 +207,8 @@ const HomeScreen = ({ navigation }) => {
   const [basketBadge, setBasketBadge]       = useState(0);
   const [showSwitcher, setShowSwitcher]     = useState(false);
   const [showLocBanner, setShowLocBanner]   = useState(false); // banner nhắc location
-  const [mealFilters, setMealFilters]       = useState(DEFAULT_MEAL_FILTERS); // bộ lọc theo bữa
+  const [mealFilters, setMealFilters]       = useState(DEFAULT_MEAL_FILTERS); // dụng cụ bếp
+  const [searchMode, setSearchMode]         = useState('suggest');            // 'suggest' | 'fridge'
   const [tasteBannerHidden, setTasteBannerHidden] = useState(false);
   const isFirstRender = React.useRef(true);
 
@@ -218,9 +220,17 @@ const HomeScreen = ({ navigation }) => {
   // Bộ lọc theo bữa: nhớ lựa chọn gần nhất
   useEffect(() => {
     getSetting('last_meal_filters')
-      .then(raw => { if (raw) setMealFilters({ ...DEFAULT_MEAL_FILTERS, ...JSON.parse(raw) }); })
+      .then(raw => { if (raw) setMealFilters(sanitizeMealFilters(JSON.parse(raw))); })
+      .catch(() => {});
+    getSetting('search_mode')
+      .then(v => { if (v === 'suggest' || v === 'fridge') setSearchMode(v); })
       .catch(() => {});
   }, []);
+
+  const chooseMode = (mode) => {
+    setSearchMode(mode);
+    setSetting('search_mode', mode).catch(() => {});
+  };
 
   const updateMealFilters = (next) => {
     setMealFilters(next);
@@ -324,43 +334,17 @@ const HomeScreen = ({ navigation }) => {
       await setSetting('last_known_lon', String(gps.lon));
     }
     const weather = await fetchWeather(safeCurrentLocation.lat, safeCurrentLocation.lon);
-    const personal = {
-      age: profile?.age || 25,
-      gender: profile?.gender || 'female',
-      height: latestMetrics?.height_cm || 160,
-      weight: latestMetrics?.weight_kg || 55,
-      diet_type: profile?.diet_type || 'omnivore',
-      dietary_goal: profile?.dietary_goal || 'maintenance',
-      activity_level: profile?.activity_level || 'moderately_active',
-      health_condition: profile?.health_condition || [],
-      taste_preference: profile?.taste_preference || [],
-      // Onboarding: khẩu vị (7 vị 0..1), vùng miền, món đã like/dislike
-      // tasteProfile (store) luôn là bản mới nhất — onboarding ghi cả taste_profile lẫn taste_weight
-      taste_weight: tasteProfile || profile?.taste_profile || profile?.taste_weight || undefined,
-      home_region: profile?.home_region || undefined,
-      nation: profile?.nation || undefined,
-      liked_dish_ids: profile?.liked_dish_ids || [],
-      disliked_dish_ids: profile?.disliked_dish_ids || [],
-      allergies: allergies || [],
-      max_prep_time: maxPrepTime ?? 60,
-    };
-    const basket = marketBasket.isSkipped
-      ? { is_skipped: true, selected_ingredient_ids: [], boost_strategy: 'none' }
-      : { is_skipped: false, selected_ingredient_ids: marketBasket.selectedIngredients, boost_strategy: marketBasket.boostStrategy };
-    navigation.navigate('Recommend', {
-      searchParams: {
-        // [FIX ID-M014] Round về 2 decimal (~1km precision) — đủ recommend theo vùng, không lộ địa chỉ nhà
-        lat: Math.round(safeCurrentLocation.lat * 100) / 100,
-        lon: Math.round(safeCurrentLocation.lon * 100) / 100,
-        weather, personal,
-        cuisine_scope: cuisineScope,
-        dish_type_filter: dishFilter,
-        cost_preference: costPreference,
-        market_basket: basket,
-        meal_filters: toRequestMealFilters(mealFilters),
-        location: safeCurrentLocation,
-      },
+    const baseParams = buildBaseSearchParams({
+      profile, latestMetrics, tasteProfile, allergies, maxPrepTime, costPreference,
+      location: safeCurrentLocation, weather,
+      dishFilter, tools: mealFilters.cooking_tools, cuisineScope,
     });
+    // Gợi ý cho tôi → bước chọn nguyên liệu; Từ tủ lạnh → chọn đồ đang có → ra món luôn
+    if (searchMode === 'fridge') {
+      navigation.navigate('MarketBasket', { baseParams, next: 'recommend' });
+    } else {
+      navigation.navigate('IngredientSuggest', { baseParams });
+    }
     setIsDirty(false);
     isLoadingRef.current = false;
   };
@@ -585,49 +569,32 @@ const HomeScreen = ({ navigation }) => {
         {/* ── Divider ── */}
         <View style={s.divider} />
 
-        {/* ── Basket CTA ── */}
-        <TouchableOpacity activeOpacity={0.82} onPress={() => navigation.navigate('MarketBasket')}>
-          <PaperCard style={s.cardSpacing} innerStyle={{ padding: 0 }}>
-            <View style={[s.rowCenter, { padding: 18, paddingVertical: 16 }]}>
-              <View style={s.basketIconWrap}>
-                <Ionicons name="cart-outline" size={22} color={C.woodDark} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={s.basketTitle}>
-                  {basketBadge > 0 ? t('home.basketSelected', { count: basketBadge }) : t('home.basketQuestion')}
-                </Text>
-                <Text style={s.basketSub}>
-                  {basketBadge > 0 ? t('home.basketPriority') : t('home.basketUpdate')}
-                </Text>
-              </View>
-              {basketBadge > 0 && (
-                <View style={s.badge}>
-                  <Text style={s.badgeText}>{basketBadge}</Text>
-                </View>
-              )}
-              <Ionicons name="chevron-forward" size={20} color={C.textLight} style={s.cardTrailingIcon} />
-            </View>
-          </PaperCard>
-        </TouchableOpacity>
-
-        {/* ── Basket Hint — sticky note bên dưới, KHÔNG phải button ── */}
-        <View style={s.basketHintWrap}>
-          <View style={s.basketHintRow}>
-            <LottieView
-              source={COOKING}
-              autoPlay
-              loop
-              style={[s.basketHintCat, { pointerEvents: 'none' }]}
-            />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={s.basketHintEyebrow}>{t('home.tip')}</Text>
-              <Text style={s.basketHintText}>
-                {t('home.tipBody')}{' '}
-                <Text style={s.basketHintAccent}>{t('home.tipAction')}</Text>
-                {' '}— app tự gợi ý món phù hợp! 🍳
-              </Text>
-            </View>
-          </View>
+        {/* ── Chế độ tìm món: Gợi ý cho tôi / Từ tủ lạnh ── */}
+        <Text style={s.filtersEyebrow}>{t('home.modeTitle')}</Text>
+        <View style={s.modeRow}>
+          {[
+            { k: 'suggest', emoji: '✨', title: t('home.modeSuggest'), sub: t('home.modeSuggestSub') },
+            { k: 'fridge',  emoji: '🧊', title: t('home.modeFridge'),  sub: t('home.modeFridgeSub') },
+          ].map(m => {
+            const on = searchMode === m.k;
+            return (
+              <TouchableOpacity
+                key={m.k}
+                style={[s.modeCard, on && s.modeCardOn]}
+                activeOpacity={0.85}
+                onPress={() => chooseMode(m.k)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+              >
+                <Text style={s.modeEmoji}>{m.emoji}</Text>
+                <Text style={[s.modeTitle, on && s.modeTitleOn]}>{m.title}</Text>
+                <Text style={s.modeSub}>{m.sub}</Text>
+                {m.k === 'fridge' && basketBadge > 0 && (
+                  <View style={s.modeBadge}><Text style={s.badgeText}>{basketBadge}</Text></View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* ── Banner mời cập nhật khẩu vị (user cũ chưa làm onboarding) ── */}
@@ -687,17 +654,13 @@ const HomeScreen = ({ navigation }) => {
           </ScrollView>
         </View>
 
-        {/* ── Bộ lọc theo bữa (dụng cụ, chi phí, thời gian, tủ lạnh) ── */}
-        <MealFilterPanel
-          value={mealFilters}
-          onChange={updateMealFilters}
-          onPickFridge={() => navigation.navigate('MarketBasket')}
-        />
+        {/* ── Dụng cụ bếp hôm nay (chi phí & thời gian lọc ở danh sách kết quả) ── */}
+        <MealFilterPanel value={mealFilters} onChange={updateMealFilters} />
 
         {/* ── Search CTA ── */}
         <View style={{ marginHorizontal: 24, marginTop: 16 }}>
           <WoodButton
-            title={isDirty ? t('home.searchAgain') : t('home.findDish')}
+            title={searchMode === 'fridge' ? t('home.ctaFridge') : t('home.ctaSuggest')}
             onPress={goSearch}
             isLoading={isLoadingRef.current}
           />
@@ -1121,6 +1084,22 @@ const s = StyleSheet.create({
   cardTrailingIcon: {
     marginLeft: 12,
     paddingRight: 4,
+  },
+
+  // ── Chế độ tìm món
+  modeRow: { flexDirection: 'row', gap: 12, marginHorizontal: 24, marginBottom: 8 },
+  modeCard: {
+    flex: 1, padding: 14, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.75)',
+    borderWidth: 1.5, borderColor: C.borderLight,
+  },
+  modeCardOn: { borderColor: C.primary, backgroundColor: '#FFF8EA' },
+  modeEmoji: { fontSize: 26, marginBottom: 6 },
+  modeTitle: { fontFamily: 'BeVietnamPro-Bold', fontSize: 15, color: C.textMid },
+  modeTitleOn: { color: C.woodDark },
+  modeSub: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: C.textLight, marginTop: 3, lineHeight: 17 },
+  modeBadge: {
+    position: 'absolute', top: 10, right: 10, minWidth: 22, height: 22, borderRadius: 11,
+    backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
   },
 
   // ── Banner cập nhật khẩu vị

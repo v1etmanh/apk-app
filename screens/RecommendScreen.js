@@ -11,6 +11,7 @@ import {
   loadRecentDishesCache, saveRecentDishesCache,
   getRecentDishIds, loadSessions, loadDishesBySession,
   pruneOldSessions, getSavedDishes, saveDish, removeSavedDish,
+  getSetting, setSetting,
 } from '../utils/database';
 import LottieView from 'lottie-react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +21,7 @@ import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard from '../components/ui/PaperCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import MetaChip from '../components/ui/MetaChip';
+import ResultFilterBar, { DEFAULT_RESULT_FILTERS, sanitizeResultFilters, applyResultFilters } from '../components/ResultFilterBar';
 import {
   addDishToMealPlan, getMealPlan, getTodayDateStr,
 } from '../services/mealPlanService';
@@ -266,7 +268,7 @@ const ListRow = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave })
 const RecommendScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { searchParams = {} } = route.params || {};
+  const { searchParams = {}, pickedIngredients = [], pickMode, baseParams } = route.params || {};
   const PAGE_SIZE = 10;
 
   const [dishes, setDishes]               = useState([]);
@@ -279,6 +281,10 @@ const RecommendScreen = ({ navigation, route }) => {
   const [error, setError]                 = useState(null);
   const [basketWarning, setBasketWarning] = useState(null); // object khi pool < 10, null bình thường
   const [relaxedFilters, setRelaxedFilters] = useState([]); // bộ lọc theo bữa bị server nới khi pool rỗng
+  // Bộ lọc trên danh sách kết quả: chi phí (± 1 mức) + thời gian nấu
+  const [resultFilters, setResultFilters] = useState(DEFAULT_RESULT_FILTERS);
+  const [filterCounts, setFilterCounts]   = useState(null);
+  const resultFiltersRef = useRef(DEFAULT_RESULT_FILTERS);
   const { setCurrentSessionId, profile, activeProfileId, savedDishIds, toggleSaveDish } = useAppStore();
 
   // ── Meal plan state ────────────────────────────────────────────────────────
@@ -333,9 +339,37 @@ const RecommendScreen = ({ navigation, route }) => {
   }, [toggleSaveDish, showToast]);
 
   useEffect(() => {
-    fetchFirstPage();
+    // Nạp bộ lọc kết quả lần trước rồi mới tải trang đầu
+    (async () => {
+      try {
+        const raw = await getSetting('last_result_filters');
+        if (raw) {
+          const f = sanitizeResultFilters(JSON.parse(raw));
+          resultFiltersRef.current = f;
+          setResultFilters(f);
+        }
+      } catch {}
+      fetchFirstPage();
+    })();
     return () => { if (abortRef.current) abortRef.current.abort(); };
   }, []);
+
+  const changeResultFilters = (next) => {
+    const f = sanitizeResultFilters(next);
+    resultFiltersRef.current = f;
+    setResultFilters(f);
+    setSetting('last_result_filters', JSON.stringify(f)).catch(() => {});
+    fetchFirstPage();
+  };
+
+  // ✎ Sửa nguyên liệu đã chọn: Gợi ý → quay lại màn chọn; Tủ lạnh → mở lại giỏ nguyên liệu
+  const editPicked = () => {
+    if (pickMode === 'fridge' && baseParams) {
+      navigation.replace('MarketBasket', { baseParams, next: 'recommend' });
+    } else {
+      navigation.goBack();
+    }
+  };
 
   // ── Tải trang đầu (mount hoặc nhấn "Làm mới") ──────────────────────────────
   const fetchFirstPage = async () => {
@@ -379,6 +413,7 @@ const RecommendScreen = ({ navigation, route }) => {
       const recentDishIds = await getRecentDishIds(3);
       const res = await api.post('/api/v1/recommend', {
         ...searchParams,
+        meal_filters: applyResultFilters(searchParams.meal_filters, resultFiltersRef.current),
         recent_dish_ids: recentDishIds,
         page,
         page_size: PAGE_SIZE,
@@ -410,6 +445,7 @@ const RecommendScreen = ({ navigation, route }) => {
         setBasketWarning(res.data.basket_warning);
       }
       if (page === 1) setRelaxedFilters(res.data.relaxed_filters || []);
+      if (page === 1 && res.data.filter_counts) setFilterCounts(res.data.filter_counts);
 
       // Chỉ persist session + cache khi tải trang đầu
       if (page === 1) {
@@ -565,6 +601,17 @@ const RecommendScreen = ({ navigation, route }) => {
         <View style={s.offlineBanner}>
           <Text style={s.offlineText}>{t('recommend.offline')}</Text>
         </View>
+      )}
+
+      {/* ── Thanh lọc kết quả: nguyên liệu ✎, chi phí, thời gian ── */}
+      {!!searchParams && Object.keys(searchParams).length > 0 && (
+        <ResultFilterBar
+          value={resultFilters}
+          onChange={changeResultFilters}
+          counts={filterCounts}
+          picked={pickedIngredients}
+          onEditPicked={editPicked}
+        />
       )}
 
       {/* ── Basket small-pool warning ── */}

@@ -25,7 +25,7 @@ export default {
     loginTitle: 'Welcome back!', loginSubtitle: 'Log in to continue your food journey', registerTitle: 'Create an account', registerSubtitle: 'Start discovering hundreds of delicious dishes', forgotTitle: 'Forgot password?', forgotSubtitle: 'Enter your email to receive a reset link', emailPlaceholder: 'hello@example.com', passwordPlaceholder: '••••••••', minPassword: 'At least 6 characters', confirmNewPassword: 'Re-enter your new password',
     emailInvalid: 'Invalid email 😿', emailInvalidBody: 'Please check your email address!', passwordMismatch: 'Passwords do not match 😿', passwordMismatchBody: 'Please re-enter the confirmation password!', passwordShort: 'Password too short 😿', passwordShortBody: 'Use at least 8 characters!', googleUrlError: 'Could not get the login URL.', unknownError: 'An unknown error occurred.', resetTitle: 'Set a new password', resetSubtitle: 'Enter a new password for your account', newPassword: '🔒 New password', resetPassword: 'Update password', resetSuccess: 'Your password has been updated. Please log in again.', companion: '🍜 Daily Mate — Your food companion',
   },
-  home: { findDish: '🔍 Find dishes for me', searchAgain: '✨ Search again with new filters', location: 'Location', weather: 'Weather', good: 'Good', average: 'Moderate', unhealthy: 'Unhealthy', dangerous: 'Dangerous', low: 'Low', high: 'High', veryHigh: 'Very high', extreme: 'Extremely high', determining: 'Finding location...', profile: 'Profile', switch: 'Switch ▾', locationPermission: 'Allow location access?', locationBody: 'Your location helps Daily Mate suggest dishes that better match the weather, prices, and local specialties.', allow: '✅ Allow', later: 'Later', humidity: 'Humidity', wind: 'Wind', pressure: 'Pressure', airQuality: 'Air quality', currentLevel: 'Current level', uvIndex: 'UV index', scalePosition: 'Position on scale', summer: '🌞 Summer', winter: '❄️ Winter', spring: '🌸 Spring', autumn: '🍂 Autumn', basketSelected: '{{count}} ingredients selected', basketQuestion: 'What did you buy today?', basketPriority: 'The app will prioritize dishes using what you have', basketUpdate: 'Tap to update your basket', tip: '💡 Small tip', tipBody: 'Have ingredients at home but\nnot sure what to cook?', tipAction: 'Choose here', searchOptions: 'SEARCH OPTIONS', all: '🍽️ All', soup: '🥣 Soup', mainDish: '🍖 Main dish' },
+  home: { modeTitle: 'HOW DO YOU WANT TO FIND A DISH?', modeSuggest: 'Suggest for me', modeSuggestSub: 'Ingredients for the weather & your health', modeFridge: 'From my fridge', modeFridgeSub: 'Pick what you have', ctaSuggest: '✨ Suggest ingredients', ctaFridge: '🧊 Pick from my fridge', findDish: '🔍 Find dishes for me', searchAgain: '✨ Search again with new filters', location: 'Location', weather: 'Weather', good: 'Good', average: 'Moderate', unhealthy: 'Unhealthy', dangerous: 'Dangerous', low: 'Low', high: 'High', veryHigh: 'Very high', extreme: 'Extremely high', determining: 'Finding location...', profile: 'Profile', switch: 'Switch ▾', locationPermission: 'Allow location access?', locationBody: 'Your location helps Daily Mate suggest dishes that better match the weather, prices, and local specialties.', allow: '✅ Allow', later: 'Later', humidity: 'Humidity', wind: 'Wind', pressure: 'Pressure', airQuality: 'Air quality', currentLevel: 'Current level', uvIndex: 'UV index', scalePosition: 'Position on scale', summer: '🌞 Summer', winter: '❄️ Winter', spring: '🌸 Spring', autumn: '🍂 Autumn', basketSelected: '{{count}} ingredients selected', basketQuestion: 'What did you buy today?', basketPriority: 'The app will prioritize dishes using what you have', basketUpdate: 'Tap to update your basket', tip: '💡 Small tip', tipBody: 'Have ingredients at home but\nnot sure what to cook?', tipAction: 'Choose here', searchOptions: 'SEARCH OPTIONS', all: '🍽️ All', soup: '🥣 Soup', mainDish: '🍖 Main dish' },
   today: { title: '🍱 Today\'s meals', hint: 'Tap to view the recipe →', emptyTitle: 'Your day feels a little empty!', emptyBody: 'Choose a dish to get started.', emptyDish: 'No dishes selected 🍽️', seeRecommendations: '💡 See dish recommendations', reset: 'Reset', loading: 'Loading your menu... 🍳', summarize: '🛒 Combine selected dishes ({{count}} dishes)', noDishTitle: 'No dishes yet', noDishBody: 'Add at least one dish before combining your meal!' },
   dish: { nutritionQuestions: 'Nutrition Q&A', askHint: 'Tap a question and I\'ll quickly check this dish for you~', moreQuestions: 'See more questions ({{count}})', fewerQuestions: 'Show fewer questions', chefThinking: 'Chef Cat is checking for you...', sources: 'View references', sourcesTitle: 'References', servingSuggestion: 'Serving suggestion', answerError: 'Could not get an answer. Please try again later.', metricsUsed: 'Metrics used: {{metrics}}', fullRecipe: 'View full recipe', feedback: 'What did you decide today?', rate: 'Rate this dish', rateBody: 'How was "{{name}}" today?', submitRating: 'Submit rating', chefNote: 'Chef\'s note', fitBecause: 'Why it fits you', compatibility: 'Match analysis', overall: 'Overall', hydration: 'Hydration', warming: 'Warming', cooling: 'Cooling', availableIngredients: 'Available ingredients', pantry: 'Ingredient pantry', noIngredients: 'No ingredient information', mainIngredients: 'Main ingredients', sides: 'Seasonings & extras', decision: 'What did you decide today?', eaten: 'Eaten', skipped: 'Skip', saved: 'Saved!', rating: 'Rate', weather: 'Weather', match: 'Match', sourceReason: 'Why this score exists', nutrition: 'Nutrition', basket: 'Basket', season: 'Season' },
   notifications: { todayMeal: 'today\'s meal', lunchTitle: 'Have {{name}} for lunch! 🍚', lunchBody: 'Fuel your afternoon and don\'t let your stomach growl! 🔋', lunchNutrition: '🔥 {{calories}}kcal · enough energy for the afternoon', dinnerTitle: '{{name}} is perfect for dinner 🌙', dinnerBody: 'You worked hard today — enjoy something delicious tonight 🌙', dinnerNutrition: '🔥 {{calories}}kcal · light and easy on the stomach', protein: 'protein', fat: 'fat', carbs: 'carbs' },
@@ -123,12 +123,36 @@ export default {
     banner: { title: 'Update your taste (1 min)', body: 'Swipe 8 dishes for more personal suggestions.', dismiss: 'Later' },
   },
   mealFilter: {
-    title: 'This meal', tools: 'Cookware / method', cost: 'Budget', time: 'Cooking time', mode: 'Mode',
+    tools: 'Cookware / method', 
     toolOptions: { pot: '🍲 Pot', pan: '🍳 Pan', fryer_oven: '🔥 Fry / Grill', steamer: '♨️ Steam', no_cook: '🥗 Salad / no-cook' },
-    costOptions: { 1: 'Budget', 2: 'Moderate', 3: 'Generous' }, tolerance: '± 1 level', any: 'Any',
-    timeOptions: { 15: '15 min', 30: '30 min', 45: '45 min', 60: '60+ min' },
-    modes: { suggest: '✨ Suggest dishes', fridge: '🧊 From my fridge' },
+    
+    
+    
     relaxed: 'No dish matched every filter, so we relaxed: {{list}}',
     relaxedNames: { cooking_tools: 'cookware', cost: 'budget', cook_time: 'time' },
+  },
+  ingredientSuggest: {
+    why: {
+      allergy: 'Few {{group}} options because allergies in your profile exclude {{count}} ingredients ({{list}}).',
+      diet: 'Few {{group}} options because your diet excludes {{count}} ingredients.',
+      no_dishes: 'Few dishes match your current filters (cookware, dish type), so few {{group}} options.',
+      editAllergy: 'View / edit allergies', editDiet: 'Change diet',
+    },
+    title: 'Pick ingredients',
+    introHot: "It's {{temp}}°C — favoring cooling, hydrating ingredients 🌿",
+    introCold: "It's {{temp}}°C — favoring warming ingredients 🔥",
+    introMild: 'Pleasant weather — balanced to your taste 🍃',
+    hint: "We pre-picked the best matches. Add or remove, then see dishes.",
+    sections: { protein: 'Protein', vegetable: 'Vegetables' },
+    dishCount: '{{count}} dishes', emptySection: 'No suitable suggestions yet.',
+    refresh: 'Suggest other ingredients', addOther: 'Add another ingredient',
+    searchPlaceholder: 'Search ingredients (e.g. shrimp, squash...)',
+    loading: "Picking ingredients for today...", error: "Couldn't load suggestions. Check your connection and try again.",
+    cta: 'See dishes from {{count}} ingredients →', ctaNone: 'Pick at least 1 ingredient', skip: 'Skip, just suggest dishes',
+  },
+  resultFilters: {
+    any: 'Any', tolerance: '± 1 level',
+    cost: { 1: 'Budget', 2: 'Moderate', 3: 'Generous' },
+    time: { 15: '≤ 15 min', 30: '≤ 30 min', 45: '≤ 45 min', 60: '60+ min' },
   },
 };

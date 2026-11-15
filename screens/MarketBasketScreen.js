@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
+import { withIngredients } from '../utils/searchParams';
 import { useAppStore } from '../store/useAppStore';
 import i18n from '../i18n';
 import { CATEGORY_EN } from '../utils/ingredientsData';
@@ -357,7 +358,7 @@ const CategoryCard = ({ cat, active, count, total, onPress }) => {
 };
 
 // ─── MarketBasketScreen ────────────────────────────────────────────────────────
-const MarketBasketScreen = ({ navigation }) => {
+const MarketBasketScreen = ({ navigation, route }) => {
   const { t } = useTranslation();
   const { allIngredients, setMarketBasket, marketBasket, initializeIngredients } = useAppStore();
 
@@ -403,9 +404,24 @@ const MarketBasketScreen = ({ navigation }) => {
     setModalCat(catKey);
   };
 
+  // Chế độ "Từ tủ lạnh" (mở từ Home với next='recommend'): áp dụng → ra danh sách món luôn
+  const baseParams = route?.params?.baseParams;
+  const goRecommend = (ids) => {
+    const picked = allIngredients
+      .filter(i => ids.includes(i.id))
+      .map(i => ({ id: i.id, name: i.name }));
+    navigation.replace('Recommend', {
+      searchParams: withIngredients(baseParams, ids, 'fridge'),
+      pickedIngredients: picked,
+      pickMode: 'fridge',
+      baseParams,
+    });
+  };
+
   const handleApply = () => {
     setMarketBasket({ isSkipped: false, selectedIngredients: selectedIds, boostStrategy: 'strict' });
-    navigation.goBack();
+    if (route?.params?.next === 'recommend' && baseParams) goRecommend(selectedIds);
+    else navigation.goBack();
   };
 
   // FIX 4: Skip không xoá selection trong store, chỉ mark isSkipped
@@ -422,7 +438,8 @@ const MarketBasketScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: () => {
             setMarketBasket({ isSkipped: true, selectedIngredients: selectedIds, boostStrategy: 'none' });
-            navigation.goBack();
+            if (route?.params?.next === 'recommend' && baseParams) goRecommend([]);
+            else navigation.goBack();
           },
         },
       ]
