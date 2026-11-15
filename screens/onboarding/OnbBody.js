@@ -47,10 +47,12 @@ const OnbBody = ({ navigation }) => {
       <RulerPicker min={30} max={150} step={0.5} majorEvery={5} decimals={1} unit="kg"
         value={draft.weight} onChange={(v) => update({ weight: v })} />
 
-      <View style={s.bmiBox}>
-        <Text style={s.bmiText}>
-          {t('onboarding.body.bmi', { value: bmi.toFixed(1) })} · {t(`onboarding.body.bmiLevel.${bmiKey(bmi)}`)}
-        </Text>
+      <View style={s.bmiRow}>
+        <View style={[s.bmiPill, bmiKey(bmi) !== 'normal' && { backgroundColor: C.chipBg }]}>
+          <Text style={[s.bmiText, bmiKey(bmi) !== 'normal' && { color: C.textMid }]}>
+            {t('onboarding.body.bmi', { value: bmi.toFixed(1) })} · {t(`onboarding.body.bmiLevel.${bmiKey(bmi)}`)}
+          </Text>
+        </View>
         <Text style={s.bmiHint}>{t('onboarding.body.bmiHint')}</Text>
       </View>
     </OnbLayout>
@@ -59,9 +61,10 @@ const OnbBody = ({ navigation }) => {
 
 const s = StyleSheet.create({
   genderRow: { flexDirection: 'row', gap: 12, marginBottom: 18 },
-  bmiBox: { backgroundColor: C.parchmentLight, borderRadius: R.lg, padding: 14, borderWidth: 1, borderColor: C.border },
-  bmiText: { fontSize: F.base, color: C.woodDark, fontFamily: 'BeVietnamPro-Bold' },
-  bmiHint: { fontSize: F.sm, color: C.textLight, fontFamily: 'BeVietnamPro-Regular', marginTop: 4 },
+  bmiRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  bmiPill: { backgroundColor: C.freshBg, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6 },
+  bmiText: { fontSize: F.sm, color: C.freshText, fontFamily: 'BeVietnamPro-Bold' },
+  bmiHint: { flex: 1, fontSize: 12, color: C.textMid, fontFamily: 'BeVietnamPro-Regular', lineHeight: 17 },
 });
 
 export default OnbBody;

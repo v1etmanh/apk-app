@@ -100,6 +100,10 @@ const OnbTaste = ({ navigation }) => {
       secondaryLabel={t('onboarding.taste.skip')}
       onSecondary={onSkip}
       scroll={false}
+      mascot={false}
+      stepNote={cards.length && !loading && !error
+        ? t('onboarding.taste.counter', { current: Math.min(currentIndex + 1, cards.length), total: cards.length })
+        : null}
     >
       {loading || computing ? (
         <View style={s.center}>
@@ -114,9 +118,6 @@ const OnbTaste = ({ navigation }) => {
         </View>
       ) : (
         <>
-          <Text style={s.counter}>
-            {t('onboarding.taste.counter', { current: Math.min(currentIndex + 1, cards.length), total: cards.length })}
-          </Text>
           <SwipeDeck cards={cards} index={currentIndex} onVote={onVote} onUndo={onUndo} labels={labels} />
           {currentIndex >= cards.length && (
             <TouchableOpacity onPress={() => finishCards(draft)} style={s.again}>

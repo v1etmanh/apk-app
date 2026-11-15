@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { C, R, F } from '../../theme';
 import { PrimaryButton } from './OnbLayout';
 import { fetchAllergyIngredients } from '../../services/onboardingService';
+import { MascotCat } from '../ui/Mascot';
+import { CheckDot } from '../ui/Notebook';
 
 const normalize = (s = '') => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
 
@@ -80,19 +82,38 @@ const AllergyScopeSheet = ({ group, emoji, initialScope, initialIds = [], onSubm
     <Modal visible={!!group} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose} />
       <View style={[s.sheet, step === 'pick' && s.sheetTall]}>
+        {/* Mèo ngồi trên mép sheet — slot `sheet` (64×64) */}
+        <MascotCat slot="sheet" size={64} style={s.cat} />
         <View style={s.handle} />
 
         {step === 'scope' ? (
           <>
-            <Text style={s.emoji}>{emoji}</Text>
-            <Text style={s.title}>{t('onboarding.allergyScope.question', { group: groupLabel.toLowerCase() })}</Text>
-            <TouchableOpacity style={s.option} onPress={() => onSubmit({ scope: 'all', items: [] })} activeOpacity={0.85}>
-              <Text style={s.optionTitle}>{t('onboarding.allergyScope.most', { group: groupLabel.toLowerCase() })}</Text>
-              <Text style={s.optionDesc}>{t('onboarding.allergyScope.mostDesc')}</Text>
+            <Text style={s.title}>{emoji} {t('onboarding.allergyScope.question', { group: groupLabel.toLowerCase() })}</Text>
+            <TouchableOpacity
+              style={[s.option, initialScope === 'all' && s.optionOn]}
+              onPress={() => onSubmit({ scope: 'all', items: [] })}
+              activeOpacity={0.85}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: initialScope === 'all' }}
+            >
+              <View style={[s.radio, initialScope === 'all' && s.radioOn]}>{initialScope === 'all' && <View style={s.radioDot} />}</View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.optionTitle}>{t('onboarding.allergyScope.most', { group: groupLabel.toLowerCase() })}</Text>
+                <Text style={s.optionDesc}>{t('onboarding.allergyScope.mostDesc')}</Text>
+              </View>
             </TouchableOpacity>
-            <TouchableOpacity style={s.option} onPress={chooseSome} activeOpacity={0.85}>
-              <Text style={s.optionTitle}>{t('onboarding.allergyScope.some')}</Text>
-              <Text style={s.optionDesc}>{t('onboarding.allergyScope.someDesc')}</Text>
+            <TouchableOpacity
+              style={[s.option, initialScope === 'some' && s.optionOn]}
+              onPress={chooseSome}
+              activeOpacity={0.85}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: initialScope === 'some' }}
+            >
+              <View style={[s.radio, initialScope === 'some' && s.radioOn]}>{initialScope === 'some' && <View style={s.radioDot} />}</View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.optionTitle}>{t('onboarding.allergyScope.some')}</Text>
+                <Text style={s.optionDesc}>{t('onboarding.allergyScope.someDesc')}</Text>
+              </View>
             </TouchableOpacity>
             {initialScope && (
               <TouchableOpacity onPress={() => onSubmit({ scope: 'none', items: [] })} style={s.remove}>
@@ -134,7 +155,7 @@ const AllergyScopeSheet = ({ group, emoji, initialScope, initialIds = [], onSubm
                   const on = selected.has(item.id);
                   return (
                     <TouchableOpacity style={s.row} onPress={() => toggle(item)} activeOpacity={0.7}>
-                      <View style={[s.check, on && s.checkOn]}>{on && <Text style={s.checkMark}>✓</Text>}</View>
+                      <CheckDot on={on} square />
                       <Text style={s.rowText}>{item.name}</Text>
                     </TouchableOpacity>
                   );
@@ -157,36 +178,39 @@ const AllergyScopeSheet = ({ group, emoji, initialScope, initialIds = [], onSubm
 };
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(62,39,35,0.45)' },
   sheet: {
-    backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: C.bg, borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingHorizontal: 20, paddingBottom: 28, paddingTop: 10,
   },
   sheetTall: { height: '82%' },
-  handle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: C.border, marginBottom: 12 },
-  emoji: { fontSize: 40, textAlign: 'center' },
-  title: { fontSize: F.xl, color: C.text, fontFamily: 'Lora-Bold', textAlign: 'center', marginVertical: 12 },
+  cat: { position: 'absolute', right: 24, top: -40, zIndex: 2, elevation: 6 },
+  handle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: '#C9B9A8', marginBottom: 12 },
+  title: { fontSize: F.lg + 2, color: C.text, fontFamily: 'Lora-Bold', marginTop: 4, marginBottom: 14, paddingRight: 72, lineHeight: 26 },
   option: {
-    backgroundColor: C.surface, borderRadius: R.lg, padding: 16, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.55)', borderRadius: 16, padding: 14, marginBottom: 10,
     borderWidth: 1.5, borderColor: C.border,
   },
-  optionTitle: { fontSize: F.lg, color: C.woodDark, fontFamily: 'BeVietnamPro-Bold' },
-  optionDesc: { fontSize: F.sm, color: C.textMid, fontFamily: 'BeVietnamPro-Regular', marginTop: 3 },
-  remove: { alignItems: 'center', paddingTop: 8 },
-  removeText: { color: C.accentRed, fontSize: F.sm, fontFamily: 'BeVietnamPro-SemiBold' },
-  pickHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  pickTitle: { fontSize: F.lg, color: C.text, fontFamily: 'BeVietnamPro-Bold', flex: 1, textAlign: 'center' },
+  optionOn: { borderWidth: 2, borderColor: C.primary, backgroundColor: C.parchmentLight },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#A68F7E', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  radioOn: { borderColor: C.primary },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.primary },
+  optionTitle: { fontSize: F.base, color: C.text, fontFamily: 'BeVietnamPro-Bold' },
+  optionDesc: { fontSize: F.sm, color: C.textMid, fontFamily: 'BeVietnamPro-Regular', marginTop: 3, lineHeight: 18 },
+  remove: { alignItems: 'center', paddingTop: 8, minHeight: 40, justifyContent: 'center' },
+  removeText: { color: C.textMid, fontSize: F.sm, fontFamily: 'BeVietnamPro-SemiBold', textDecorationLine: 'underline' },
+  pickHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, paddingRight: 72 },
+  pickTitle: { fontSize: F.lg, color: C.text, fontFamily: 'Lora-Bold', flex: 1, textAlign: 'center' },
   back: { color: C.primary, fontSize: F.base, fontFamily: 'BeVietnamPro-SemiBold', width: 60 },
   hint: { fontSize: F.sm, color: C.textMid, fontFamily: 'BeVietnamPro-Regular', marginBottom: 8 },
   search: {
-    backgroundColor: C.surface, borderRadius: R.md, borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.surface, borderRadius: 14, borderWidth: 1.5, borderColor: C.border,
     paddingHorizontal: 14, paddingVertical: 10, fontSize: F.base, color: C.text, marginBottom: 8,
+    fontFamily: 'BeVietnamPro-Regular',
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: C.borderLight },
-  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
-  checkOn: { backgroundColor: C.primary, borderColor: C.primary },
-  checkMark: { color: '#fff', fontSize: 13, fontFamily: 'BeVietnamPro-Bold' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, borderBottomWidth: 1, borderBottomColor: C.borderLight },
   rowText: { fontSize: F.base, color: C.text, fontFamily: 'BeVietnamPro-Regular', flex: 1 },
 });
 

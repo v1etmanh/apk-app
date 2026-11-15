@@ -78,7 +78,8 @@ const OnbDiet = ({ navigation }) => {
           const scope = scopeOf(o.key);
           const n = itemsOf(o.key).length;
           const label = t(`onboarding.allergies.${o.key}`)
-            + (scope === 'some' ? ` · ${t('onboarding.allergyScope.countShort', { count: n })}` : '');
+            + (scope === 'some' ? ` · ${t('onboarding.allergyScope.countShort', { count: n })}`
+              : scope === 'all' ? ` · ${t('onboarding.allergyScope.wholeGroup')}` : '');
           return (
             <Chip key={o.key} emoji={o.emoji} label={label} selected={!!scope}
               onPress={() => setSheetGroup(o.key)} />
@@ -112,8 +113,8 @@ const OnbDiet = ({ navigation }) => {
 };
 
 const s = StyleSheet.create({
-  hint: { fontSize: F.sm, color: C.textLight, fontFamily: 'BeVietnamPro-Regular', marginBottom: 10 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  hint: { fontSize: F.sm, color: C.textSoft, fontFamily: 'BeVietnamPro-Regular', marginBottom: 10 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   otherBox: { marginTop: 16, padding: 12, borderRadius: R.lg, backgroundColor: C.parchmentLight, borderWidth: 1, borderColor: C.border },
   otherTitle: { fontSize: F.sm, color: C.textMid, fontFamily: 'BeVietnamPro-SemiBold', marginBottom: 8 },
   otherRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

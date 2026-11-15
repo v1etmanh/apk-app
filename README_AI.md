@@ -199,7 +199,6 @@ Các endpoint mobile đang gọi:
 | `GET` | `/api/weather?lat=&lon=` | Lấy thời tiết |
 | `POST` | `/api/v1/recommend` | Tạo danh sách món gợi ý |
 | `GET` | `/api/v1/dishes/:id` | Chi tiết món |
-| `POST` | `/api/v1/dishes/:id/health-questions` | Câu hỏi sức khỏe cố định của món |
 | `POST` | `/api/v1/feedback` | Gửi phản hồi món |
 | `GET` | `/api/v1/ingredient-videos` | Lấy danh sách video nguyên liệu |
 

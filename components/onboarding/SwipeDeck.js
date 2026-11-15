@@ -6,16 +6,20 @@ import {
   View, Text, Image, StyleSheet, Animated, PanResponder, Dimensions, TouchableOpacity,
 } from 'react-native';
 import { C, R, F, shadow } from '../../theme';
+import { MascotCat } from '../ui/Mascot';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const SWIPE_X = 110;
 const SWIPE_Y = 110;
 
+// Thẻ món như tấm ảnh dán sổ; nhãn khẩu vị (archetype) là con tem nghiêng ở góc ảnh.
 const DishCard = ({ card, badge }) => (
   <View style={s.card}>
-    <Image source={{ uri: card.image_url }} style={s.image} resizeMode="cover" />
-    <View style={s.cardBody}>
+    <View style={s.imageWrap}>
+      <Image source={{ uri: card.image_url }} style={s.image} resizeMode="cover" />
       {!!card.label && <Text style={s.badge}>{badge ?? card.label}</Text>}
+    </View>
+    <View style={s.cardBody}>
       <Text style={s.title} numberOfLines={2}>{card.title}</Text>
     </View>
   </View>
@@ -78,6 +82,8 @@ const SwipeDeck = ({ cards, index, onVote, onUndo, labels }) => {
   return (
     <View style={s.root}>
       <View style={s.stack}>
+        {/* Thẻ giấy lót phía sau cho cảm giác xấp thẻ */}
+        <View style={[s.layer, s.backSheet, { transform: [{ rotate: '3deg' }] }]} />
         {next && (
           <Animated.View style={[s.layer, { transform: [{ scale: nextScale }] }]}>
             <DishCard card={next} />
@@ -95,11 +101,13 @@ const SwipeDeck = ({ cards, index, onVote, onUndo, labels }) => {
           </Animated.View>
         ) : null}
       </View>
+      {/* Mèo ngồi trên đỉnh xấp thẻ — slot `deck` (80×80) */}
+      <MascotCat slot="deck" size={80} style={s.deckCat} />
 
       <View style={s.buttons}>
-        <VoteButton emoji="👈" label={labels.dislike} color={C.accentRed} onPress={() => fly('dislike')} disabled={!current} />
-        <VoteButton emoji="⬆️" label={labels.neutral} color={C.amber} onPress={() => fly('neutral')} disabled={!current} />
-        <VoteButton emoji="👉" label={labels.like} color={C.accentGreen} onPress={() => fly('like')} disabled={!current} />
+        <VoteButton emoji="👎" label={`← ${labels.dislike}`} color="#B4532A" textColor="#8E3B1B" onPress={() => fly('dislike')} disabled={!current} />
+        <VoteButton emoji="😐" label={`↑ ${labels.neutral}`} color={C.textLight} textColor={C.textMid} onPress={() => fly('neutral')} disabled={!current} small />
+        <VoteButton emoji="😋" label={`${labels.like} →`} color={C.inkGreen} textColor={C.freshText} onPress={() => fly('like')} disabled={!current} />
       </View>
       {index > 0 && onUndo && (
         <TouchableOpacity onPress={onUndo} style={s.undo} hitSlop={8}>
@@ -110,55 +118,64 @@ const SwipeDeck = ({ cards, index, onVote, onUndo, labels }) => {
   );
 };
 
-const VoteButton = ({ emoji, label, color, onPress, disabled }) => (
+const VoteButton = ({ emoji, label, color, textColor, onPress, disabled, small }) => (
   <TouchableOpacity
     onPress={onPress}
     disabled={disabled}
     activeOpacity={0.8}
     accessibilityRole="button"
     accessibilityLabel={label}
-    style={[s.voteBtn, { borderColor: color }, disabled && { opacity: 0.4 }]}
+    style={[s.voteBtn, disabled && { opacity: 0.4 }]}
   >
-    <Text style={s.voteEmoji}>{emoji}</Text>
-    <Text style={[s.voteLabel, { color }]} numberOfLines={1}>{label}</Text>
+    <View style={[s.voteCircle, small && s.voteCircleSmall, { borderColor: color }]}>
+      <Text style={[s.voteEmoji, small && { fontSize: 22 }]}>{emoji}</Text>
+    </View>
+    <Text style={[s.voteLabel, { color: textColor || color }]} numberOfLines={1}>{label}</Text>
   </TouchableOpacity>
 );
 
-const CARD_H = Math.min(420, SCREEN_H * 0.5);
+const CARD_H = Math.min(400, SCREEN_H * 0.46);
 
 const s = StyleSheet.create({
-  root: { alignItems: 'center' },
+  root: { alignItems: 'center', paddingTop: 44 },
   stack: { width: '100%', height: CARD_H, marginBottom: 18 },
   layer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  backSheet: { left: 10, right: 10, top: 8, borderRadius: 22, backgroundColor: C.parchmentDark, borderWidth: 1.5, borderColor: C.border },
+  deckCat: { position: 'absolute', top: 0, left: '50%', marginLeft: -40, zIndex: 5, elevation: 12 },
   card: {
-    flex: 1, borderRadius: R.xl, backgroundColor: C.surface, overflow: 'hidden',
-    borderWidth: 1, borderColor: C.borderLight, ...shadow(3),
+    flex: 1, borderRadius: 22, backgroundColor: C.parchmentLight, padding: 12,
+    borderWidth: 1.5, borderColor: C.paperStroke, ...shadow(3),
   },
-  image: { width: '100%', flex: 1, backgroundColor: C.parchmentDark },
-  cardBody: { padding: 16 },
+  imageWrap: { flex: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: C.parchmentDark },
+  image: { width: '100%', height: '100%' },
+  cardBody: { paddingHorizontal: 4, paddingTop: 10, paddingBottom: 2 },
   badge: {
-    alignSelf: 'flex-start', fontSize: F.xs, color: C.woodDark, backgroundColor: C.parchmentDark,
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: R.pill, overflow: 'hidden',
-    fontFamily: 'BeVietnamPro-Bold', marginBottom: 6,
+    position: 'absolute', top: 10, right: 10, transform: [{ rotate: '4deg' }],
+    fontSize: F.sm, color: C.woodDark, backgroundColor: C.parchmentLight,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, overflow: 'hidden',
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.primary,
+    fontFamily: 'BeVietnamPro-Bold',
   },
   title: { fontSize: F.xl, color: C.text, fontFamily: 'Lora-Bold' },
   stamp: {
-    position: 'absolute', top: 24, paddingHorizontal: 12, paddingVertical: 6,
+    position: 'absolute', top: 30, paddingHorizontal: 12, paddingVertical: 6,
     borderWidth: 3, borderRadius: 10, fontSize: F.lg, fontFamily: 'BeVietnamPro-Bold',
-    backgroundColor: 'rgba(255,255,255,0.85)', overflow: 'hidden',
+    backgroundColor: 'rgba(255,248,234,0.92)', overflow: 'hidden',
   },
-  stampLike: { left: 20, color: C.accentGreen, borderColor: C.accentGreen, transform: [{ rotate: '-12deg' }] },
-  stampNope: { right: 20, color: C.accentRed, borderColor: C.accentRed, transform: [{ rotate: '12deg' }] },
-  stampNeutral: { alignSelf: 'center', left: '30%', color: C.amber, borderColor: C.amber },
-  buttons: { flexDirection: 'row', gap: 12, width: '100%' },
-  voteBtn: {
-    flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: R.lg,
-    borderWidth: 2, backgroundColor: C.surface,
+  stampLike: { left: 24, color: C.inkGreen, borderColor: C.inkGreen, transform: [{ rotate: '-12deg' }] },
+  stampNope: { right: 24, color: '#B4532A', borderColor: '#B4532A', transform: [{ rotate: '12deg' }] },
+  stampNeutral: { alignSelf: 'center', left: '30%', color: C.textMid, borderColor: C.textLight },
+  buttons: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: 18, width: '100%' },
+  voteBtn: { alignItems: 'center', gap: 4, minWidth: 88 },
+  voteCircle: {
+    width: 60, height: 60, borderRadius: 30, borderWidth: 2, backgroundColor: C.parchmentLight,
+    alignItems: 'center', justifyContent: 'center', ...shadow(1),
   },
-  voteEmoji: { fontSize: 22 },
-  voteLabel: { fontSize: F.sm, fontFamily: 'BeVietnamPro-Bold', marginTop: 2 },
-  undo: { marginTop: 12 },
-  undoText: { color: C.textLight, fontSize: F.sm, fontFamily: 'BeVietnamPro-SemiBold' },
+  voteCircleSmall: { width: 50, height: 50, borderRadius: 25 },
+  voteEmoji: { fontSize: 26 },
+  voteLabel: { fontSize: 12, fontFamily: 'BeVietnamPro-Bold' },
+  undo: { marginTop: 10, minHeight: 40, justifyContent: 'center' },
+  undoText: { color: C.woodDark, fontSize: F.sm, fontFamily: 'BeVietnamPro-Bold' },
 });
 
 export default SwipeDeck;

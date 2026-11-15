@@ -2,7 +2,12 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, ActivityIndicator, StatusBar, ImageBackground,
+  LayoutAnimation, Platform, UIManager,
 } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import LottieView from 'lottie-react-native';
@@ -22,6 +27,7 @@ import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard from '../components/ui/PaperCard';
 import WoodButton from '../components/ui/WoodButton';
 import WeatherAnimationSprite from '../components/ui/WeatherAnimationSprite';
+import SeasonBubble from '../components/ui/SeasonBubble';
 import ProfileSwitcherSheet from '../components/ProfileSwitcherSheet';
 import MealFilterPanel, { DEFAULT_MEAL_FILTERS, sanitizeMealFilters } from '../components/MealFilterPanel';
 import { buildBaseSearchParams } from '../utils/searchParams';
@@ -210,6 +216,11 @@ const HomeScreen = ({ navigation }) => {
   const [mealFilters, setMealFilters]       = useState(DEFAULT_MEAL_FILTERS); // dụng cụ bếp
   const [searchMode, setSearchMode]         = useState('suggest');            // 'suggest' | 'fridge'
   const [tasteBannerHidden, setTasteBannerHidden] = useState(false);
+  const [showWeatherDetails, setShowWeatherDetails] = useState(false); // độ ẩm/gió/AQI/UV thu gọn mặc định
+  const toggleWeatherDetails = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowWeatherDetails(v => !v);
+  };
   const isFirstRender = React.useRef(true);
 
   useEffect(() => {
@@ -472,33 +483,48 @@ const HomeScreen = ({ navigation }) => {
           </View>
         )}
         {weatherData ? (
-          <WeatherAnimationSprite
-            icon={icon}
-            temperature={weatherData.temperature}
-            condition={weatherData.condition}
-            feelsLike={weatherData.temperature ? Math.round(weatherData.temperature + (weatherData.humidity > 70 ? 4 : 1)) : null}
-          />
+          <TouchableOpacity activeOpacity={0.9} onPress={toggleWeatherDetails}>
+            <WeatherAnimationSprite
+              icon={icon}
+              temperature={weatherData.temperature}
+              condition={weatherData.condition}
+              feelsLike={weatherData.temperature ? Math.round(weatherData.temperature + (weatherData.humidity > 70 ? 4 : 1)) : null}
+              accessory={weatherData.season ? <SeasonBubble season={weatherData.season} size={74} /> : null}
+            />
+          </TouchableOpacity>
         ) : (
           <View style={s.tempSection}>
             <ActivityIndicator color={C.textMid} size="large" />
           </View>
         )}
 
+        {/* ── Nút mở/thu gọn chi tiết thời tiết ── */}
+        {weatherData && (
+          <TouchableOpacity
+            style={s.detailsToggle}
+            activeOpacity={0.75}
+            onPress={toggleWeatherDetails}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showWeatherDetails }}
+          >
+            <Text style={s.detailsToggleText}>
+              {showWeatherDetails ? t('home.weatherDetailsHide') : t('home.weatherDetailsShow')}
+            </Text>
+            <Ionicons name={showWeatherDetails ? 'chevron-up' : 'chevron-down'} size={16} color={C.textMid} />
+          </TouchableOpacity>
+        )}
+
         {/* ── 3-col Wood Metric Cards ── */}
-        {weatherData ? (
+        {weatherData && showWeatherDetails && (
           <View style={s.woodRow}>
             <WoodMetricCell iconName="Drop"  value={weatherData.humidity}   unit="%"    label={t('home.humidity')}   accentColor="rgba(100,180,255,0.18)" />
             <WoodMetricCell iconName="Wind"  value={weatherData.wind_speed} unit="km/h" label={t('home.wind')} accentColor="rgba(160,220,160,0.18)" />
             <WoodMetricCell iconName="Gauge" value={weatherData.pressure}   unit="hPa"  label={t('home.pressure')} accentColor="rgba(255,180,100,0.18)" />
           </View>
-        ) : (
-          <View style={[s.woodRow, { justifyContent: 'center', paddingVertical: 24 }]}>
-            <ActivityIndicator color={C.textMid} />
-          </View>
         )}
 
         {/* ── AQI Card ── */}
-        {weatherData && (
+        {weatherData && showWeatherDetails && (
           <PaperCard style={s.cardSpacing} innerStyle={{ padding: 20 }}>
             <View style={s.cardRow}>
               <View style={s.rowCenter}>
@@ -526,7 +552,7 @@ const HomeScreen = ({ navigation }) => {
         )}
 
         {/* ── UV Card ── */}
-        {weatherData && (
+        {weatherData && showWeatherDetails && (
           <PaperCard style={s.cardSpacing} innerStyle={{ padding: 20 }}>
             <View style={s.cardRow}>
               <View style={s.rowCenter}>
@@ -553,17 +579,6 @@ const HomeScreen = ({ navigation }) => {
               labels={['0', '2', '5', '7', '10', '11+']}
             />
           </PaperCard>
-        )}
-
-        {/* ── Season chip ── */}
-        {weatherData?.season && (
-          <View style={s.seasonChip}>
-            <Text style={s.seasonText}>
-              {weatherData.season === 'summer' ? '🌞 Mùa hè' :
-               weatherData.season === 'winter' ? '❄️ Mùa đông' :
-               weatherData.season === 'spring' ? '🌸 Mùa xuân' : '🍂 Mùa thu'}
-            </Text>
-          </View>
         )}
 
         {/* ── Divider ── */}
@@ -976,28 +991,18 @@ const s = StyleSheet.create({
   },
 
   // ── Season chip
-  seasonChip: {
-    alignSelf: 'center', 
-    marginTop: 16, 
-    marginBottom: 8,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-    borderRadius: 24, 
-    borderWidth: 1, 
-    borderColor: 'rgba(0,0,0,0.04)',
-    paddingHorizontal: 18, 
-    paddingVertical: 8,
-    // Sụbtle shadow for high-end look
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+  detailsToggle: {
+    alignSelf: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 10,
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)',
   },
-  seasonText: {
-    fontFamily: 'Caveat_700Bold', 
-    fontSize: 16,
+  detailsToggleText: {
+    fontFamily: 'Nunito_600SemiBold', fontSize: 13,
     color: C.textMid,
-    letterSpacing: 0.3,
   },
 
   // ── Divider

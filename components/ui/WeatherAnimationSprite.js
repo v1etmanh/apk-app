@@ -334,6 +334,7 @@ const WeatherAnimationSprite = ({
   temperature = '--',
   condition = 'Đang tải...',
   feelsLike = null,
+  accessory = null, // phần tử hiển thị cùng hàng với tình trạng / cảm giác như (vd: bong bóng mùa)
 }) => {
   const type = getWeatherType(condition, icon);
   const { floatY, scale, rotateDeg, opacity, rayDeg } = useIconAnim(type);
@@ -408,8 +409,13 @@ const WeatherAnimationSprite = ({
           <Text style={s.tempNum}>{temperature}</Text>
           <Text style={s.degreeSymbol}>°C</Text>
         </View>
-        <Text style={s.condText}>{condition}</Text>
-        {feelsLike && <Text style={s.feelsLike}>Cảm giác như {feelsLike}°C</Text>}
+        <View style={s.condRow}>
+          <View style={s.condInfo}>
+            <Text style={s.condText}>{condition}</Text>
+            {feelsLike && <Text style={s.feelsLike}>Cảm giác như {feelsLike}°C</Text>}
+          </View>
+          {accessory}
+        </View>
       </View>
     </View>
   );
@@ -493,6 +499,8 @@ const s = StyleSheet.create({
     borderRadius: 1,
   },
   tempContainer: { alignItems: 'center', gap: 6 },
+  condRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
+  condInfo: { alignItems: 'center' },
   tempRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center' },
   tempNum: {
     fontFamily: 'Nunito_700Bold',

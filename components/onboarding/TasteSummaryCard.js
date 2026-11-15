@@ -13,13 +13,14 @@ export const TASTE_EMOJI = {
   sweet: '🍬', sour: '🍋', salty: '🧂', bitter: '☕', umami: '🍜', spicy: '🌶️', astringent: '🍵',
 };
 
-const Bar = ({ k, value, label }) => (
+// 3 vị nổi bật tô gỗ đậm, các vị còn lại màu giấy nhạt — như thước đo trong sổ tay.
+const Bar = ({ k, value, label, top }) => (
   <View style={s.row}>
-    <Text style={s.rowLabel}>{TASTE_EMOJI[k]} {label}</Text>
+    <Text style={[s.rowLabel, top && s.rowLabelTop]}>{TASTE_EMOJI[k]} {label}</Text>
     <View style={s.track}>
-      <View style={[s.fill, { width: `${Math.round(value * 100)}%`, backgroundColor: TASTE_COLOR[k] }]} />
+      <View style={[s.fill, { width: `${Math.round(value * 100)}%`, backgroundColor: top ? C.primary : C.paperStroke }]} />
     </View>
-    <Text style={s.pct}>{Math.round(value * 100)}%</Text>
+    <Text style={[s.pct, !top && { fontFamily: 'BeVietnamPro-Regular', color: C.textMid }]}>{Math.round(value * 100)}%</Text>
   </View>
 );
 
@@ -47,7 +48,7 @@ const TasteSummaryCard = ({ taste, labels, editable, onChange, headline }) => {
             />
           </View>
         ) : (
-          <Bar key={k} k={k} value={taste[k] ?? 0} label={labels[k]} />
+          <Bar key={k} k={k} value={taste[k] ?? 0} label={labels[k]} top={keys.indexOf(k) < 3} />
         )
       ))}
     </View>
@@ -56,12 +57,13 @@ const TasteSummaryCard = ({ taste, labels, editable, onChange, headline }) => {
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: C.surface, borderRadius: R.xl, padding: 18,
-    borderWidth: 1, borderColor: C.borderLight, ...shadow(2),
+    backgroundColor: C.parchmentLight, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 14,
+    borderWidth: 1.5, borderColor: C.paperStroke, ...shadow(1),
   },
-  headline: { fontSize: F.lg, color: C.woodDark, fontFamily: 'BeVietnamPro-Bold', marginBottom: 14, lineHeight: 24 },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  rowLabel: { width: 120, fontSize: F.sm, color: C.textMid, fontFamily: 'BeVietnamPro-SemiBold' },
+  headline: { fontSize: F.base, color: C.woodDark, fontFamily: 'BeVietnamPro-Bold', marginBottom: 12, lineHeight: 22 },
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  rowLabel: { width: 116, fontSize: F.sm, color: C.textMid, fontFamily: 'BeVietnamPro-Regular' },
+  rowLabelTop: { color: C.text, fontFamily: 'BeVietnamPro-Bold' },
   track: { flex: 1, height: 10, borderRadius: 5, backgroundColor: C.parchmentDark, overflow: 'hidden' },
   fill: { height: 10, borderRadius: 5 },
   pct: { width: 44, textAlign: 'right', fontSize: F.sm, color: C.text, fontFamily: 'BeVietnamPro-Bold' },

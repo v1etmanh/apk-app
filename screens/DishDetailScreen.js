@@ -12,9 +12,8 @@ import MetaChip from '../components/ui/MetaChip';
 import PaperCard from '../components/ui/PaperCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import ScreenBackground from '../components/ui/ScreenBackground';
-import HealthQuestionCard from '../components/HealthQuestionCard';
-import { useAppStore } from '../store/useAppStore';
 import { useTranslation } from 'react-i18next';
+import { MascotCat } from '../components/ui/Mascot';
 
 const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 320;
@@ -59,11 +58,9 @@ const REASON_LABELS = {
 
 const DishDetailScreen = ({ route, navigation }) => {
   const { t } = useTranslation();
-  const { dish: initialDish } = route.params;
+  const { dish: initialDish, pickedIds = [] } = route.params;
+  const pickedSet = new Set(pickedIds.map(Number));
   const [dish, setDish] = useState(initialDish);
-  const profile = useAppStore(state => state.profile);
-  const latestMetrics = useAppStore(state => state.latestMetrics);
-  const allergies = useAppStore(state => state.allergies);
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -73,14 +70,12 @@ const DishDetailScreen = ({ route, navigation }) => {
   const [loadingDetail, setLoadingDetail]           = useState(true);
   const [feedbackState, setFeedbackState]           = useState({}); // { eaten: 'loading'|'done'|'error' }
   const [dishUrl, setDishUrl]                       = useState(dish.url || ''); // fallback cho url từ API
-  const [primaryQuestions, setPrimaryQuestions]     = useState(initialDish.health_questions || []);
-  const [moreQuestions, setMoreQuestions]           = useState([]);
   const explanationLabels = {
     weather_reason: t('dish.weather'), dish_match: t('dish.match'), ingredient_source_note: t('dish.sourceReason'),
     nutrition_note: t('dish.nutrition'), ingredient_note: t('dish.basket'), seasonal_note: t('dish.season'),
   };
 
-  useEffect(() => { loadDetail(); }, [profile, latestMetrics, allergies]);
+  useEffect(() => { loadDetail(); }, []);
 
   const loadDetail = async () => {
     try {
@@ -89,18 +84,6 @@ const DishDetailScreen = ({ route, navigation }) => {
       const res = await api.get(`/api/v1/dishes/${dishId}`);
       setDish(prev => ({ ...prev, ...res.data }));
       setIngredients(res.data.ingredients || []);
-      const questionRes = await api.post(`/api/v1/dishes/${dishId}/health-questions`, {
-        profile: {
-          ...(profile || {}),
-          latest_metrics: latestMetrics || null,
-          allergies: allergies || [],
-        },
-        recommendation_context: {
-          active_reasons: initialDish.explanation?.active_reasons || [],
-        },
-      });
-      setPrimaryQuestions(questionRes.data.primary_questions || questionRes.data.questions || []);
-      setMoreQuestions(questionRes.data.more_questions || []);
       // Nếu dish trong params (từ meal plan cũ) không có url → lấy từ API
       if (!dishUrl && res.data.url) {
         setDishUrl(res.data.url);
@@ -155,6 +138,9 @@ const DishDetailScreen = ({ route, navigation }) => {
   );
 
   const breakdown = dish.score_breakdown || {};
+  // match_pct: điểm tương đối so với món tốt nhất của lần gợi ý (server mới); dữ liệu cũ dùng final_score
+  const matchPct = dish.match_pct ?? Math.round((dish.final_score || 0) * 100);
+  const missingIngredients = Array.isArray(dish.missing_ingredients) ? dish.missing_ingredients : [];
   const mainIngredients = ingredients.filter(i => i.is_main);
   const sideIngredients = ingredients.filter(i => !i.is_main);
 
@@ -232,7 +218,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                 <View style={s.metaChipsRow}>
                   <MetaChip icon={<Ionicons name="time-outline" size={13} color={C.textMid}/>} label={`${dish.cook_time_min}p`} style={s.chipSpacing} />
                   <MetaChip icon={<Ionicons name="earth" size={13} color={C.accentBlue}/>} label={dish.nation || 'Việt Nam'} style={s.chipSpacing} />
-                  <MetaChip variant="accent" icon={<Ionicons name="star" size={13} color={C.accentGreen}/>} label={`${((dish.final_score||0)*100).toFixed(0)}%`} style={s.chipSpacing} />
+                  <MetaChip variant="accent" icon={<Ionicons name="star" size={13} color={C.accentGreen}/>} label={`${matchPct}%`} style={s.chipSpacing} />
                 </View>
               </View>
             </ImageBackground>
@@ -241,8 +227,11 @@ const DishDetailScreen = ({ route, navigation }) => {
           {/* ── Why Recommended (Expert Note) ── */}
           {dish.explanation && Object.keys(dish.explanation).length > 0 && (
             <View style={s.section}>
-              <SectionHeader title={t('dish.chefNote')} icon="document-text-outline" />
-              <PaperCard priority="primary" innerStyle={{ padding: 18 }}>
+              <SectionHeader title={t('dish.whyToday')} icon="sparkles-outline" />
+              <View style={s.whyWrap}>
+              {/* Mèo ngồi trên góc phải khối "Vì sao hợp" — slot `detail` (72×72) */}
+              <MascotCat slot="detail" size={72} style={s.whyCat} />
+              <PaperCard priority="primary" innerStyle={{ padding: 18, paddingTop: 22 }}>
 
                 {/* Headline — banner nổi bật đầu card */}
                 {dish.explanation.headline ? (
@@ -340,21 +329,15 @@ const DishDetailScreen = ({ route, navigation }) => {
                 )}
 
               </PaperCard>
+              </View>
             </View>
           )}
-
-          <HealthQuestionCard
-            dishId={dish.dish_id || dish.id}
-            primaryQuestions={primaryQuestions}
-            moreQuestions={moreQuestions}
-            profile={profile}
-          />
 
           {/* ── Score Breakdown ── */}
           <View style={s.section}>
             <SectionHeader title={t('dish.compatibility')} icon="analytics-outline" />
             <PaperCard innerStyle={{ padding: 16, gap: 12 }}>
-              <MetricCard label={t('dish.overall')} value={dish.final_score} color={C.accentGreen || '#38B07A'} icon="checkmark-circle" />
+              <MetricCard label={t('dish.overall')} value={matchPct / 100} color={C.accentGreen || '#38B07A'} icon="checkmark-circle" />
               {breakdown.hydration > 0 && <MetricCard label={t('dish.hydration')} value={breakdown.hydration} color={C.accentBlue || '#3498DB'} icon="water" />}
               {breakdown.warming   > 0 && <MetricCard label={t('dish.warming')} value={breakdown.warming} color={C.accentGold || '#F59E0B'} icon="thermometer" />}
               {breakdown.cooling   > 0 && <MetricCard label={t('dish.cooling')} value={breakdown.cooling} color="#2DD4BF" icon="snow" />}
@@ -375,13 +358,21 @@ const DishDetailScreen = ({ route, navigation }) => {
               </View>
             ) : (
               <View style={s.pantryContainer}>
+                {missingIngredients.length > 0 && (
+                  <View style={s.needBuy}>
+                    <Ionicons name="cart-outline" size={16} color={C.seasonText} />
+                    <Text style={s.needBuyText}>{t('dish.needToBuy', { list: missingIngredients.join(', ') })}</Text>
+                  </View>
+                )}
                 {mainIngredients.length > 0 && (
                   <View style={s.pantryGroup}>
                     <Text style={s.pantryTitle}>{t('dish.mainIngredients')}</Text>
                     <View style={s.ingGrid}>
                       {mainIngredients.map(ing => (
-                        <View key={ing.id} style={s.ingChipMain}>
-                          <Text style={s.ingTextMain}>{ing.name}</Text>
+                        <View key={ing.id} style={[s.ingChipMain, pickedSet.has(Number(ing.id)) && s.ingChipHave]}>
+                          <Text style={[s.ingTextMain, pickedSet.has(Number(ing.id)) && s.ingTextHave]}>
+                            {pickedSet.has(Number(ing.id)) ? '✓ ' : ''}{ing.name}
+                          </Text>
                           {ing.quantity_g > 0 && (
                             <View style={s.ingQtyBadge}>
                               <Text style={s.ingQtyText}>{ing.quantity_g}g</Text>
@@ -398,8 +389,10 @@ const DishDetailScreen = ({ route, navigation }) => {
                     <Text style={s.pantryTitle}>{t('dish.sides')}</Text>
                     <View style={s.ingGrid}>
                       {sideIngredients.map(ing => (
-                        <View key={ing.id} style={s.ingChipSide}>
-                          <Text style={s.ingTextSide}>{ing.name}</Text>
+                        <View key={ing.id} style={[s.ingChipSide, pickedSet.has(Number(ing.id)) && s.ingChipHave]}>
+                          <Text style={[s.ingTextSide, pickedSet.has(Number(ing.id)) && s.ingTextHave]}>
+                            {pickedSet.has(Number(ing.id)) ? '✓ ' : ''}{ing.name}
+                          </Text>
                         </View>
                       ))}
                     </View>
@@ -680,6 +673,15 @@ const s = StyleSheet.create({
   section: {
     marginBottom: 24,
   },
+  whyWrap: { marginTop: 30 },
+  needBuy: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, padding: 10, borderRadius: 12,
+    backgroundColor: C.seasonBg,
+  },
+  needBuyText: { flex: 1, fontSize: 13, color: C.seasonText, fontFamily: 'BeVietnamPro-SemiBold' },
+  whyCat: { position: 'absolute', right: 14, top: -40, zIndex: 2, elevation: 10 },
+  ingChipHave: { backgroundColor: C.freshBg, borderColor: '#9FD3B6' },
+  ingTextHave: { color: C.freshText },
 
   // Expert Notes
   noteRow: {
