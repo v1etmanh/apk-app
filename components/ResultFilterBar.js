@@ -1,10 +1,12 @@
 // components/ResultFilterBar.js
-// Thanh lọc trên danh sách kết quả: nguyên liệu đã chọn (✎), chi phí (± 1 mức), thời gian nấu.
+// Thanh lọc trên danh sách kết quả: nguyên liệu đã chọn (✎), khoảng giá / phần (± 1 mức), thời gian nấu.
 // Số món của từng lựa chọn lấy từ `filter_counts` mà /api/v1/recommend trả về ở trang 1.
+// Nhãn khoảng giá lấy từ `price_bands` của server (cost_level 1..3 ↔ VND / 1 phần ăn).
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { C, R, F } from '../theme';
+import { priceBandLabel, sanitizePriceBands } from '../utils/price';
 
 export const DEFAULT_RESULT_FILTERS = { cost_level: null, cost_tolerance: 0, max_cook_time: null };
 const COSTS = [1, 2, 3];
@@ -42,9 +44,11 @@ const Chip = ({ label, count, active, onPress, accent }) => (
   </TouchableOpacity>
 );
 
-const ResultFilterBar = ({ value, onChange, counts, picked = [], onEditPicked }) => {
-  const { t } = useTranslation();
+const ResultFilterBar = ({ value, onChange, counts, priceBands, picked = [], onEditPicked }) => {
+  const { t, i18n } = useTranslation();
   const f = value || DEFAULT_RESULT_FILTERS;
+  const bands = sanitizePriceBands(priceBands);
+  const lang = (i18n?.language || 'vi').startsWith('en') ? 'en' : 'vi';
   const set = (patch) => onChange({ ...f, ...patch });
   const pickedLabel = picked.length
     ? picked.slice(0, 3).map(p => p.name).join(', ') + (picked.length > 3 ? ` +${picked.length - 3}` : '')
@@ -62,7 +66,7 @@ const ResultFilterBar = ({ value, onChange, counts, picked = [], onEditPicked })
         <Text style={s.rowLabel}>💰</Text>
         <Chip label={t('resultFilters.any')} active={!f.cost_level} onPress={() => set({ cost_level: null })} />
         {COSTS.map(c => (
-          <Chip key={c} label={t(`resultFilters.cost.${c}`)} count={counts?.cost?.[String(c)]}
+          <Chip key={c} label={priceBandLabel(bands[c - 1], t, lang)} count={counts?.cost?.[String(c)]}
             active={f.cost_level === c} onPress={() => set({ cost_level: c })} />
         ))}
         {!!f.cost_level && (

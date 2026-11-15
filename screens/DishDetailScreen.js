@@ -14,6 +14,7 @@ import SectionHeader from '../components/ui/SectionHeader';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import { useTranslation } from 'react-i18next';
 import { MascotCat } from '../components/ui/Mascot';
+import { formatVnd } from '../utils/price';
 
 const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 320;
@@ -57,7 +58,8 @@ const REASON_LABELS = {
 };
 
 const DishDetailScreen = ({ route, navigation }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const priceLang = (i18n?.language || 'vi').startsWith('en') ? 'en' : 'vi';
   const { dish: initialDish, pickedIds = [] } = route.params;
   const pickedSet = new Set(pickedIds.map(Number));
   const [dish, setDish] = useState(initialDish);
@@ -219,7 +221,17 @@ const DishDetailScreen = ({ route, navigation }) => {
                   <MetaChip icon={<Ionicons name="time-outline" size={13} color={C.textMid}/>} label={`${dish.cook_time_min}p`} style={s.chipSpacing} />
                   <MetaChip icon={<Ionicons name="earth" size={13} color={C.accentBlue}/>} label={dish.nation || 'Việt Nam'} style={s.chipSpacing} />
                   <MetaChip variant="accent" icon={<Ionicons name="star" size={13} color={C.accentGreen}/>} label={`${matchPct}%`} style={s.chipSpacing} />
+                  {!!formatVnd(dish.est_cost_vnd, priceLang) && (
+                    <MetaChip
+                      icon={<Ionicons name="wallet-outline" size={13} color={C.textMid}/>}
+                      label={t('price.perServing', { price: formatVnd(dish.est_cost_vnd, priceLang) })}
+                      style={s.chipSpacing}
+                    />
+                  )}
                 </View>
+                {!!formatVnd(dish.est_cost_vnd, priceLang) && (
+                  <Text style={s.priceNote}>{t('price.note')}</Text>
+                )}
               </View>
             </ImageBackground>
           </View>
@@ -663,6 +675,13 @@ const s = StyleSheet.create({
   metaChipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+  },
+  priceNote: {
+    fontFamily: 'BeVietnamPro-Regular',
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: C.textMid,
+    marginTop: 2,
   },
   chipSpacing: {
     marginRight: 8,

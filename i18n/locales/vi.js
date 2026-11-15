@@ -138,7 +138,7 @@ export default {
     all: '🍽️ Tất cả', soup: '🥣 Canh', mainDish: '🍖 Món mặn',
   },
   today: {
-    title: '🍱 Bữa hôm nay',
+    title: 'Bữa hôm nay',
     hint: 'Nhấn để xem cách nấu →',
     emptyTitle: 'Bữa hôm nay trống trải quá!',
     emptyBody: 'Hãy chọn món để bắt đầu nhé.',
@@ -149,6 +149,10 @@ export default {
     summarize: '🛒 Tổng hợp món ăn bạn đã chọn ({{count}} món)',
     noDishTitle: 'Chưa có món nào',
     noDishBody: 'Thêm ít nhất 1 món trước khi tổng hợp món ăn nhé!',
+    members: 'thành viên', chosenDishes: 'món đã chọn', noDishYet: 'chưa có món',
+    addFor: 'Thêm món cho {{name}}', suggestFor: 'Gợi ý món cho {{name}}', noDishChip: 'Chưa có món',
+    removeDish: 'Bỏ món {{name}}', minutes: '{{count}} phút', combine: 'Tổng hợp nguyên liệu · {{count}} món',
+    estTotal: 'ước tính hôm nay',
   },
   dish: {
     servingSuggestion: 'Gợi ý thưởng thức',
@@ -195,7 +199,8 @@ export default {
     deleteTitle: 'Xóa "{{name}}"?', deleteBody: 'Thành viên và các món ăn hôm nay của họ sẽ bị xóa.',
     welcome: '👋 Chào mừng! Hãy thiết lập hồ sơ', welcomeBody: 'Điền đầy đủ thông tin để nhận gợi ý món ăn phù hợp nhất.',
     stepPersonal: 'Thông tin cá nhân (tuổi, giới tính...)', stepBody: 'Chỉ số cơ thể (cân nặng, chiều cao)', stepAllergy: 'Dị ứng thực phẩm (nếu có)',
-    weight: 'Cân nặng', height: 'Chiều cao', family: '🏠  Thành viên gia đình', addMember: 'Thêm thành viên mới', setup: '⚙️  Thiết lập', yourProfile: 'Hồ sơ của bạn',
+    weight: 'Cân nặng', height: 'Chiều cao', family: 'Gia đình', addMember: 'Thêm thành viên', setup: 'Thiết lập', yourProfile: 'Hồ sơ của bạn',
+    inUse: 'Đang dùng', heroSub: 'Hồ sơ đang dùng để gợi ý món', familyHint: 'Chạm để đổi hồ sơ', foodHint: 'Từ phần làm quen ban đầu', editProfile: 'Chỉnh sửa hồ sơ', editMember: 'Sửa hồ sơ {{name}}', deleteMember: 'Xoá hồ sơ {{name}}',
   },
   history: {
     loadingTitle: 'Đang lục lịch sử', loadingBody: 'ăn uống của bạn...', loadingCaption: '🍜 Mèo đang nhớ lại những bữa ngon...',
@@ -308,8 +313,13 @@ export default {
     loading: 'Đang chọn nguyên liệu hợp với hôm nay...', error: 'Không tải được gợi ý. Kiểm tra mạng rồi thử lại nhé.',
     cta: 'Xem món từ {{count}} nguyên liệu →', ctaNone: 'Chọn ít nhất 1 nguyên liệu', skip: 'Bỏ qua, gợi ý món luôn',
   },
+  price: {
+    perServing: '~{{price}}/phần', estimate: 'Giá ước tính', perServingShort: '~{{price}}',
+    note: 'Ước tính từ giá nguyên liệu cho 1 phần ăn, có thể chênh tuỳ nơi mua.',
+  },
   resultFilters: {
-    any: 'Bất kỳ', tolerance: '± 1 mức',
+    any: 'Bất kỳ', tolerance: 'Gồm mức lân cận',
+    priceUnder: 'Dưới {{max}}', priceBetween: '{{min}}–{{max}}', priceOver: 'Trên {{min}}',
     cost: { 1: 'Tiết kiệm', 2: 'Vừa phải', 3: 'Thoải mái' },
     time: { 15: '≤ 15 phút', 30: '≤ 30 phút', 45: '≤ 45 phút', 60: '60+ phút' },
   },

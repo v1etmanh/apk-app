@@ -21,6 +21,14 @@ import { MascotCat, MascotSays } from '../components/ui/Mascot';
 import { CircleButton, Pill, DashedNote } from '../components/ui/Notebook';
 import { withIngredients } from '../utils/searchParams';
 import ResultFilterBar, { DEFAULT_RESULT_FILTERS, sanitizeResultFilters, applyResultFilters } from '../components/ResultFilterBar';
+import { formatVnd } from '../utils/price';
+
+// "~56k/phần" — null khi món chưa có giá (cache cũ / server cũ)
+const usePriceLabel = (v) => {
+  const { t, i18n } = useTranslation();
+  const price = formatVnd(v, (i18n?.language || 'vi').startsWith('en') ? 'en' : 'vi');
+  return price ? t('price.perServing', { price }) : null;
+};
 import {
   addDishToMealPlan, getMealPlan, getTodayDateStr,
 } from '../services/mealPlanService';
@@ -108,6 +116,7 @@ const LoadingView = ({ weather, picked, allergyCount, onCancel }) => {
 const HeroCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }) => {
   const { t } = useTranslation();
   const exp = readExplanation(item.explanation);
+  const priceLabel = usePriceLabel(item.est_cost_vnd);
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={s.hero}>
       <View style={s.heroImgWrap}>
@@ -144,6 +153,7 @@ const HeroCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }
           </View>
         )}
         <View style={s.tagRow}>
+          {priceLabel ? <Pill label={priceLabel} /> : null}
           {item.cook_time_min ? <Pill label={`⏱ ${t('recommend.minutes', { count: item.cook_time_min })}`} /> : null}
           {exp.tags.slice(0, 3).map(tag => <Pill key={tag} label={tag} tone="fresh" />)}
         </View>
@@ -162,17 +172,20 @@ const HeroCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }
 const ListRow = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }) => {
   const { t } = useTranslation();
   const exp = readExplanation(item.explanation);
+  const priceLabel = usePriceLabel(item.est_cost_vnd);
+  const meta = [
+    priceLabel,
+    item.cook_time_min ? `⏱ ${t('recommend.minutes', { count: item.cook_time_min })}` : null,
+    exp.tags[0] || null,
+    item.missing_ingredients?.length ? t('recommend.missingCount', { count: item.missing_ingredients.length }) : null,
+  ].filter(Boolean).join('  ·  ');
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={s.row}>
       <DishThumb uri={item.image_url} style={s.rowImg} />
       <View style={s.rowContent}>
         <Text style={s.rowTitle} numberOfLines={1}>{item.title}</Text>
         {!!exp.headline && <Text style={s.rowHint} numberOfLines={1}>{exp.headline}</Text>}
-        <Text style={s.rowMeta} numberOfLines={1}>
-          {item.cook_time_min ? `⏱ ${t('recommend.minutes', { count: item.cook_time_min })}` : ''}
-          {exp.tags[0] ? `  ·  ${exp.tags[0]}` : ''}
-          {item.missing_ingredients?.length ? `  ·  ${t('recommend.missingCount', { count: item.missing_ingredients.length })}` : ''}
-        </Text>
+        <Text style={s.rowMeta} numberOfLines={1}>{meta}</Text>
       </View>
       <TouchableOpacity
         onPress={(e) => { e.stopPropagation(); onToggleSave(item); }}
@@ -214,6 +227,7 @@ const RecommendScreen = ({ navigation, route }) => {
   // Bộ lọc trên danh sách kết quả: chi phí (± 1 mức) + thời gian nấu
   const [resultFilters, setResultFilters] = useState(DEFAULT_RESULT_FILTERS);
   const [filterCounts, setFilterCounts]   = useState(null);
+  const [priceBands, setPriceBands]       = useState(null); // khoảng VND của cost_level 1..3 từ server
   const resultFiltersRef = useRef(DEFAULT_RESULT_FILTERS);
   const { setCurrentSessionId, profile, activeProfileId, savedDishIds, toggleSaveDish } = useAppStore();
 
@@ -376,6 +390,7 @@ const RecommendScreen = ({ navigation, route }) => {
       }
       if (page === 1) setRelaxedFilters(res.data.relaxed_filters || []);
       if (page === 1 && res.data.filter_counts) setFilterCounts(res.data.filter_counts);
+      if (page === 1 && res.data.price_bands) setPriceBands(res.data.price_bands);
 
       // Chỉ persist session + cache khi tải trang đầu
       if (page === 1) {
@@ -420,6 +435,7 @@ const RecommendScreen = ({ navigation, route }) => {
           dish_id: d.dish_id, rank: d.rank, final_score: d.final_score,
           ingredient_boost: d.ingredient_boost || 0, title: d.title,
           nation: d.nation || '', cook_time_min: d.cook_time_min || 0,
+          est_cost_vnd: d.est_cost_vnd ?? null, est_cost_level: d.est_cost_level ?? null,
           explanation: d.explanation || [], image_url: d.image_url || '', match_pct: d.match_pct,
           url: d.url || '', score_breakdown: d.score_breakdown || {},
         })));
@@ -509,6 +525,7 @@ const RecommendScreen = ({ navigation, route }) => {
           value={resultFilters}
           onChange={changeResultFilters}
           counts={filterCounts}
+          priceBands={priceBands}
           picked={pickedIngredients}
           onEditPicked={editPicked}
         />

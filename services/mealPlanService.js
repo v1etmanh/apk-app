@@ -100,6 +100,8 @@ export async function addDishToMealPlan(profileInfo, dish) {
       final_score:   dish.final_score || 0,
       explanation:   dish.explanation?.[0] || '',
       url:           dish.url        || '',   // ← giữ link hướng dẫn nấu
+      est_cost_vnd:   dish.est_cost_vnd   ?? null,  // giá ước tính 1 phần (VND)
+      est_cost_level: dish.est_cost_level ?? null,
       addedAt:       new Date().toISOString(),
     });
   }

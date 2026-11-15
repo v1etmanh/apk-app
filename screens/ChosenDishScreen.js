@@ -1,175 +1,181 @@
 /**
  * ChosenDishScreen.js — "Bữa hôm nay" / Family Meal Plan
  * Hiển thị thực đơn từng thành viên trong gia đình hôm nay.
- * Design: Ghibli × Storybook Handcrafted (theo design.md)
+ * Design: giấy kem + nâu gỗ (Lora + BeVietnamPro), gọn & dễ đọc.
  */
 
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Image, Alert, Platform,
-  StatusBar, ImageBackground,
+  TouchableOpacity, Image, Alert, Platform, StatusBar,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Rect } from 'react-native-svg';
 
 import { useAppStore } from '../store/useAppStore';
 import { useTranslation } from 'react-i18next';
-import { C } from '../theme';
-import ScreenBackground from '../components/ui/ScreenBackground';
 import {
   getMealPlan, removeDishFromMealPlan, resetTodayMealPlan,
   getTodayDateStr, formatDisplayDate,
 } from '../services/mealPlanService';
+import { formatVnd, hasPrice } from '../utils/price';
 
-// ── Assets ────────────────────────────────────────────────────────────────────
-const TEX = {
-  wood:  require('../assets/textures/wood_light.png'),
-  paper: require('../assets/textures/paper_cream.png'),
+const langOf = (i18n) => ((i18n?.language || 'vi').startsWith('en') ? 'en' : 'vi');
+
+// ── Palette ───────────────────────────────────────────────────────────────────
+const P = {
+  bg: '#F6EEDD', header: '#FBF5E8', card: '#FFFAF0', row: '#FBF5E8',
+  border: '#E4D3B0', rowBorder: '#EADDBE',
+  ink: '#3D2B1F', muted: '#7A6448', brown: '#5C3A1E', accent: '#7A4E24',
+  cream: '#FFF8EA', dashed: '#C8A96E',
 };
 
-// ── Helper: nativeShadow (design.md) ─────────────────────────────────────────
-const nativeShadow = (color = '#8B5E3C', opacity = 0.18, radius = 8, offset = { width: 0, height: 4 }, elevation = 5) =>
+// Tông avatar xoay vòng theo thứ tự thành viên
+const TONES = [
+  { bg: '#E9DDBF', ring: '#8B5E3C', ink: '#5C3A1E' },
+  { bg: '#DCE6EE', ring: '#5E7C94', ink: '#34506A' },
+  { bg: '#F3DDD3', ring: '#B0705A', ink: '#7A3F2B' },
+  { bg: '#DCE8C8', ring: '#6B8A4E', ink: '#3F5A2B' },
+];
+const THUMB_TONES = ['#EBD3B0', '#D9E3C2', '#F0D9B8'];
+
+const nativeShadow = (color = '#8B5E3C', opacity = 0.12, radius = 12, offset = { width: 0, height: 6 }, elevation = 3) =>
   Platform.select({
     ios:     { shadowColor: color, shadowOpacity: opacity, shadowRadius: radius, shadowOffset: offset },
     android: { elevation },
   });
 
-// ── Relation label map ────────────────────────────────────────────────────────
-const RELATION_LABEL = {
-  self:    'Bản thân',
-  child:   'Con',
-  parent:  'Cha / Mẹ',
-  spouse:  'Vợ / Chồng',
-  sibling: 'Anh / Chị / Em',
-  other:   'Khác',
-};
+const initialOf = (name) => (name || '?').trim().charAt(0).toUpperCase() || '?';
 
-// ── DishPill — mỗi món nhỏ gọn trong card ────────────────────────────────────
-const DishPill = ({ dish, profileId, onRemove, onPress }) => {
-  const { t } = useTranslation();
+// ── DishRow — mỗi món trong thẻ thành viên ───────────────────────────────────
+const DishRow = ({ dish, index, profileId, onRemove, onPress }) => {
+  const { t, i18n } = useTranslation();
+  const price = formatVnd(dish.est_cost_vnd, langOf(i18n));
+  const hasMetaBefore = dish.cook_time_min > 0 || !!dish.nation;
   return (
-  <TouchableOpacity style={dp.wrap} onPress={onPress} activeOpacity={0.78}>
-    {/* Texture paper */}
-    <View style={[StyleSheet.absoluteFill, { borderRadius: 16, overflow: 'hidden' }]} pointerEvents="none">
-      <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.6 }} resizeMode="cover" />
-    </View>
-
-    {/* Dish thumbnail */}
-    {dish.image_url ? (
-      <View style={{ borderRadius: 10, overflow: 'hidden', width: 42, height: 42 }}>
-        <Image source={{ uri: dish.image_url }} style={{ width: 42, height: 42 }} resizeMode="cover" />
-      </View>
-    ) : (
-      <View style={dp.placeholder}>
-        <Text style={{ fontSize: 22 }}>🍜</Text>
-      </View>
-    )}
-
-    {/* Info */}
-    <View style={dp.info}>
-      <Text style={dp.title} numberOfLines={1} flexShrink={1}>{dish.title}</Text>
-      <Text style={dp.meta} numberOfLines={1}>
-        {dish.cook_time_min > 0 ? `⏱ ${dish.cook_time_min}p` : ''}
-        {dish.nation ? `  ${dish.nation}` : ''}
-      </Text>
-      <Text style={dp.hint}>{t('today.hint')}</Text>
-    </View>
-
-    {/* Remove button */}
-    <TouchableOpacity onPress={(e) => { e.stopPropagation(); onRemove(profileId, dish.dish_id); }} style={dp.removeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-      <Ionicons name="close-circle" size={20} color="#C8A96E" />
-    </TouchableOpacity>
-  </TouchableOpacity>
-  );
-};
-
-// ── AddDishButton — dashed ghost button (design.md) ──────────────────────────
-
-// ── ProfileCard — card cho từng thành viên ────────────────────────────────────
-const ProfileCard = ({ entry, onRemoveDish, onAddDish, onPressDish }) => {
-  const { t } = useTranslation();
-  return (
-  /* Shadow wrapper bên ngoài (KHÔNG overflow:hidden) */
-  <View style={[s.cardShadow, nativeShadow('#8B5E3C', 0.18, 8, { width: 0, height: 4 }, 5)]}>
-    <View style={s.card}>
-      {/* Paper texture trong wrapper riêng */}
-      <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
-        <Image source={TEX.paper} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-      </View>
-
-      {/* Content trên zIndex: 1 */}
-      <View style={{ zIndex: 1 }}>
-        {/* Profile header */}
-        <View style={s.profileHeader}>
-          <View style={s.avatarWrap}>
-            <Text style={s.avatarEmoji}>{entry.avatar || '🧑'}</Text>
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={s.profileName} numberOfLines={1}>{entry.displayName || t('profiles.unnamed')}</Text>
-            <Text style={s.profileRelation}>{t(`profiles.${entry.relation}`, { defaultValue: t('profiles.other') })}</Text>
-          </View>
-          <View style={s.dishCountBadge}>
-            <Text style={s.dishCountText}>{t('common.dishes', { count: entry.dishes.length })}</Text>
-          </View>
+    <TouchableOpacity style={dp.wrap} onPress={onPress} activeOpacity={0.78}>
+      {dish.image_url ? (
+        <Image source={{ uri: dish.image_url }} style={dp.thumb} resizeMode="cover" />
+      ) : (
+        <View style={[dp.thumb, dp.placeholder, { backgroundColor: THUMB_TONES[index % THUMB_TONES.length] }]}>
+          <Ionicons name="restaurant-outline" size={26} color="#8B5E3C" />
         </View>
+      )}
 
-        {/* Divider */}
-        <View style={s.divider} />
-
-        {/* Dish list */}
-        {entry.dishes.length > 0
-          ? entry.dishes.map(dish => (
-              <DishPill
-                key={dish.dish_id}
-                dish={dish}
-                profileId={entry.profileId}
-                onRemove={onRemoveDish}
-                onPress={() => onPressDish(dish)}
-              />
-            ))
-          : (
-            <View style={s.emptyDishRow}>
-              <Text style={s.emptyDishText}>{t('today.emptyDish')}</Text>
-            </View>
-          )
-        }
-
-        {/* Add button */}
-       
+      <View style={dp.info}>
+        <Text style={dp.title} numberOfLines={2}>{dish.title}</Text>
+        <View style={dp.metaRow}>
+          {dish.cook_time_min > 0 && (
+            <>
+              <Ionicons name="time-outline" size={13} color={P.muted} />
+              <Text style={dp.meta}>{t('today.minutes', { count: dish.cook_time_min })}</Text>
+            </>
+          )}
+          {dish.nation ? <Text style={dp.meta} numberOfLines={1}>{dish.cook_time_min > 0 ? ' · ' : ''}{dish.nation}</Text> : null}
+          {price ? (
+            <Text style={[dp.meta, dp.price]} numberOfLines={1}>
+              {hasMetaBefore ? ' · ' : ''}{t('price.perServing', { price })}
+            </Text>
+          ) : null}
+        </View>
       </View>
-    </View>
-  </View>
+
+      <TouchableOpacity
+        onPress={(e) => { e.stopPropagation(); onRemove(profileId, dish.dish_id); }}
+        style={dp.removeBtn}
+        accessibilityRole="button"
+        accessibilityLabel={t('today.removeDish', { name: dish.title })}
+      >
+        <Ionicons name="close" size={20} color={P.muted} />
+      </TouchableOpacity>
+    </TouchableOpacity>
   );
 };
 
-// ── Empty state (chưa có profile nào trong plan) ──────────────────────────────
+// ── ProfileCard — thẻ cho từng thành viên ────────────────────────────────────
+const ProfileCard = ({ entry, tone, onRemoveDish, onAddDish, onPressDish }) => {
+  const { t } = useTranslation();
+  const name = entry.displayName || t('profiles.unnamed');
+  const hasDishes = entry.dishes.length > 0;
+  return (
+    <View style={[s.card, nativeShadow()]}>
+      {/* Header thành viên */}
+      <View style={s.profileHeader}>
+        <View style={[s.avatarWrap, { backgroundColor: tone.bg, borderColor: tone.ring }]}>
+          <Text style={[s.avatarText, { color: tone.ink }]}>{initialOf(entry.displayName)}</Text>
+        </View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={s.profileName} numberOfLines={1}>{name}</Text>
+          <Text style={s.profileRelation}>{t(`profiles.${entry.relation}`, { defaultValue: t('profiles.other') })}</Text>
+        </View>
+        <View style={[s.countBadge, !hasDishes && s.countBadgeEmpty]}>
+          <Text style={[s.countText, !hasDishes && s.countTextEmpty]}>
+            {hasDishes ? t('common.dishes', { count: entry.dishes.length }) : t('today.noDishChip')}
+          </Text>
+        </View>
+      </View>
+
+      {/* Danh sách món */}
+      {hasDishes && (
+        <View style={{ marginTop: 12 }}>
+          {entry.dishes.map((dish, i) => (
+            <DishRow
+              key={dish.dish_id}
+              dish={dish}
+              index={i}
+              profileId={entry.profileId}
+              onRemove={onRemoveDish}
+              onPress={() => onPressDish(dish)}
+            />
+          ))}
+        </View>
+      )}
+
+      {/* Nút thêm / gợi ý */}
+      {hasDishes ? (
+        <TouchableOpacity style={s.addBtn} onPress={() => onAddDish(entry.profileId)} activeOpacity={0.75}>
+          <Ionicons name="add" size={18} color={P.accent} />
+          <Text style={s.addBtnText}>{t('today.addFor', { name })}</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity style={s.suggestBtn} onPress={() => onAddDish(entry.profileId)} activeOpacity={0.82}>
+          <Ionicons name="add" size={18} color={P.cream} />
+          <Text style={s.suggestBtnText}>{t('today.suggestFor', { name })}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
+// ── Empty state ──────────────────────────────────────────────────────────────
 const EmptyState = ({ onGoRecommend }) => {
   const { t } = useTranslation();
   return (
-  <View style={s.emptyWrap}>
-    <Text style={s.emptyEmoji}>🍱</Text>
-    <Text style={s.emptyTitle}>{t('today.emptyTitle')}</Text>
-    <Text style={s.emptyBody}>
-      {t('today.emptyBody')}
-    </Text>
-    <View style={[s.ctaShadow, nativeShadow('#60A5FA', 0.30, 8, { width: 0, height: 4 }, 6)]}>
-      <TouchableOpacity style={s.ctaPrimary} onPress={onGoRecommend} activeOpacity={0.82}>
-        <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
-          <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.45 }} resizeMode="cover" />
-        </View>
+    <View style={s.emptyWrap}>
+      <View style={s.emptyIcon}>
+        <Ionicons name="restaurant-outline" size={34} color="#8B5E3C" />
+      </View>
+      <Text style={s.emptyTitle}>{t('today.emptyTitle')}</Text>
+      <Text style={s.emptyBody}>{t('today.emptyBody')}</Text>
+      <TouchableOpacity style={s.ctaPrimary} onPress={onGoRecommend} activeOpacity={0.85}>
         <Text style={s.ctaText}>{t('today.seeRecommendations')}</Text>
       </TouchableOpacity>
     </View>
-  </View>
   );
 };
 
+// ── Stat tile (header) ───────────────────────────────────────────────────────
+const Stat = ({ value, label, warn }) => (
+  <View style={s.stat}>
+    <Text style={[s.statValue, warn && { color: '#8A4B1F' }]}>{value}</Text>
+    <Text style={s.statLabel} numberOfLines={1}>{label}</Text>
+  </View>
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 const ChosenDishScreen = ({ navigation }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { profiles, activeProfileId, switchProfile } = useAppStore();
 
@@ -189,27 +195,23 @@ const ChosenDishScreen = ({ navigation }) => {
     }, [])
   );
 
-  // ── Navigate tới DishDetail ───────────────────────────────────────────────
   const handlePressDish = useCallback((dish) => {
     navigation.navigate('DishDetail', { dish });
   }, [navigation]);
 
-  // ── Xoá món ──────────────────────────────────────────────────────────────
   const handleRemoveDish = useCallback(async (profileId, dishId) => {
     const updated = await removeDishFromMealPlan(profileId, dishId);
     setPlan({ ...updated });
   }, []);
 
-  // ── Thêm món → switch profile đó active → navigate Recommend ─────────────
+  // Thêm món → switch profile đó active → navigate Recommend
   const handleAddDish = useCallback(async (profileId) => {
-    // Switch active profile nếu cần
     if (profileId !== activeProfileId) {
       await switchProfile(profileId);
     }
     navigation.navigate('Recommend');
   }, [activeProfileId, switchProfile, navigation]);
 
-  // ── Reset hôm nay ─────────────────────────────────────────────────────────
   const handleReset = () => {
     Alert.alert(
       t('today.reset'),
@@ -227,7 +229,6 @@ const ChosenDishScreen = ({ navigation }) => {
     );
   };
 
-  // ── Tổng hợp nguyên liệu → MarketBasket ──────────────────────────────────
   const handleMarketBasket = () => {
     const allDishes = plan.items.flatMap(i => i.dishes);
     if (allDishes.length === 0) {
@@ -237,44 +238,55 @@ const ChosenDishScreen = ({ navigation }) => {
     navigation.navigate('MarketBasket', { fromMealPlan: true, dishes: allDishes });
   };
 
+  // Gộp: thành viên có món + thành viên chưa có món (thẻ rỗng)
+  const emptyEntries = profiles
+    .filter(p => !plan.items.some(i => i.profileId === p.profileId))
+    .map(p => ({ profileId: p.profileId, displayName: p.displayName, avatar: p.avatar, relation: p.relation, dishes: [] }));
+  const entries = [...plan.items, ...emptyEntries];
+
   const totalDishes = plan.items.reduce((sum, i) => sum + i.dishes.length, 0);
+  const withoutDish = entries.filter(e => e.dishes.length === 0).length;
+  // Mỗi thành viên ăn 1 phần mỗi món của mình → tổng = cộng giá mọi món trong plan.
+  // Món cũ (thêm trước khi có dữ liệu giá) không có est_cost_vnd thì bỏ qua.
+  const pricedDishes = plan.items.flatMap(i => i.dishes).filter(d => hasPrice(d.est_cost_vnd));
+  const estTotal = pricedDishes.reduce((sum, d) => sum + d.est_cost_vnd, 0);
+  const estTotalLabel = pricedDishes.length ? `~${formatVnd(estTotal, langOf(i18n))}` : null;
   const displayDate = formatDisplayDate(plan.date);
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <ScreenBackground texture="sky" edges={['bottom']}>
+    <View style={s.root}>
       <StatusBar barStyle="dark-content" />
 
       {/* ── Header ── */}
-      <ImageBackground
-        source={TEX.paper}
-        style={[s.header, { paddingTop: insets.top + 8 }]}
-        imageStyle={{ opacity: 0.92 }}
-        resizeMode="cover"
-      >
-        {/* Row 1: title + reset */}
+      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         <View style={s.headerRow}>
-          <View>
-            <Text style={s.headerTitle}>{t('today.title')}</Text>
+          <View style={{ flex: 1 }}>
             <Text style={s.headerDate}>{displayDate}</Text>
+            <Text style={s.headerTitle}>{t('today.title')}</Text>
           </View>
           {plan.items.length > 0 && (
-            <TouchableOpacity onPress={handleReset} style={s.resetBtn} activeOpacity={0.75}>
-              <Ionicons name="trash-outline" size={15} color="#9A7040" />
-              <Text style={s.resetText}>{t('today.reset')}</Text>
+            <TouchableOpacity
+              onPress={handleReset}
+              style={s.resetBtn}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={t('today.reset')}
+            >
+              <Ionicons name="trash-outline" size={20} color={P.muted} />
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Summary pill */}
-        {totalDishes > 0 && (
-          <View style={s.summaryPill}>
-            <Text style={s.summaryText}>
-              {plan.items.length} · {t('common.dishes', { count: totalDishes })}
-            </Text>
+        {entries.length > 0 && (
+          <View style={s.statsRow}>
+            {estTotalLabel
+              ? <Stat value={estTotalLabel} label={t('today.estTotal')} />
+              : <Stat value={entries.length} label={t('today.members')} />}
+            <Stat value={totalDishes} label={t('today.chosenDishes')} />
+            <Stat value={withoutDish} label={t('today.noDishYet')} warn={withoutDish > 0} />
           </View>
         )}
-      </ImageBackground>
+      </View>
 
       {/* ── Body ── */}
       {loading ? (
@@ -286,209 +298,137 @@ const ChosenDishScreen = ({ navigation }) => {
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 120 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 }}
         >
-          {/* Profile cards */}
-          {plan.items.map(entry => (
+          {entries.map((entry, i) => (
             <View key={entry.profileId} style={{ marginBottom: 16 }}>
               <ProfileCard
                 entry={entry}
+                tone={TONES[i % TONES.length]}
                 onRemoveDish={handleRemoveDish}
                 onAddDish={handleAddDish}
                 onPressDish={handlePressDish}
               />
             </View>
           ))}
-
-          {/* Profiles chưa có trong plan → hiện card rỗng */}
-          {profiles
-            .filter(p => !plan.items.some(i => i.profileId === p.profileId))
-            .map(p => (
-              <View key={p.profileId} style={{ marginBottom: 16 }}>
-                <ProfileCard
-                  entry={{ profileId: p.profileId, displayName: p.displayName, avatar: p.avatar, relation: p.relation, dishes: [] }}
-                  onRemoveDish={handleRemoveDish}
-                  onAddDish={handleAddDish}
-                  onPressDish={handlePressDish}
-                />
-              </View>
-            ))
-          }
         </ScrollView>
       )}
 
       {/* ── Footer CTA: Tổng hợp nguyên liệu ── */}
       {totalDishes > 0 && (
-        <View style={[s.footer, { paddingBottom: insets.bottom + 12 }]}>
-          {/* Paper texture trên footer */}
-          <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} pointerEvents="none">
-            <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.75 }} resizeMode="cover" />
-          </View>
-          <View style={[s.ctaShadow, nativeShadow('#60A5FA', 0.30, 8, { width: 0, height: 4 }, 6)]}>
-            <TouchableOpacity style={s.ctaPrimary} onPress={handleMarketBasket} activeOpacity={0.82}>
-              <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
-                <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.45 }} resizeMode="cover" />
-              </View>
-              <Text style={s.ctaText}>{t('today.summarize', { count: totalDishes })}</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={[s.footer, { paddingBottom: insets.bottom + 14 }]}>
+          <TouchableOpacity style={[s.ctaPrimary, s.ctaFooter, nativeShadow(P.brown, 0.28, 12, { width: 0, height: 6 }, 6)]} onPress={handleMarketBasket} activeOpacity={0.85}>
+            <Ionicons name="basket-outline" size={22} color={P.cream} />
+            <Text style={s.ctaText}>{t('today.combine', { count: totalDishes })}</Text>
+          </TouchableOpacity>
         </View>
       )}
-    </ScreenBackground>
+    </View>
   );
 };
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: P.bg },
+
   // Header
   header: {
-    borderBottomWidth: 1, borderBottomColor: '#C8A96E',
-    shadowColor: '#8B5E3C', shadowOpacity: 0.15,
-    shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
-    elevation: 4, paddingHorizontal: 20, paddingBottom: 14,
+    backgroundColor: P.header,
+    borderBottomWidth: 1, borderBottomColor: P.border,
+    paddingHorizontal: 20, paddingBottom: 16, gap: 14,
   },
-  headerRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    justifyContent: 'space-between', paddingBottom: 4,
-  },
-  headerTitle: {
-    fontFamily: 'Lora-Bold', fontSize: 22, color: '#3D2B1F',
-  },
-  headerDate: {
-    fontFamily: 'BeVietnamPro-Regular', fontSize: 13, color: '#8B7355', marginTop: 2,
-  },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  headerDate: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 13, color: P.muted, letterSpacing: 0.2 },
+  headerTitle: { fontFamily: 'Lora-Bold', fontSize: 28, lineHeight: 34, color: P.ink },
   resetBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: 14, borderWidth: 1, borderColor: '#C8A96E',
-    paddingHorizontal: 12, paddingVertical: 7,
-    backgroundColor: 'rgba(245,237,220,0.6)',
+    width: 44, height: 44, borderRadius: 14,
+    borderWidth: 1, borderColor: P.border, backgroundColor: P.card,
+    alignItems: 'center', justifyContent: 'center',
   },
-  resetText: {
-    fontFamily: 'BeVietnamPro-Bold', fontSize: 12, color: '#9A7040',
+  statsRow: { flexDirection: 'row', gap: 8 },
+  stat: {
+    flex: 1, backgroundColor: P.card,
+    borderWidth: 1, borderColor: P.border, borderRadius: 14,
+    paddingHorizontal: 12, paddingVertical: 10, gap: 2,
   },
-  summaryPill: {
-    alignSelf: 'flex-start', marginTop: 8,
-    backgroundColor: 'rgba(200,169,110,0.15)',
-    borderRadius: 999, borderWidth: 1, borderColor: '#C8A96E',
-    paddingHorizontal: 12, paddingVertical: 5,
-  },
-  summaryText: {
-    fontFamily: 'BeVietnamPro-SemiBold', fontSize: 12, color: '#8B5E3C',
-  },
+  statValue: { fontFamily: 'Lora-Bold', fontSize: 22, lineHeight: 26, color: P.ink },
+  statLabel: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: P.muted },
 
-  // Profile Card
-  cardShadow: { borderRadius: 20 },
+  // Member card
   card: {
-    borderRadius: 20, backgroundColor: '#F5EDDC',
-    padding: 16, borderWidth: 1.5, borderColor: '#C8A96E',
-    // KHÔNG overflow:hidden — giữ shadow iOS
+    backgroundColor: P.card, borderRadius: 22, padding: 16,
+    borderWidth: 1, borderColor: P.border,
   },
-  profileHeader: {
-    flexDirection: 'row', alignItems: 'center', marginBottom: 2,
-  },
+  profileHeader: { flexDirection: 'row', alignItems: 'center' },
   avatarWrap: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(200,169,110,0.2)',
-    borderWidth: 1.5, borderColor: '#C8A96E',
-    justifyContent: 'center', alignItems: 'center',
+    width: 44, height: 44, borderRadius: 22, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarEmoji: { fontSize: 24 },
-  profileName: {
-    fontFamily: 'Lora-Bold', fontSize: 16, color: '#3D2B1F',
-  },
-  profileRelation: {
-    fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: '#8B7355', marginTop: 1,
-  },
-  dishCountBadge: {
-    backgroundColor: 'rgba(74,222,128,0.15)',
-    borderRadius: 999, borderWidth: 1, borderColor: 'rgba(74,222,128,0.4)',
-    paddingHorizontal: 10, paddingVertical: 4,
-  },
-  dishCountText: {
-    fontFamily: 'BeVietnamPro-Bold', fontSize: 11, color: '#22863A',
-  },
-  divider: {
-    height: 1, backgroundColor: 'rgba(200,169,110,0.3)', marginVertical: 12,
-  },
+  avatarText: { fontFamily: 'Lora-Bold', fontSize: 18 },
+  profileName: { fontFamily: 'Lora-Bold', fontSize: 17, color: P.ink },
+  profileRelation: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12.5, color: P.muted, marginTop: 1 },
+  countBadge: { backgroundColor: '#E7EFD9', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
+  countBadgeEmpty: { backgroundColor: '#F5E6D0' },
+  countText: { fontFamily: 'BeVietnamPro-Bold', fontSize: 12, color: '#3F5A2B' },
+  countTextEmpty: { color: '#8A4B1F' },
 
-  // Empty dish row
-  emptyDishRow: {
-    alignItems: 'center', paddingVertical: 10,
-  },
-  emptyDishText: {
-    fontFamily: 'BeVietnamPro-Regular', fontSize: 13, color: '#8B7355',
-  },
-
-  // Add dish button
+  // Buttons in card
   addBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, marginTop: 10, paddingVertical: 12,
-    minHeight: 44, borderRadius: 14,
-    backgroundColor: 'rgba(245,237,220,0.5)',
-    // SVG dashed border được vẽ bên trong
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 4, minHeight: 44, borderRadius: 14,
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: P.dashed,
   },
-  addBtnText: {
-    fontFamily: 'BeVietnamPro-Bold', fontSize: 13, color: '#9A7040',
+  addBtnText: { fontFamily: 'BeVietnamPro-Bold', fontSize: 14, color: P.accent },
+  suggestBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 14, minHeight: 48, borderRadius: 14, backgroundColor: P.brown,
   },
+  suggestBtnText: { fontFamily: 'BeVietnamPro-Bold', fontSize: 14, color: P.cream },
 
   // Empty state
-  emptyWrap: {
-    flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32,
+  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  emptyIcon: {
+    width: 72, height: 72, borderRadius: 36, backgroundColor: '#EBD3B0',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
-  emptyEmoji:  { fontSize: 60, marginBottom: 16 },
-  emptyTitle:  { fontFamily: 'Lora-Bold', fontSize: 20, color: '#3D2B1F', textAlign: 'center', marginBottom: 10 },
-  emptyBody:   { fontFamily: 'BeVietnamPro-Regular', fontSize: 14, color: '#8B7355', textAlign: 'center', lineHeight: 22 },
+  emptyTitle: { fontFamily: 'Lora-Bold', fontSize: 20, color: P.ink, textAlign: 'center', marginBottom: 10 },
+  emptyBody: { fontFamily: 'BeVietnamPro-Regular', fontSize: 14, color: P.muted, textAlign: 'center', lineHeight: 22 },
 
   // CTA
-  ctaShadow: { borderRadius: 20, marginTop: 24 },
   ctaPrimary: {
-    borderRadius: 20, paddingVertical: 17, alignItems: 'center',
-    backgroundColor: '#60A5FA', borderWidth: 2, borderColor: '#3B82F6',
+    marginTop: 24, minHeight: 56, borderRadius: 18, backgroundColor: P.brown,
+    paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
   },
-  ctaText: {
-    color: '#fff', fontSize: 16, fontFamily: 'Lora-Bold', zIndex: 1,
-  },
+  ctaFooter: { marginTop: 0 },
+  ctaText: { color: P.cream, fontSize: 16, fontFamily: 'BeVietnamPro-Bold' },
 
   // Footer
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 20, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: '#C8A96E',
-    backgroundColor: 'rgba(245,237,220,0.92)',
+    paddingHorizontal: 20, paddingTop: 14,
+    borderTopWidth: 1, borderTopColor: P.border, backgroundColor: P.header,
   },
 
   // Loading / center
   centerFlex: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { fontFamily: 'BeVietnamPro-Regular', fontSize: 15, color: '#8B7355' },
+  loadingText: { fontFamily: 'BeVietnamPro-Regular', fontSize: 15, color: P.muted },
 });
 
-// ── DishPill styles ───────────────────────────────────────────────────────────
+// ── DishRow styles ────────────────────────────────────────────────────────────
 const dp = StyleSheet.create({
   wrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: 16, borderWidth: 1, borderColor: '#C8A96E',
-    paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8,
-    backgroundColor: 'rgba(245,237,220,0.5)',
-    // KHÔNG overflow:hidden
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: P.row, borderRadius: 16, borderWidth: 1, borderColor: P.rowBorder,
+    paddingLeft: 8, paddingVertical: 8, paddingRight: 2, marginBottom: 8,
   },
-  placeholder: {
-    width: 42, height: 42, borderRadius: 10,
-    backgroundColor: 'rgba(200,169,110,0.15)',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  info: { flex: 1 },
-  title: {
-    fontFamily: 'BeVietnamPro-Bold', fontSize: 14, color: '#3D2B1F',
-    flexShrink: 1, flexWrap: 'wrap',
-  },
-  meta: {
-    fontFamily: 'BeVietnamPro-Regular', fontSize: 11, color: '#8B7355', marginTop: 2,
-  },
-  hint: {
-    fontFamily: 'BeVietnamPro-Regular', fontSize: 10, color: '#C8A96E',
-    marginTop: 3, fontStyle: 'italic',
-  },
-  removeBtn: { padding: 2 },
+  thumb: { width: 56, height: 56, borderRadius: 14 },
+  placeholder: { alignItems: 'center', justifyContent: 'center' },
+  info: { flex: 1, gap: 3 },
+  title: { fontFamily: 'BeVietnamPro-Bold', fontSize: 15, lineHeight: 19, color: P.ink },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  meta: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12.5, color: P.muted, flexShrink: 1 },
+  price: { fontFamily: 'BeVietnamPro-SemiBold', color: P.accent },
+  removeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });
 
 export default ChosenDishScreen;

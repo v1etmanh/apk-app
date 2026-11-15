@@ -1,231 +1,149 @@
 /**
  * ProfileScreen.js — Hồ sơ cá nhân
- * Design: Ghibli × Storybook Handcrafted (design.md)
- * Font: Lora (display) + BeVietnamPro (body)
- * Texture: wood_light + paper_cream
+ * Design: giấy kem + nâu gỗ (Lora display + BeVietnamPro body), gọn & dễ đọc.
  */
 
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, ImageBackground, Platform, Alert, StatusBar,
+  Platform, Alert, StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import Svg, { Rect, Path, Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
 import { useAppStore } from '../store/useAppStore';
 import { deleteProfileMember, loadAllergiesForProfile } from '../utils/database';
 import { tasteSummary } from '../utils/tasteMath';
-import { TASTE_EMOJI } from '../components/onboarding/TasteSummaryCard';
 import { removeMealPlanByProfileId } from '../services/mealPlanService';
 
-// ── Assets ────────────────────────────────────────────────────────────────────
-const TEX = {
-  paper: require('../assets/textures/paper_cream.png'),
-  wood:  require('../assets/textures/wood_light.png'),
+// ── Palette ───────────────────────────────────────────────────────────────────
+const P = {
+  bg: '#F6EEDD', header: '#FBF5E8', card: '#FFFAF0',
+  border: '#E4D3B0', divider: '#EFE3C6',
+  ink: '#3D2B1F', muted: '#7A6448', brown: '#5C3A1E', accent: '#7A4E24',
+  cream: '#FFF8EA', gold: '#E9D6A9', dashed: '#C8A96E', danger: '#A5372A',
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const nativeShadow = (
-  color = '#8B5E3C', opacity = 0.18,
-  radius = 8, offset = { width: 0, height: 4 }, elevation = 5,
-) =>
+const TONES = [
+  { bg: '#E9DDBF', ring: '#8B5E3C', ink: '#5C3A1E' },
+  { bg: '#DCE6EE', ring: '#5E7C94', ink: '#34506A' },
+  { bg: '#F3DDD3', ring: '#B0705A', ink: '#7A3F2B' },
+  { bg: '#DCE8C8', ring: '#6B8A4E', ink: '#3F5A2B' },
+];
+
+const TASTE_COLOR = {
+  spicy: '#B5452E', sweet: '#C28A2B', sour: '#5F7A47', salty: '#5E7C94',
+  umami: '#8A5A3C', bitter: '#6B5B3E', astringent: '#7A6A9A',
+};
+
+const nativeShadow = (color = '#8B5E3C', opacity = 0.12, radius = 12, offset = { width: 0, height: 6 }, elevation = 3) =>
   Platform.select({
     ios:     { shadowColor: color, shadowOpacity: opacity, shadowRadius: radius, shadowOffset: offset },
     android: { elevation },
   });
 
-// ── Label maps ────────────────────────────────────────────────────────────────
-const DIET_LABEL = {
-  omnivore: 'Ăn tất cả', vegetarian: 'Chay',
-  vegan: 'Thuần chay', pescatarian: 'Ăn cá',
-};
-const ACTIVITY_LABEL = {
-  sedentary: 'Ít vận động', lightly_active: 'Nhẹ nhàng',
-  moderately_active: 'Vừa phải', very_active: 'Nhiều vận động',
-};
-const RELATION_LABEL = {
-  self: 'Bản thân', child: 'Con', parent: 'Cha / Mẹ',
-  spouse: 'Vợ / Chồng', sibling: 'Anh / Chị / Em', other: 'Khác',
-};
+const initialOf = (name) => (name || '?').trim().charAt(0).toUpperCase() || '?';
 
-// ── WigglyFrame — khung SVG vẽ tay ──────────────────────────────────────────
-const WigglyFrame = ({ size = 110, color = '#C8A96E', strokeWidth = 2.2, children }) => {
-  const w = size, h = size, s = 9;
-  const path = `
-    M ${s},${s * 0.6}
-    Q ${w * 0.25},${-s * 0.3} ${w * 0.5},${s * 0.4}
-    Q ${w * 0.75},${s * 1.1} ${w - s},${s * 0.7}
-    Q ${w + s * 0.4},${h * 0.25} ${w - s * 0.6},${h * 0.5}
-    Q ${w + s * 0.5},${h * 0.75} ${w - s},${h - s * 0.8}
-    Q ${w * 0.75},${h + s * 0.4} ${w * 0.5},${h - s * 0.6}
-    Q ${w * 0.25},${h + s * 0.3} ${s},${h - s * 0.7}
-    Q ${-s * 0.4},${h * 0.75} ${s * 0.7},${h * 0.5}
-    Q ${-s * 0.5},${h * 0.25} ${s},${s * 0.6} Z
-  `;
-  return (
-    <View style={{ width: size, height: size }}>
-      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-        <Path d={path} fill="rgba(245,237,220,0.9)" stroke={color} strokeWidth={strokeWidth} />
-      </Svg>
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        {children}
-      </View>
-    </View>
-  );
-};
-
-// ── HeroAvatar — avatar trung tâm Ghibli ─────────────────────────────────────
-const HeroAvatar = ({ avatar, displayName }) => (
-  <View style={av.outer}>
-    {/* Vòng ngoài gỗ */}
-    <View style={[av.ring, nativeShadow('#8B5E3C', 0.25, 10, { width: 0, height: 5 }, 7)]}>
-      <View style={{ borderRadius: 60, overflow: 'hidden', ...StyleSheet.absoluteFill }}>
-        <Image source={TEX.wood} style={{ width: '100%', height: '100%', opacity: 0.8 }} resizeMode="cover" />
-      </View>
-    </View>
-    {/* WigglyFrame trong */}
-    <View style={av.frameWrap}>
-      <WigglyFrame size={104} color="#C8A96E" strokeWidth={2.5}>
-        <Text style={av.emoji}>{avatar || '🧑'}</Text>
-      </WigglyFrame>
-    </View>
-    {/* Dấu stamp góc phải dưới */}
-    <View style={av.stamp}>
-      <Text style={av.stampText}>✦</Text>
-    </View>
-  </View>
-);
-
-// ── WoodChip — tag metadata nhỏ ──────────────────────────────────────────────
-const WoodChip = ({ icon, label }) => (
+// ── Chip (hero) ──────────────────────────────────────────────────────────────
+const Chip = ({ icon, label }) => (
   <View style={ch.wrap}>
-    <View style={{ borderRadius: 999, overflow: 'hidden', ...StyleSheet.absoluteFill }}>
-      <Image source={TEX.wood} style={{ width: '100%', height: '100%', opacity: 0.75 }} resizeMode="cover" />
-    </View>
-    <Ionicons name={icon} size={13} color="#FDF5E6" style={{ zIndex: 1 }} />
+    <Ionicons name={icon} size={14} color={P.brown} />
     <Text style={ch.text}>{label}</Text>
   </View>
 );
 
-// ── WoodStatCard — ô thống kê nền gỗ tối ────────────────────────────────────
-const WoodStatCard = ({ icon, label, value, unit, hasValue, accentColor }) => (
-  <View style={[sc.shadow, nativeShadow('#2A1500', 0.20, 12, { width: 0, height: 8 }, 7)]}>
-    <ImageBackground source={TEX.wood} style={sc.card} imageStyle={sc.cardImg} resizeMode="cover">
-      <View style={sc.overlay}>
-        <View style={[sc.iconBadge, { backgroundColor: accentColor || 'rgba(255,220,150,0.18)' }]}>
-          <Ionicons name={icon} size={14} color="rgba(255,248,225,0.9)" />
-          <Text style={sc.label} numberOfLines={1}>{label.toUpperCase()}</Text>
-        </View>
-        <View style={sc.divider} />
-        {hasValue ? (
-          <View>
-            <Text style={sc.value} adjustsFontSizeToFit numberOfLines={1} minimumFontScale={0.4}>{value}</Text>
-            {unit ? <Text style={sc.unit}>{unit}</Text> : null}
-          </View>
-        ) : (
-          <View style={sc.addRow}>
-            <Ionicons name="add" size={12} color="#FDF5E6" />
-            <Text style={sc.addText}>{label}</Text>
-          </View>
-        )}
-      </View>
-    </ImageBackground>
+// ── Section title ────────────────────────────────────────────────────────────
+const SectionTitle = ({ title, hint }) => (
+  <View style={st.row}>
+    <Text style={st.title}>{title}</Text>
+    {hint ? <Text style={st.hint} numberOfLines={1}>{hint}</Text> : null}
   </View>
 );
 
-// ── MemberRow — hàng thành viên trong card ───────────────────────────────────
-const MemberRow = ({ p, isActive, isLast, canDelete, onPress, onEdit, onDelete }) => {
+// ── Metric column (thẻ chỉ số) ───────────────────────────────────────────────
+const Metric = ({ label, value, unit }) => (
+  <View style={mt.col}>
+    <Text style={mt.label} numberOfLines={1}>{label.toUpperCase()}</Text>
+    <Text style={mt.value} adjustsFontSizeToFit numberOfLines={1} minimumFontScale={0.6}>{value}</Text>
+    <Text style={mt.unit} numberOfLines={1}>{unit || ' '}</Text>
+  </View>
+);
+
+// ── Food row ─────────────────────────────────────────────────────────────────
+const FoodRow = ({ icon, iconBg, iconColor, label, isLast, children }) => (
+  <View style={[fr.row, !isLast && fr.rowBorder]}>
+    <View style={[fr.icon, { backgroundColor: iconBg }]}>
+      <Ionicons name={icon} size={18} color={iconColor} />
+    </View>
+    <View style={{ flex: 1, gap: 4 }}>
+      <Text style={fr.label}>{label}</Text>
+      {children}
+    </View>
+  </View>
+);
+
+// ── MemberRow ────────────────────────────────────────────────────────────────
+const MemberRow = ({ p, tone, isActive, canDelete, onPress, onEdit, onDelete }) => {
   const { t } = useTranslation();
+  const name = p.displayName || t('profiles.unnamed');
   return (
-  <>
     <TouchableOpacity
       style={[mr.row, isActive && mr.rowActive]}
       activeOpacity={0.75}
       onPress={onPress}
     >
-      {isActive && (
-        <View style={[StyleSheet.absoluteFill, { borderRadius: 0, overflow: 'hidden' }]} pointerEvents="none">
-          <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.5 }} resizeMode="cover" />
-        </View>
-      )}
-      <View style={[mr.avatar, isActive && mr.avatarActive]}>
-        <Text style={{ fontSize: 22 }}>{p.avatar || '🧑'}</Text>
+      <View style={[mr.avatar, { backgroundColor: tone.bg, borderColor: tone.ring }]}>
+        <Text style={[mr.avatarText, { color: tone.ink }]}>{initialOf(p.displayName)}</Text>
       </View>
-      <View style={{ flex: 1, zIndex: 1 }}>
-        <Text style={[mr.name, isActive && mr.nameActive]} numberOfLines={1}>
-          {p.displayName || t('profiles.unnamed')}
-        </Text>
+      <View style={{ flex: 1 }}>
+        <Text style={mr.name} numberOfLines={1}>{name}</Text>
         <Text style={mr.sub} numberOfLines={1}>
           {t('profiles.' + (p.relation || 'other'), { defaultValue: t('profiles.other') })}{p.age ? ' · ' + t('profiles.years', { count: p.age }) : ''}
         </Text>
       </View>
 
-      {/* Action buttons bên phải */}
-      <View style={mr.actions}>
-        {/* Nút chỉnh sửa */}
+      {isActive && (
+        <View style={mr.activePill}>
+          <Text style={mr.activePillText}>{t('profileScreen.inUse')}</Text>
+        </View>
+      )}
+
+      <TouchableOpacity
+        style={mr.iconBtn}
+        onPress={onEdit}
+        accessibilityRole="button"
+        accessibilityLabel={t('profileScreen.editMember', { name })}
+      >
+        <Ionicons name="pencil-outline" size={18} color={P.muted} />
+      </TouchableOpacity>
+      {canDelete && !isActive && (
         <TouchableOpacity
           style={mr.iconBtn}
-          onPress={onEdit}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          onPress={onDelete}
+          accessibilityRole="button"
+          accessibilityLabel={t('profileScreen.deleteMember', { name })}
         >
-          <Ionicons name="pencil-outline" size={16} color="#9A7040" />
+          <Ionicons name="trash-outline" size={18} color={P.danger} />
         </TouchableOpacity>
-
-        {/* Nút xóa — chỉ hiện khi có thể xóa */}
-        {canDelete && (
-          <TouchableOpacity
-            style={[mr.iconBtn, mr.iconBtnDelete]}
-            onPress={onDelete}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="trash-outline" size={16} color="#C0392B" />
-          </TouchableOpacity>
-        )}
-
-        {isActive
-          ? <View style={mr.activePill}><Text style={mr.activePillText}>✓</Text></View>
-          : <Ionicons name="chevron-forward" size={16} color="#C8A96E" style={{ zIndex: 1 }} />
-        }
-      </View>
+      )}
     </TouchableOpacity>
-    {!isLast && <View style={mr.divider} />}
-  </>
   );
 };
 
-// ── MenuItem — hàng cài đặt ──────────────────────────────────────────────────
-const MenuItem = ({ icon, iconColor, iconBgColor, label, sub, onPress, isLast }) => (
-  <>
-    <TouchableOpacity style={mi.row} onPress={onPress} activeOpacity={0.72}>
-      <View style={[mi.iconBox, { backgroundColor: iconBgColor }]}>
-        <Ionicons name={icon} size={18} color="#FFF" />
-      </View>
-      <View style={mi.textWrap}>
-        <Text style={mi.label} numberOfLines={1}>{label}</Text>
-        {sub ? <Text style={mi.sub} numberOfLines={1}>{sub}</Text> : null}
-      </View>
-      <Ionicons name="chevron-forward" size={15} color="#C8A96E" />
-    </TouchableOpacity>
-    {!isLast && <View style={mi.divider} />}
-  </>
-);
-
-// ── SectionStamp — tiêu đề section phong cách stamp ──────────────────────────
-const SectionStamp = ({ label }) => (
-  <View style={ss.wrap}>
-    <View style={ss.line} />
-    <View style={ss.badge}>
-      <View style={[StyleSheet.absoluteFill, { borderRadius: 999, overflow: 'hidden' }]} pointerEvents="none">
-        <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.8 }} resizeMode="cover" />
-      </View>
-      <Text style={ss.text}>{label}</Text>
+// ── MenuItem ─────────────────────────────────────────────────────────────────
+const MenuItem = ({ icon, iconBg, iconColor, label, sub, onPress, isLast }) => (
+  <TouchableOpacity style={[mi.row, !isLast && mi.rowBorder]} onPress={onPress} activeOpacity={0.72}>
+    <View style={[mi.iconBox, { backgroundColor: iconBg }]}>
+      <Ionicons name={icon} size={19} color={iconColor} />
     </View>
-    <View style={ss.line} />
-  </View>
+    <View style={mi.textWrap}>
+      <Text style={mi.label} numberOfLines={1}>{label}</Text>
+      {sub ? <Text style={mi.sub} numberOfLines={1}>{sub}</Text> : null}
+    </View>
+    <Ionicons name="chevron-forward" size={16} color={P.muted} />
+  </TouchableOpacity>
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -243,10 +161,9 @@ const ProfileScreen = ({ navigation }) => {
     loadAllergiesForProfile(activeProfileId).then(setAllergyRows).catch(() => setAllergyRows([]));
   }, [activeProfileId]));
 
-  // ── Hồ sơ ăn uống: đúng các thông tin onboarding thu thập ──────────────────
-  // (đã bỏ tuổi / mục tiêu / mức vận động / bệnh lý vì không còn dùng khi gợi ý)
   const goStack = (name) => navigation.getParent()?.navigate(name);
 
+  // ── Hồ sơ ăn uống: đúng các thông tin onboarding thu thập ──────────────────
   const regionText = profile?.nation === 'other'
     ? t('onboarding.region.nations.other')
     : profile?.home_region
@@ -257,25 +174,14 @@ const ProfileScreen = ({ navigation }) => {
         defaultValue: t('profileScreen.diet.' + profile.diet_type, { defaultValue: profile.diet_type }),
       })
     : t('profileScreen.notSet');
-  const allergyText = allergyRows.length
-    ? allergyRows.map(r => (/^\d+$/.test(String(r.allergy_key))
-        ? r.display_name
-        : t(`onboarding.allergies.${r.allergy_key}`, { defaultValue: r.display_name || r.allergy_key }))).join(', ')
-    : t('profileScreen.noAllergy');
+  const allergyList = allergyRows.map(r => (/^\d+$/.test(String(r.allergy_key))
+    ? r.display_name
+    : t(`onboarding.allergies.${r.allergy_key}`, { defaultValue: r.display_name || r.allergy_key })));
   const taste = tasteProfile || profile?.taste_weight || profile?.taste_profile;
   const tasteTop = taste ? tasteSummary(taste).slice(0, 4) : [];
   const tasteLabels = t('onboarding.tastes', { returnObjects: true });
-  const tasteText = tasteTop.length
-    ? tasteTop.map(x => `${TASTE_EMOJI[x.key]} ${tasteLabels[x.key]} ${x.pct}%`).join('  ·  ')
-    : t('profileScreen.notSet');
   const genderText = profile?.gender === 'female' || profile?.gender === 'male'
     ? t(`onboarding.body.${profile.gender}`) : null;
-  const foodRows = [
-    { icon: 'map-outline',           label: t('profileScreen.regionLabel'),  value: regionText },
-    { icon: 'restaurant-outline',    label: t('profileScreen.dietLabel'),    value: dietText },
-    { icon: 'warning-outline',       label: t('profileScreen.allergyLabel'), value: allergyText },
-    { icon: 'color-palette-outline', label: t('profileScreen.tasteLabel'),   value: tasteText },
-  ];
 
   // Xóa profile Supabase + xóa luôn meal plan hôm nay của profile đó
   const handleDeleteProfile = (p) => {
@@ -287,11 +193,8 @@ const ProfileScreen = ({ navigation }) => {
         {
           text: t('settings.clearAll'), style: 'destructive',
           onPress: async () => {
-            // 1. Xóa khỏi Supabase
             await deleteProfileMember(p.profileId);
-            // 2. Xóa món ăn hôm nay của profile này
             await removeMealPlanByProfileId(p.profileId);
-            // 3. Nếu đang xóa active profile → switch sang profile khác
             if (p.profileId === activeProfileId) {
               const rest = profiles.filter(x => x.profileId !== p.profileId);
               if (rest.length > 0) await switchProfile(rest[0].profileId);
@@ -304,122 +207,138 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   // BMI calculation
-  let bmi = null, bmiLabel = t('profileScreen.bmi.title');
+  let bmi = null, bmiLabel = t('profileScreen.bmi.title'), bmiNote = '';
   if (latestMetrics?.height_cm && latestMetrics?.weight_kg) {
     const h = latestMetrics.height_cm / 100;
     const val = latestMetrics.weight_kg / (h * h);
     bmi = val.toFixed(1);
-    if (val < 18.5) bmiLabel = t('profileScreen.bmi.underweight');
-    else if (val < 25) bmiLabel = t('profileScreen.bmi.normal');
-    else if (val < 30) bmiLabel = t('profileScreen.bmi.overweight');
-    else bmiLabel = t('profileScreen.bmi.obese');
+    if (val < 18.5) bmiNote = t('profileScreen.bmi.underweight');
+    else if (val < 25) bmiNote = t('profileScreen.bmi.normal');
+    else if (val < 30) bmiNote = t('profileScreen.bmi.overweight');
+    else bmiNote = t('profileScreen.bmi.obese');
   }
 
   const personalSub = [genderText, regionText, dietText].filter(Boolean).join(' · ');
   const menuItems = [
-    { icon: 'person-outline', iconBgColor: '#C8A96E', label: t('profileScreen.personalInfo'),
+    { icon: 'person-outline', iconBg: '#F0D9B8', iconColor: '#7A4E24', label: t('profileScreen.personalInfo'),
       sub: personalSub || t('profileScreen.notSet'),
       onPress: () => goStack('EditPersonal') },
-    { icon: 'barbell-outline', iconBgColor: '#8B9E6A', label: t('profileScreen.bodyMetrics'),
+    { icon: 'barbell-outline', iconBg: '#DCE8C8', iconColor: '#3F5A2B', label: t('profileScreen.bodyMetrics'),
       sub: latestMetrics ? t('profileScreen.kgBmi', { weight: latestMetrics.weight_kg, bmi: bmi || '–' }) : t('profileScreen.notSet'),
       onPress: () => goStack('BodyMetrics') },
-    { icon: 'warning-outline', iconBgColor: '#C88A5A', label: t('profileScreen.allergies'),
+    { icon: 'warning-outline', iconBg: '#F5D9CC', iconColor: '#8A3B1F', label: t('profileScreen.allergies'),
       sub: t('profileScreen.allergiesSub'),
       onPress: () => goStack('Allergy') },
-    { icon: 'restaurant-outline', iconBgColor: '#A06E6E', label: t('profileScreen.taste'),
+    { icon: 'flame-outline', iconBg: '#F3D6D0', iconColor: '#8A2F2F', label: t('profileScreen.taste'),
       sub: t('profileScreen.tasteSub'),
       onPress: () => goStack('TasteProfile') },
   ];
 
+  const heroName = profile?.displayName || profiles[0]?.displayName || t('profileScreen.yourProfile');
+
   return (
     <View style={s.root}>
       <StatusBar barStyle="dark-content" />
-      {/* Layer 1 — gỗ nền */}
-      <Image source={TEX.wood} style={[StyleSheet.absoluteFill, { width: '100%', height: '100%', opacity: 0.82 }]} resizeMode="cover" />
-      {/* Layer 2 — overlay kem */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(240,230,210,0.48)' }]} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
       >
+        {/* ══ HERO ═══════════════════════════════════════════════════════════ */}
+        <View style={[s.hero, { paddingTop: insets.top + 16 }]}>
+          <TouchableOpacity
+            style={[s.heroEdit, { top: insets.top + 8 }]}
+            onPress={() => goStack('EditPersonal')}
+            accessibilityRole="button"
+            accessibilityLabel={t('profileScreen.editProfile')}
+          >
+            <Ionicons name="pencil-outline" size={20} color={P.muted} />
+          </TouchableOpacity>
 
-        {/* ══ HERO SECTION ═══════════════════════════════════════════════════ */}
-        <View style={s.heroSection}>
-          <HeroAvatar avatar={profile?.avatar || profiles[0]?.avatar} displayName={profile?.displayName} />
+          <View style={s.avatarOuter}>
+            <View style={s.avatarRing}>
+              <Text style={s.avatarText}>{initialOf(heroName)}</Text>
+            </View>
+            <View style={s.avatarCheck}>
+              <Ionicons name="checkmark" size={14} color={P.cream} />
+            </View>
+          </View>
 
-          {/* Tên người dùng */}
-          <Text style={s.heroName} numberOfLines={1}>
-            {profile?.displayName || profiles[0]?.displayName || t('profileScreen.yourProfile')}
-          </Text>
+          <View style={{ alignItems: 'center', gap: 2 }}>
+            <Text style={s.heroName} numberOfLines={1}>{heroName}</Text>
+            <Text style={s.heroSub}>{t('profileScreen.heroSub')}</Text>
+          </View>
 
-          {/* Pills khẩu vị + hoạt động */}
-          <View style={s.pillsRow}>
-            {genderText && <WoodChip icon="person-outline" label={genderText} />}
-            {profile?.diet_type && <WoodChip icon="restaurant-outline" label={dietText} />}
-            {(profile?.home_region || profile?.nation === 'other') && <WoodChip icon="map-outline" label={regionText} />}
+          <View style={s.chipsRow}>
+            {genderText && <Chip icon="person-outline" label={genderText} />}
+            {profile?.diet_type && <Chip icon="restaurant-outline" label={dietText} />}
+            {(profile?.home_region || profile?.nation === 'other') && <Chip icon="location-outline" label={regionText} />}
           </View>
         </View>
 
-        {/* ══ STATS ROW ══════════════════════════════════════════════════════ */}
-        <View style={s.statsRow}>
-          <WoodStatCard
-            icon="scale-outline" label={t('profileScreen.weight')}
-            value={latestMetrics?.weight_kg ?? '–'} unit="kg"
-            hasValue={Boolean(latestMetrics?.weight_kg)}
-            accentColor="rgba(100,180,255,0.22)"
-          />
-          <WoodStatCard
-            icon="resize-outline" label={t('profileScreen.height')}
-            value={latestMetrics?.height_cm ?? '–'} unit="cm"
-            hasValue={Boolean(latestMetrics?.height_cm)}
-            accentColor="rgba(160,220,130,0.22)"
-          />
-          <WoodStatCard
-            icon="analytics-outline" label={bmiLabel}
-            value={bmi ?? '–'} unit=""
-            hasValue={Boolean(bmi)}
-            accentColor="rgba(255,180,100,0.25)"
-          />
-        </View>
+        <View style={s.body}>
+          {/* ══ CHỈ SỐ CƠ THỂ ═══════════════════════════════════════════════ */}
+          <View style={[s.metrics, nativeShadow(P.brown, 0.25, 14, { width: 0, height: 8 }, 6)]}>
+            <Metric label={t('profileScreen.weight')} value={latestMetrics?.weight_kg ?? '–'} unit="kg" />
+            <View style={s.metricDivider} />
+            <Metric label={t('profileScreen.height')} value={latestMetrics?.height_cm ?? '–'} unit="cm" />
+            <View style={s.metricDivider} />
+            <Metric label={bmiLabel} value={bmi ?? '–'} unit={bmiNote} />
+          </View>
 
-        {/* ══ HỒ SƠ ĂN UỐNG (dữ liệu onboarding) ═════════════════════════════ */}
-        <SectionStamp label={t('profileScreen.foodProfile')} />
-
-        <View style={[s.cardShadow, nativeShadow('#8B5E3C', 0.18, 8, { width: 0, height: 4 }, 5)]}>
-          <View style={s.card}>
-            <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
-              <Image source={TEX.paper} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-            </View>
-            <View style={{ zIndex: 1, paddingHorizontal: 16, paddingVertical: 6 }}>
-              {foodRows.map((row, i) => (
-                <View key={row.label} style={[s.foodRow, i < foodRows.length - 1 && s.foodRowBorder]}>
-                  <Ionicons name={row.icon} size={18} color="#9A7040" style={{ marginTop: 2 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.foodLabel}>{row.label}</Text>
-                    <Text style={s.foodValue}>{row.value}</Text>
+          {/* ══ HỒ SƠ ĂN UỐNG ═══════════════════════════════════════════════ */}
+          <View style={s.section}>
+            <SectionTitle title={t('profileScreen.foodProfile')} hint={t('profileScreen.foodHint')} />
+            <View style={[s.card, nativeShadow(), { paddingHorizontal: 16, paddingVertical: 4 }]}>
+              <FoodRow icon="location-outline" iconBg="#F0D9B8" iconColor="#7A4E24" label={t('profileScreen.regionLabel')}>
+                <Text style={fr.value}>{regionText}</Text>
+              </FoodRow>
+              <FoodRow icon="restaurant-outline" iconBg="#DCE8C8" iconColor="#3F5A2B" label={t('profileScreen.dietLabel')}>
+                <Text style={fr.value}>{dietText}</Text>
+              </FoodRow>
+              <FoodRow icon="warning-outline" iconBg="#F5D9CC" iconColor="#8A3B1F" label={t('profileScreen.allergyLabel')}>
+                {allergyList.length > 0 ? (
+                  <View style={fr.chips}>
+                    {allergyList.map((a, i) => (
+                      <View key={`${a}-${i}`} style={fr.allergyChip}>
+                        <Text style={fr.allergyChipText}>{a}</Text>
+                      </View>
+                    ))}
                   </View>
-                </View>
-              ))}
+                ) : (
+                  <Text style={fr.value}>{t('profileScreen.noAllergy')}</Text>
+                )}
+              </FoodRow>
+              <FoodRow icon="flame-outline" iconBg="#F3D6D0" iconColor="#8A2F2F" label={t('profileScreen.tasteLabel')} isLast>
+                {tasteTop.length > 0 ? (
+                  <View style={{ gap: 10, marginTop: 4 }}>
+                    {tasteTop.map(x => (
+                      <View key={x.key} style={fr.tasteRow}>
+                        <Text style={fr.tasteName} numberOfLines={1}>{tasteLabels?.[x.key] || x.key}</Text>
+                        <View style={fr.track}>
+                          <View style={[fr.fill, { width: `${Math.max(4, Math.min(100, x.pct))}%`, backgroundColor: TASTE_COLOR[x.key] || P.accent }]} />
+                        </View>
+                        <Text style={fr.tastePct}>{x.pct}%</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={fr.value}>{t('profileScreen.notSet')}</Text>
+                )}
+              </FoodRow>
             </View>
           </View>
-        </View>
 
-        {/* ══ MEMBERS ════════════════════════════════════════════════════════ */}
-        <SectionStamp label={t('profileScreen.family')} />
-
-        <View style={[s.cardShadow, nativeShadow('#8B5E3C', 0.18, 8, { width: 0, height: 4 }, 5)]}>
-          <View style={s.card}>
-            <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
-              <Image source={TEX.paper} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-            </View>
-            <View style={{ zIndex: 1 }}>
+          {/* ══ GIA ĐÌNH ═══════════════════════════════════════════════════ */}
+          <View style={s.section}>
+            <SectionTitle title={t('profileScreen.family')} hint={t('profileScreen.familyHint')} />
+            <View style={[s.card, nativeShadow(), { padding: 6, gap: 2 }]}>
               {profiles.map((p, i) => (
                 <MemberRow
                   key={p.profileId}
                   p={p}
+                  tone={TONES[i % TONES.length]}
                   isActive={p.profileId === activeProfileId}
-                  isLast={i === profiles.length - 1}
                   canDelete={profiles.length > 1}
                   onPress={() => p.profileId !== activeProfileId && switchProfile(p.profileId)}
                   onEdit={() => navigation.getParent()?.navigate('AddEditProfile', { profileId: p.profileId })}
@@ -427,239 +346,158 @@ const ProfileScreen = ({ navigation }) => {
                 />
               ))}
 
-              {/* Dashed "Thêm thành viên" */}
               <TouchableOpacity
                 style={s.addMember}
                 activeOpacity={0.75}
                 onPress={() => navigation.getParent()?.navigate('AddEditProfile')}
               >
-                <Ionicons name="add-circle-outline" size={17} color="#9A7040" />
+                <Ionicons name="add" size={18} color={P.accent} />
                 <Text style={s.addMemberText}>{t('profileScreen.addMember')}</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
 
-        {/* ══ SETTINGS ═══════════════════════════════════════════════════════ */}
-        <SectionStamp label={t('profileScreen.setup')} />
-
-        <View style={[s.cardShadow, nativeShadow('#8B5E3C', 0.18, 8, { width: 0, height: 4 }, 5)]}>
-          <View style={s.card}>
-            <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
-              <Image source={TEX.paper} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-            </View>
-            <View style={{ zIndex: 1 }}>
+          {/* ══ THIẾT LẬP ══════════════════════════════════════════════════ */}
+          <View style={s.section}>
+            <SectionTitle title={t('profileScreen.setup')} />
+            <View style={[s.card, nativeShadow(), { paddingHorizontal: 16 }]}>
               {menuItems.map((item, i) => (
-                <MenuItem
-                  key={item.label}
-                  {...item}
-                  isLast={i === menuItems.length - 1}
-                />
+                <MenuItem key={item.label} {...item} isLast={i === menuItems.length - 1} />
               ))}
             </View>
           </View>
         </View>
-
-        {/* ── Footer dấu chân mèo ── */}
-        <View style={s.footer}>
-          <Text style={s.footerPaw}>🐾</Text>
-          <Text style={s.footerPaw}>🐾</Text>
-        </View>
-
       </ScrollView>
-
     </View>
   );
 };
 
-// ── StyleSheet ────────────────────────────────────────────────────────────────
+// ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5EDDC' },
-  scroll: { paddingHorizontal: 18 },
+  root: { flex: 1, backgroundColor: P.bg },
+  body: { paddingHorizontal: 20, gap: 28 },
 
   // Hero
-  heroSection: { alignItems: 'center', marginBottom: 24, paddingTop: 8 },
-  heroName: {
-    fontFamily: 'Lora-Bold', fontSize: 24, color: '#3D2B1F',
-    marginTop: 14, marginBottom: 10, textAlign: 'center',
+  hero: {
+    backgroundColor: P.header, alignItems: 'center', gap: 14,
+    paddingHorizontal: 20, paddingBottom: 40,
+    borderBottomWidth: 1, borderBottomColor: P.border,
+    marginBottom: -16,
   },
-  pillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', paddingHorizontal: 10 },
+  heroEdit: {
+    position: 'absolute', right: 20, width: 44, height: 44, borderRadius: 14,
+    borderWidth: 1, borderColor: P.border, backgroundColor: P.card,
+    alignItems: 'center', justifyContent: 'center', zIndex: 2,
+  },
+  avatarOuter: { width: 104, height: 104 },
+  avatarRing: {
+    width: 104, height: 104, borderRadius: 52, backgroundColor: '#E9DDBF',
+    borderWidth: 3, borderColor: '#8B5E3C',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { fontFamily: 'Lora-Bold', fontSize: 44, color: P.brown },
+  avatarCheck: {
+    position: 'absolute', right: -2, bottom: 2, width: 30, height: 30, borderRadius: 15,
+    backgroundColor: P.brown, borderWidth: 3, borderColor: P.header,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  heroName: { fontFamily: 'Lora-Bold', fontSize: 26, lineHeight: 32, color: P.ink, textAlign: 'center' },
+  heroSub: { fontFamily: 'BeVietnamPro-Regular', fontSize: 13, color: P.muted },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
 
-  // Stats
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 28 },
+  // Metrics
+  metrics: {
+    flexDirection: 'row', backgroundColor: P.brown, borderRadius: 22,
+    paddingVertical: 18, paddingHorizontal: 6,
+  },
+  metricDivider: { width: 1, backgroundColor: 'rgba(255,248,234,0.22)', marginVertical: 6 },
 
-  // Hồ sơ ăn uống
-  foodRow: { flexDirection: 'row', gap: 12, paddingVertical: 12 },
-
-  foodRowBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(200,169,110,0.35)' },
-  foodLabel: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 12, color: '#8B7355', marginBottom: 2 },
-  foodValue: { fontFamily: 'BeVietnamPro-Regular', fontSize: 14, color: '#3D2B1F', lineHeight: 20 },
-
-  // Card (parchment)
-  cardShadow: { borderRadius: 20, marginBottom: 28 },
+  // Section + card
+  section: { gap: 12 },
   card: {
-    borderRadius: 20, backgroundColor: '#F5EDDC',
-    borderWidth: 1.5, borderColor: '#C8A96E',
-    overflow: 'hidden', // clip nội dung trong card, shadow vẫn OK vì nằm ở cardShadow
+    backgroundColor: P.card, borderRadius: 22,
+    borderWidth: 1, borderColor: P.border,
   },
 
-  // Add member dashed button
+  // Add member
   addMember: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, paddingVertical: 14, minHeight: 48,
-    marginHorizontal: 4, marginBottom: 4,
-    borderRadius: 14, backgroundColor: 'transparent',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    minHeight: 48, margin: 4, borderRadius: 14,
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: P.dashed,
   },
-  addMemberText: {
-    fontFamily: 'BeVietnamPro-Bold', fontSize: 14, color: '#9A7040',
-  },
-
-  // Footer
-  footer: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingTop: 20, opacity: 0.4 },
-  footerPaw: { fontSize: 22 },
-
-  // Setup Banner
-  setupBanner: {
-    borderRadius: 16, borderWidth: 1.5, borderColor: '#C8A96E',
-    padding: 16, marginBottom: 20, overflow: 'hidden',
-  },
-  setupTitle: {
-    fontFamily: 'Lora-Bold', fontSize: 15, color: '#3D2B1F', marginBottom: 4,
-  },
-  setupSub: {
-    fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: '#8B7355', marginBottom: 12,
-  },
-  setupSteps: { gap: 8 },
-  setupStep: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: 'rgba(200,169,110,0.12)', borderRadius: 10,
-    paddingVertical: 10, paddingHorizontal: 12,
-    borderWidth: 1, borderColor: 'rgba(200,169,110,0.3)',
-  },
-  setupStepDot: {
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: '#C8A96E', justifyContent: 'center', alignItems: 'center',
-  },
-  setupStepNum: { fontFamily: 'BeVietnamPro-Bold', fontSize: 11, color: '#FFF8EA' },
-  setupStepText: { flex: 1, fontFamily: 'BeVietnamPro-Regular', fontSize: 13, color: '#3D2B1F' },
+  addMemberText: { fontFamily: 'BeVietnamPro-Bold', fontSize: 14, color: P.accent },
 });
 
-// ── Avatar styles ─────────────────────────────────────────────────────────────
-const av = StyleSheet.create({
-  outer: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
-  ring: {
-    position: 'absolute', width: 120, height: 120, borderRadius: 60,
-    borderWidth: 2, borderColor: '#9A7040',
-  },
-  frameWrap: { width: 108, height: 108, alignItems: 'center', justifyContent: 'center' },
-  emoji: { fontSize: 50 },
-  stamp: {
-    position: 'absolute', bottom: 2, right: 4,
-    backgroundColor: '#C8A96E', borderRadius: 999,
-    width: 22, height: 22, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: '#F5EDDC',
-  },
-  stampText: { fontSize: 10, color: '#FFF8EA', fontFamily: 'BeVietnamPro-Bold' },
-});
-
-// ── WoodChip styles ───────────────────────────────────────────────────────────
+// ── Chip styles ───────────────────────────────────────────────────────────────
 const ch = StyleSheet.create({
   wrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
-    borderWidth: 1, borderColor: '#9A7040',
+    borderWidth: 1, borderColor: P.border, backgroundColor: P.card,
   },
-  text: { fontFamily: 'BeVietnamPro-Bold', fontSize: 12, color: '#FDF5E6', zIndex: 1 },
+  text: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 12.5, color: P.brown },
 });
 
-// ── WoodStatCard styles ───────────────────────────────────────────────────────
-const sc = StyleSheet.create({
-  shadow: { flex: 1, borderRadius: 18 },
-  card: { flex: 1, height: 120, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(160,120,74,0.3)', overflow: 'hidden' },
-  cardImg: { borderRadius: 18, opacity: 0.85 },
-  overlay: {
-    backgroundColor: 'rgba(15,7,2,0.30)', flex: 1,
-    paddingHorizontal: 11, paddingTop: 10, paddingBottom: 12, justifyContent: 'space-between',
-  },
-  iconBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start',
-  },
-  label: { fontFamily: 'BeVietnamPro-Bold', fontSize: 9, color: '#FDF5E6', opacity: 0.85, letterSpacing: 0.5 },
-  divider: { height: 1, backgroundColor: 'rgba(255,240,200,0.12)', marginVertical: 6 },
-  value: { fontFamily: 'Lora-Bold', fontSize: 26, color: '#FFF9EB', letterSpacing: -0.5, lineHeight: 32 },
-  unit: { fontFamily: 'BeVietnamPro-Regular', fontSize: 10, color: '#FDF5E6', opacity: 0.55, marginTop: 1 },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  addText: { fontFamily: 'BeVietnamPro-Bold', fontSize: 13, color: '#FDF5E6' },
+// ── Section title styles ──────────────────────────────────────────────────────
+const st = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  title: { fontFamily: 'Lora-Bold', fontSize: 19, color: P.ink },
+  hint: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12.5, color: P.muted, flexShrink: 1 },
+});
+
+// ── Metric styles ─────────────────────────────────────────────────────────────
+const mt = StyleSheet.create({
+  col: { flex: 1, alignItems: 'center', gap: 4, paddingHorizontal: 4 },
+  label: { fontFamily: 'BeVietnamPro-Bold', fontSize: 11, letterSpacing: 0.8, color: P.gold },
+  value: { fontFamily: 'Lora-Bold', fontSize: 28, lineHeight: 33, color: '#FFF9EB' },
+  unit: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: P.gold },
+});
+
+// ── FoodRow styles ────────────────────────────────────────────────────────────
+const fr = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 14, paddingVertical: 14 },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: P.divider },
+  icon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  label: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 12.5, color: P.muted },
+  value: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 15, lineHeight: 21, color: P.ink },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  allergyChip: { backgroundColor: '#F8E1D6', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
+  allergyChipText: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 13, color: '#8A3B1F' },
+  tasteRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tasteName: { width: 64, fontFamily: 'BeVietnamPro-SemiBold', fontSize: 13, color: P.ink },
+  track: { flex: 1, height: 8, borderRadius: 999, backgroundColor: P.divider, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 999 },
+  tastePct: { width: 36, textAlign: 'right', fontFamily: 'BeVietnamPro-Regular', fontSize: 12.5, color: P.muted },
 });
 
 // ── MemberRow styles ──────────────────────────────────────────────────────────
 const mr = StyleSheet.create({
   row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 12, paddingHorizontal: 16, minHeight: 64,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 10, paddingLeft: 10, paddingRight: 4, minHeight: 64,
+    borderRadius: 18, borderWidth: 1.5, borderColor: 'transparent',
   },
-  rowActive: { backgroundColor: 'transparent' },
+  rowActive: { backgroundColor: '#F3E8CE', borderColor: '#8B5E3C' },
   avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(200,169,110,0.15)',
-    borderWidth: 1.5, borderColor: '#C8A96E',
-    justifyContent: 'center', alignItems: 'center',
+    width: 44, height: 44, borderRadius: 22, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarActive: { borderColor: '#8B5E3C', borderWidth: 2 },
-  name: { fontFamily: 'BeVietnamPro-Bold', fontSize: 15, color: '#3D2B1F', marginBottom: 2 },
-  nameActive: { fontFamily: 'Lora-Bold', color: '#5C3A1E' },
-  sub: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: '#8B7355' },
-  actions: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, zIndex: 1,
-  },
-  iconBtn: {
-    width: 32, height: 32, borderRadius: 10,
-    backgroundColor: 'rgba(200,169,110,0.15)',
-    borderWidth: 1, borderColor: 'rgba(200,169,110,0.4)',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  iconBtnDelete: {
-    backgroundColor: 'rgba(192,57,43,0.08)',
-    borderColor: 'rgba(192,57,43,0.3)',
-  },
-  activePill: {
-    backgroundColor: '#C8A96E', borderRadius: 999,
-    paddingHorizontal: 8, paddingVertical: 4,
-  },
-  activePillText: { fontFamily: 'BeVietnamPro-Bold', fontSize: 11, color: '#FFF8EA' },
-  divider: { height: 1, backgroundColor: 'rgba(200,169,110,0.25)', marginHorizontal: 16 },
+  avatarText: { fontFamily: 'Lora-Bold', fontSize: 18 },
+  name: { fontFamily: 'Lora-Bold', fontSize: 16, color: P.ink },
+  sub: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12.5, color: P.muted, marginTop: 2 },
+  activePill: { backgroundColor: P.brown, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  activePillText: { fontFamily: 'BeVietnamPro-Bold', fontSize: 11.5, color: P.cream },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });
 
 // ── MenuItem styles ───────────────────────────────────────────────────────────
 const mi = StyleSheet.create({
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 0,
-    paddingVertical: 13, paddingHorizontal: 16, minHeight: 64,
-  },
-  iconBox: {
-    width: 38, height: 38, borderRadius: 12,
-    justifyContent: 'center', alignItems: 'center', marginRight: 14,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
-  },
-  textWrap: { flex: 1, justifyContent: 'center' },
-  label: { fontFamily: 'Lora-Bold', fontSize: 16, color: '#3D2B1F', marginBottom: 2 },
-  sub: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: '#8B7355' },
-  divider: { height: 1, backgroundColor: 'rgba(200,169,110,0.25)', marginHorizontal: 16 },
-});
-
-// ── SectionStamp styles ───────────────────────────────────────────────────────
-const ss = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12, marginTop: 4,
-  },
-  line: { flex: 1, height: 1, backgroundColor: 'rgba(200,169,110,0.45)' },
-  badge: {
-    paddingHorizontal: 16, paddingVertical: 6, borderRadius: 999,
-    borderWidth: 1.5, borderColor: '#C8A96E',
-    backgroundColor: 'rgba(245,237,220,0.7)',
-  },
-  text: { fontFamily: 'Lora-Bold', fontSize: 14, color: '#5C3A1E', zIndex: 1 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 68 },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: P.divider },
+  iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  textWrap: { flex: 1, gap: 1 },
+  label: { fontFamily: 'Lora-Bold', fontSize: 16, color: P.ink },
+  sub: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12.5, color: P.muted },
 });
 
 export default ProfileScreen;
