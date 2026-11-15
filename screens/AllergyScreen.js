@@ -145,6 +145,9 @@ const CATEGORY_COLORS = {
   _default:  { bg: '#FDF8EE', accent: '#8B6340', border: '#C8A96E', tabColor: '#C4955A' },
 };
 
+// Nhóm dị ứng chuẩn do onboarding lưu (services/onboardingService.js → ALLERGY_OPTIONS)
+const ONBOARDING_ALLERGY_EMOJI = { fish: '🐟', beef: '🐄', legume_nut: '🥜', dairy_egg: '🥚' };
+
 const getCatColors = (key) => CATEGORY_COLORS[key] || CATEGORY_COLORS._default;
 
 const INGREDIENT_CATEGORY_LABELS = {
@@ -516,11 +519,18 @@ const AllergyScreen = ({ navigation }) => {
   };
 
   const buildCategories = (list, selectedKeys = []) => {
-    const keys = [...new Set(list.map(i => i.category).filter(Boolean))].sort();
+    // Gộp cả nhóm đã lưu (vd. nhóm chuẩn từ onboarding: beef, fish, dairy_egg…)
+    // để user luôn thấy và gỡ được.
+    const keys = [...new Set([
+      ...list.map(i => i.category).filter(Boolean),
+      ...selectedKeys,
+    ])].sort();
     return keys.map(key => ({
       key,
-      display:  t('allergy.categories.' + key, { defaultValue: CATEGORY_LABELS[key] || key }),
-      emoji:    CATEGORY_EMOJIS[key] || '🍽️',
+      display:  t('allergy.categories.' + key, {
+        defaultValue: CATEGORY_LABELS[key] || t('onboarding.allergies.' + key, { defaultValue: key }),
+      }),
+      emoji:    CATEGORY_EMOJIS[key] || ONBOARDING_ALLERGY_EMOJI[key] || '🍽️',
       selected: selectedKeys.includes(key),
     }));
   };

@@ -119,10 +119,27 @@ const AddEditProfileScreen = ({ navigation, route }) => {
       Alert.alert(t('profileEdit.required'), t('profileEdit.requiredBody'));
       return;
     }
+    const year = birthYear ? parseInt(birthYear, 10) : null;
+    // Thêm thành viên mới → chuyển sang onboarding (giới tính, chỉ số, vùng miền, chế độ ăn,
+    // dị ứng, khẩu vị). Hồ sơ được tạo khi hoàn tất onboarding.
+    if (!isEdit) {
+      navigation.replace('ProfileOnboarding', {
+        profileMeta: {
+          displayName:    trimmed,
+          relation,
+          avatar,
+          isDefault:      false,
+          birth_year:     year || null,
+          age:            year ? (new Date().getFullYear() - year) : null,
+          dietary_goal:   goal,
+          activity_level: activity,
+        },
+      });
+      return;
+    }
     setSaving(true);
     try {
-      const profileId = editProfileId || ('profile_' + Date.now().toString(36));
-      const year = birthYear ? parseInt(birthYear, 10) : null;
+      const profileId = editProfileId;
       await saveProfileMember({
         profileId,
         displayName:    trimmed,
@@ -243,8 +260,13 @@ const AddEditProfileScreen = ({ navigation, route }) => {
           <SectionLabel text={t('profileEdit.relation')} />
           <ChipGroup options={RELATIONS} value={relation} onChange={setRelation} translationPath="profileEdit.relations" />
 
-          <SectionLabel text={t('profileEdit.gender')} />
-          <ChipGroup options={GENDERS} value={gender} onChange={setGender} translationPath="profileEdit.genders" />
+          {/* Thêm mới: giới tính hỏi ở onboarding */}
+          {isEdit && (
+            <>
+              <SectionLabel text={t('profileEdit.gender')} />
+              <ChipGroup options={GENDERS} value={gender} onChange={setGender} translationPath="profileEdit.genders" />
+            </>
+          )}
 
           <SectionLabel text={t('profileEdit.birthYear')} />
           <TextInput
@@ -264,8 +286,13 @@ const AddEditProfileScreen = ({ navigation, route }) => {
           <SectionLabel text={t('profileEdit.goal')} />
           <ChipGroup options={GOALS} value={goal} onChange={setGoal} translationPath="profileEdit.goals" />
 
-          <SectionLabel text={t('profileEdit.diet')} />
-          <ChipGroup options={DIETS} value={diet} onChange={setDiet} translationPath="profileEdit.diets" />
+          {/* Thêm mới: chế độ ăn hỏi ở onboarding */}
+          {isEdit && (
+            <>
+              <SectionLabel text={t('profileEdit.diet')} />
+              <ChipGroup options={DIETS} value={diet} onChange={setDiet} translationPath="profileEdit.diets" />
+            </>
+          )}
 
           <SectionLabel text={t('profileEdit.activity')} />
           <ChipGroup options={ACTIVITIES} value={activity} onChange={setActivity} translationPath="profileEdit.activities" />
@@ -280,7 +307,7 @@ const AddEditProfileScreen = ({ navigation, route }) => {
         >
           {saving
             ? <ActivityIndicator color="#FFF8EA" />
-            : <Text style={st.saveBtnText}>{isEdit ? t('profileEdit.save') : t('profileEdit.add')}</Text>
+            : <Text style={st.saveBtnText}>{isEdit ? t('profileEdit.save') : t('profileEdit.addNext')}</Text>
           }
         </TouchableOpacity>
 

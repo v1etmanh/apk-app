@@ -23,6 +23,8 @@ import PaperCard from '../components/ui/PaperCard';
 import WoodButton from '../components/ui/WoodButton';
 import WeatherAnimationSprite from '../components/ui/WeatherAnimationSprite';
 import ProfileSwitcherSheet from '../components/ProfileSwitcherSheet';
+import MealFilterPanel, { DEFAULT_MEAL_FILTERS, toRequestMealFilters } from '../components/MealFilterPanel';
+import { shouldShowTasteBanner, dismissTasteBanner } from '../services/onboardingService';
 import { Drop } from 'phosphor-react-native/lib/module/icons/Drop';
 import { Wind } from 'phosphor-react-native/lib/module/icons/Wind';
 import { Gauge } from 'phosphor-react-native/lib/module/icons/Gauge';
@@ -202,15 +204,29 @@ const HomeScreen = ({ navigation }) => {
   const [dishFilter, setDishFilter]         = useState('all');
   const [isDirty, setIsDirty]               = useState(false);
   const [basketBadge, setBasketBadge]       = useState(0);
-  const [challengeTitle, setChallengeTitle] = useState('');
   const [showSwitcher, setShowSwitcher]     = useState(false);
   const [showLocBanner, setShowLocBanner]   = useState(false); // banner nhắc location
+  const [mealFilters, setMealFilters]       = useState(DEFAULT_MEAL_FILTERS); // bộ lọc theo bữa
+  const [tasteBannerHidden, setTasteBannerHidden] = useState(false);
   const isFirstRender = React.useRef(true);
 
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     setIsDirty(true);
   }, [dishFilter]);
+
+  // Bộ lọc theo bữa: nhớ lựa chọn gần nhất
+  useEffect(() => {
+    getSetting('last_meal_filters')
+      .then(raw => { if (raw) setMealFilters({ ...DEFAULT_MEAL_FILTERS, ...JSON.parse(raw) }); })
+      .catch(() => {});
+  }, []);
+
+  const updateMealFilters = (next) => {
+    setMealFilters(next);
+    setIsDirty(true);
+    setSetting('last_meal_filters', JSON.stringify(next)).catch(() => {});
+  };
 
   // Kiểm tra quyền vị trí mỗi ngày 1 lần — hiện banner nếu chưa cấp
   useEffect(() => {
@@ -231,6 +247,7 @@ const HomeScreen = ({ navigation }) => {
     marketBasket, maxPrepTime, costPreference,
     profiles, activeProfileId,
     weatherData, setWeatherData,
+    tasteProfile,
   } = useAppStore();
 
   useEffect(() => {
@@ -243,9 +260,6 @@ const HomeScreen = ({ navigation }) => {
     const safeLocation = normalizeLocation(location);
     const lat = safeLocation.lat;
     const lon = safeLocation.lon;
-    api.get(`/api/v1/challenge?lat=${lat}&lon=${lon}`)
-      .then(r => setChallengeTitle(r.data?.challenge_dish?.title || ''))
-      .catch(() => {});
     loadRecentDishesCache().then(cached => {
       if (cached.length > 0) setRankedDishes(cached);
     });
@@ -320,6 +334,13 @@ const HomeScreen = ({ navigation }) => {
       activity_level: profile?.activity_level || 'moderately_active',
       health_condition: profile?.health_condition || [],
       taste_preference: profile?.taste_preference || [],
+      // Onboarding: khẩu vị (7 vị 0..1), vùng miền, món đã like/dislike
+      // tasteProfile (store) luôn là bản mới nhất — onboarding ghi cả taste_profile lẫn taste_weight
+      taste_weight: tasteProfile || profile?.taste_profile || profile?.taste_weight || undefined,
+      home_region: profile?.home_region || undefined,
+      nation: profile?.nation || undefined,
+      liked_dish_ids: profile?.liked_dish_ids || [],
+      disliked_dish_ids: profile?.disliked_dish_ids || [],
       allergies: allergies || [],
       max_prep_time: maxPrepTime ?? 60,
     };
@@ -336,6 +357,7 @@ const HomeScreen = ({ navigation }) => {
         dish_type_filter: dishFilter,
         cost_preference: costPreference,
         market_basket: basket,
+        meal_filters: toRequestMealFilters(mealFilters),
         location: safeCurrentLocation,
       },
     });
@@ -563,22 +585,6 @@ const HomeScreen = ({ navigation }) => {
         {/* ── Divider ── */}
         <View style={s.divider} />
 
-        {/* ── Challenge Banner ── */}
-        {challengeTitle !== '' && (
-          <TouchableOpacity activeOpacity={0.82} onPress={() => navigation.navigate('CookingChallenge')}>
-            <PaperCard style={[s.cardSpacing, s.challengeBorder]} innerStyle={{ padding: 20 }}>
-              <View style={s.rowCenter}>
-                <Ionicons name="trophy-outline" size={24} color={C.amber} />
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={s.challengeEyebrow}>{t('home.challengeToday')}</Text>
-                  <Text style={s.challengeTitle} numberOfLines={1}>{challengeTitle}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={C.amber} style={s.cardTrailingIcon} />
-              </View>
-            </PaperCard>
-          </TouchableOpacity>
-        )}
-
         {/* ── Basket CTA ── */}
         <TouchableOpacity activeOpacity={0.82} onPress={() => navigation.navigate('MarketBasket')}>
           <PaperCard style={s.cardSpacing} innerStyle={{ padding: 0 }}>
@@ -624,6 +630,27 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {/* ── Banner mời cập nhật khẩu vị (user cũ chưa làm onboarding) ── */}
+        {!tasteBannerHidden && shouldShowTasteBanner(profile) && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('TasteOnboarding')}
+            style={s.tasteBanner}
+          >
+            <Text style={s.tasteBannerEmoji}>🍜</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.tasteBannerTitle}>{t('onboarding.banner.title')}</Text>
+              <Text style={s.tasteBannerBody}>{t('onboarding.banner.body')}</Text>
+            </View>
+            <TouchableOpacity
+              hitSlop={10}
+              onPress={() => { setTasteBannerHidden(true); dismissTasteBanner().catch(() => {}); }}
+            >
+              <Text style={s.tasteBannerDismiss}>{t('onboarding.banner.dismiss')}</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        )}
+
         {/* ── Selection Toggles ── */}
         <View style={s.filtersContainer}>
           <Text style={s.filtersEyebrow}>{t('home.searchOptions')}</Text>
@@ -659,6 +686,13 @@ const HomeScreen = ({ navigation }) => {
             ))}
           </ScrollView>
         </View>
+
+        {/* ── Bộ lọc theo bữa (dụng cụ, chi phí, thời gian, tủ lạnh) ── */}
+        <MealFilterPanel
+          value={mealFilters}
+          onChange={updateMealFilters}
+          onPickFridge={() => navigation.navigate('MarketBasket')}
+        />
 
         {/* ── Search CTA ── */}
         <View style={{ marginHorizontal: 24, marginTop: 16 }}>
@@ -1010,17 +1044,6 @@ const s = StyleSheet.create({
     opacity: 0.4,
   },
 
-  // ── Challenge
-  challengeBorder: { borderColor: C.amber },
-  challengeEyebrow: {
-    fontFamily: 'Nunito_700Bold', fontSize: 10,
-    color: C.amber, letterSpacing: 1, textTransform: 'uppercase',
-  },
-  challengeTitle: {
-    fontFamily: 'Nunito_600SemiBold', fontSize: 14,
-    color: C.text, marginTop: 2,
-  },
-
   // ── Basket
   basketTitle: {
     fontFamily: 'Nunito_700Bold', fontSize: 14,
@@ -1099,6 +1122,17 @@ const s = StyleSheet.create({
     marginLeft: 12,
     paddingRight: 4,
   },
+
+  // ── Banner cập nhật khẩu vị
+  tasteBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 24, marginTop: 20, padding: 14, borderRadius: 16,
+    backgroundColor: '#FFF8EA', borderWidth: 1.5, borderColor: C.primary,
+  },
+  tasteBannerEmoji: { fontSize: 28 },
+  tasteBannerTitle: { fontFamily: 'BeVietnamPro-Bold', fontSize: 15, color: C.woodDark },
+  tasteBannerBody: { fontFamily: 'BeVietnamPro-Regular', fontSize: 13, color: C.textMid, marginTop: 2 },
+  tasteBannerDismiss: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 12, color: C.textLight },
 
   // ── Selection Toggles (Pill style)
   filtersContainer: {

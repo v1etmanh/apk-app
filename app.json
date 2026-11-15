@@ -72,8 +72,7 @@
             ]
           }
         }
-      ],
-      "expo-video"
+      ]
     ],
     "extra": {
       "eas": {

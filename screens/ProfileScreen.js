@@ -17,7 +17,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
 import { useAppStore } from '../store/useAppStore';
-import { deleteProfileMember } from '../utils/database';
+import { deleteProfileMember, loadAllergiesForProfile } from '../utils/database';
+import { tasteSummary } from '../utils/tasteMath';
+import { TASTE_EMOJI } from '../components/onboarding/TasteSummaryCard';
 import { removeMealPlanByProfileId } from '../services/mealPlanService';
 
 // ── Assets ────────────────────────────────────────────────────────────────────
@@ -230,9 +232,50 @@ const SectionStamp = ({ label }) => (
 const ProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { profile, latestMetrics, profiles, activeProfileId, switchProfile, loadAllProfilesAction } = useAppStore();
+  const { profile, latestMetrics, profiles, activeProfileId, switchProfile, loadAllProfilesAction, tasteProfile } = useAppStore();
+  const [allergyRows, setAllergyRows] = useState([]);
 
   useFocusEffect(useCallback(() => { loadAllProfilesAction(); }, []));
+
+  // Dị ứng của hồ sơ đang chọn (cần display_name cho nguyên liệu cụ thể)
+  useFocusEffect(useCallback(() => {
+    if (!activeProfileId) return;
+    loadAllergiesForProfile(activeProfileId).then(setAllergyRows).catch(() => setAllergyRows([]));
+  }, [activeProfileId]));
+
+  // ── Hồ sơ ăn uống: đúng các thông tin onboarding thu thập ──────────────────
+  // (đã bỏ tuổi / mục tiêu / mức vận động / bệnh lý vì không còn dùng khi gợi ý)
+  const goStack = (name) => navigation.getParent()?.navigate(name);
+
+  const regionText = profile?.nation === 'other'
+    ? t('onboarding.region.nations.other')
+    : profile?.home_region
+      ? t(`onboarding.region.regions.${profile.home_region}.label`)
+      : t('profileScreen.notSet');
+  const dietText = profile?.diet_type
+    ? t(`onboarding.diet.diets.${profile.diet_type}.label`, {
+        defaultValue: t('profileScreen.diet.' + profile.diet_type, { defaultValue: profile.diet_type }),
+      })
+    : t('profileScreen.notSet');
+  const allergyText = allergyRows.length
+    ? allergyRows.map(r => (/^\d+$/.test(String(r.allergy_key))
+        ? r.display_name
+        : t(`onboarding.allergies.${r.allergy_key}`, { defaultValue: r.display_name || r.allergy_key }))).join(', ')
+    : t('profileScreen.noAllergy');
+  const taste = tasteProfile || profile?.taste_weight || profile?.taste_profile;
+  const tasteTop = taste ? tasteSummary(taste).slice(0, 4) : [];
+  const tasteLabels = t('onboarding.tastes', { returnObjects: true });
+  const tasteText = tasteTop.length
+    ? tasteTop.map(x => `${TASTE_EMOJI[x.key]} ${tasteLabels[x.key]} ${x.pct}%`).join('  ·  ')
+    : t('profileScreen.notSet');
+  const genderText = profile?.gender === 'female' || profile?.gender === 'male'
+    ? t(`onboarding.body.${profile.gender}`) : null;
+  const foodRows = [
+    { icon: 'map-outline',           label: t('profileScreen.regionLabel'),  value: regionText },
+    { icon: 'restaurant-outline',    label: t('profileScreen.dietLabel'),    value: dietText },
+    { icon: 'warning-outline',       label: t('profileScreen.allergyLabel'), value: allergyText },
+    { icon: 'color-palette-outline', label: t('profileScreen.tasteLabel'),   value: tasteText },
+  ];
 
   // Xóa profile Supabase + xóa luôn meal plan hôm nay của profile đó
   const handleDeleteProfile = (p) => {
@@ -272,19 +315,20 @@ const ProfileScreen = ({ navigation }) => {
     else bmiLabel = t('profileScreen.bmi.obese');
   }
 
+  const personalSub = [genderText, regionText, dietText].filter(Boolean).join(' · ');
   const menuItems = [
     { icon: 'person-outline', iconBgColor: '#C8A96E', label: t('profileScreen.personalInfo'),
-      sub: profile ? t('profileScreen.age', { count: profile.age }) + ' · ' + t('profileScreen.diet.' + profile.diet_type, { defaultValue: '–' }) : t('profileScreen.notSet'),
-      onPress: () => navigation.getParent()?.navigate('EditPersonal') },
+      sub: personalSub || t('profileScreen.notSet'),
+      onPress: () => goStack('EditPersonal') },
     { icon: 'barbell-outline', iconBgColor: '#8B9E6A', label: t('profileScreen.bodyMetrics'),
       sub: latestMetrics ? t('profileScreen.kgBmi', { weight: latestMetrics.weight_kg, bmi: bmi || '–' }) : t('profileScreen.notSet'),
-      onPress: () => navigation.getParent()?.navigate('BodyMetrics') },
+      onPress: () => goStack('BodyMetrics') },
     { icon: 'warning-outline', iconBgColor: '#C88A5A', label: t('profileScreen.allergies'),
       sub: t('profileScreen.allergiesSub'),
-      onPress: () => navigation.getParent()?.navigate('Allergy') },
+      onPress: () => goStack('Allergy') },
     { icon: 'restaurant-outline', iconBgColor: '#A06E6E', label: t('profileScreen.taste'),
       sub: t('profileScreen.tasteSub'),
-      onPress: () => navigation.getParent()?.navigate('TasteProfile') },
+      onPress: () => goStack('TasteProfile') },
   ];
 
   return (
@@ -311,49 +355,11 @@ const ProfileScreen = ({ navigation }) => {
 
           {/* Pills khẩu vị + hoạt động */}
           <View style={s.pillsRow}>
-            {profile?.diet_type && (
-              <WoodChip icon="restaurant-outline" label={t('profileScreen.diet.' + profile.diet_type, { defaultValue: profile.diet_type })} />
-            )}
-            {profile?.activity_level && (
-              <WoodChip icon="bicycle-outline" label={t('profileScreen.activity.' + profile.activity_level, { defaultValue: t('profileScreen.activity.lightly_active') })} />
-            )}
-            {profile?.age && (
-              <WoodChip icon="calendar-outline" label={t('profileScreen.age', { count: profile.age })} />
-            )}
+            {genderText && <WoodChip icon="person-outline" label={genderText} />}
+            {profile?.diet_type && <WoodChip icon="restaurant-outline" label={dietText} />}
+            {(profile?.home_region || profile?.nation === 'other') && <WoodChip icon="map-outline" label={regionText} />}
           </View>
         </View>
-
-        {/* ══ SETUP BANNER — hiện khi profile chưa đủ thông tin ════════════ */}
-        {(!profile?.age || !latestMetrics?.weight_kg) && (
-          <View style={s.setupBanner}>
-            <View style={[StyleSheet.absoluteFill, { borderRadius: 16, overflow: 'hidden' }]} pointerEvents="none">
-              <Image source={TEX.paper} style={{ width: '100%', height: '100%', opacity: 0.9 }} resizeMode="cover" />
-            </View>
-            <Text style={s.setupTitle}>{t('profileScreen.welcome')}</Text>
-            <Text style={s.setupSub}>{t('profileScreen.welcomeBody')}</Text>
-            <View style={s.setupSteps}>
-              {!profile?.age && (
-                <TouchableOpacity style={s.setupStep} onPress={() => navigation.getParent()?.navigate('EditPersonal')}>
-                  <View style={s.setupStepDot}><Text style={s.setupStepNum}>1</Text></View>
-                  <Text style={s.setupStepText}>{t('profileScreen.stepPersonal')}</Text>
-                  <Ionicons name="chevron-forward" size={14} color="#C8A96E" />
-                </TouchableOpacity>
-              )}
-              {!latestMetrics?.weight_kg && (
-                <TouchableOpacity style={s.setupStep} onPress={() => navigation.getParent()?.navigate('BodyMetrics')}>
-                  <View style={s.setupStepDot}><Text style={s.setupStepNum}>2</Text></View>
-                <Text style={s.setupStepText}>{t('profileScreen.stepBody')}</Text>
-                  <Ionicons name="chevron-forward" size={14} color="#C8A96E" />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity style={s.setupStep} onPress={() => navigation.getParent()?.navigate('Allergy')}>
-                <View style={s.setupStepDot}><Text style={s.setupStepNum}>3</Text></View>
-                <Text style={s.setupStepText}>{t('profileScreen.stepAllergy')}</Text>
-                <Ionicons name="chevron-forward" size={14} color="#C8A96E" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* ══ STATS ROW ══════════════════════════════════════════════════════ */}
         <View style={s.statsRow}>
@@ -375,6 +381,28 @@ const ProfileScreen = ({ navigation }) => {
             hasValue={Boolean(bmi)}
             accentColor="rgba(255,180,100,0.25)"
           />
+        </View>
+
+        {/* ══ HỒ SƠ ĂN UỐNG (dữ liệu onboarding) ═════════════════════════════ */}
+        <SectionStamp label={t('profileScreen.foodProfile')} />
+
+        <View style={[s.cardShadow, nativeShadow('#8B5E3C', 0.18, 8, { width: 0, height: 4 }, 5)]}>
+          <View style={s.card}>
+            <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} pointerEvents="none">
+              <Image source={TEX.paper} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            </View>
+            <View style={{ zIndex: 1, paddingHorizontal: 16, paddingVertical: 6 }}>
+              {foodRows.map((row, i) => (
+                <View key={row.label} style={[s.foodRow, i < foodRows.length - 1 && s.foodRowBorder]}>
+                  <Ionicons name={row.icon} size={18} color="#9A7040" style={{ marginTop: 2 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.foodLabel}>{row.label}</Text>
+                    <Text style={s.foodValue}>{row.value}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
         </View>
 
         {/* ══ MEMBERS ════════════════════════════════════════════════════════ */}
@@ -439,6 +467,7 @@ const ProfileScreen = ({ navigation }) => {
         </View>
 
       </ScrollView>
+
     </View>
   );
 };
@@ -458,6 +487,13 @@ const s = StyleSheet.create({
 
   // Stats
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 28 },
+
+  // Hồ sơ ăn uống
+  foodRow: { flexDirection: 'row', gap: 12, paddingVertical: 12 },
+
+  foodRowBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(200,169,110,0.35)' },
+  foodLabel: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 12, color: '#8B7355', marginBottom: 2 },
+  foodValue: { fontFamily: 'BeVietnamPro-Regular', fontSize: 14, color: '#3D2B1F', lineHeight: 20 },
 
   // Card (parchment)
   cardShadow: { borderRadius: 20, marginBottom: 28 },

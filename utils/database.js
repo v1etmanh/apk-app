@@ -9,7 +9,6 @@ import { getIngredientsForLanguage } from './ingredientsData';
 
 const ACTIVE_PROFILE_KEY = 'active_profile_id';
 const WEATHER_CACHE_PREFIX = 'weather_cache_';
-const CHALLENGE_PREFIX = 'challenge_history_';
 const SAVED_DISHES_KEY = 'saved_dishes_v2';
 const RECENT_DISHES_CACHE_KEY = 'recent_dishes_cache_v2';
 const INGREDIENTS_CACHE_KEY = 'ingredients_api_cache_v1';
@@ -391,61 +390,6 @@ export async function loadIngredientsByCategories(categoryKeys, language = i18n.
 
 export function invalidateIngredientCache() {
   _ingredientCache = new Map();
-}
-
-async function challengeKey(date) {
-  return `${CHALLENGE_PREFIX}${await currentUserId()}:${date}`;
-}
-
-export async function saveChallengeHistory({ challenge_date, dish_id, dish_title }) {
-  const key = await challengeKey(challenge_date);
-  const existing = await AsyncStorage.getItem(key);
-  if (existing) return JSON.parse(existing);
-  const record = { challenge_date, dish_id, dish_title, completed: 0, completed_at: null };
-  await AsyncStorage.setItem(key, JSON.stringify(record));
-  return record;
-}
-
-export async function markChallengeCompleted(challenge_date) {
-  const key = await challengeKey(challenge_date);
-  const raw = await AsyncStorage.getItem(key);
-  const record = raw ? JSON.parse(raw) : { challenge_date, dish_id: '', dish_title: '', completed: 0 };
-  record.completed = 1;
-  record.completed_at = nowIso();
-  await AsyncStorage.setItem(key, JSON.stringify(record));
-  return record;
-}
-
-export async function loadChallengeHistory(limitCount = 30) {
-  const prefix = `${CHALLENGE_PREFIX}${await currentUserId()}:`;
-  const keys = (await AsyncStorage.getAllKeys())
-    .filter(key => key.startsWith(prefix))
-    .sort()
-    .reverse()
-    .slice(0, limitCount);
-  if (!keys.length) return [];
-  const pairs = await AsyncStorage.multiGet(keys);
-  return pairs.map(([, value]) => value ? JSON.parse(value) : null).filter(Boolean);
-}
-
-export async function getChallengeDateRecord(challenge_date) {
-  const raw = await AsyncStorage.getItem(await challengeKey(challenge_date));
-  return raw ? JSON.parse(raw) : null;
-}
-
-export async function computeStreak() {
-  const history = await loadChallengeHistory(60);
-  const completed = new Set(history.filter(item => item.completed).map(item => item.challenge_date));
-  let streak = 0;
-  const today = new Date();
-  for (let i = 0; i <= 60; i += 1) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const dateKey = date.toISOString().slice(0, 10).replace(/-/g, '');
-    if (completed.has(dateKey)) streak += 1;
-    else if (i !== 0) break;
-  }
-  return streak;
 }
 
 export async function pruneOldSessions(maxCount = 20) {

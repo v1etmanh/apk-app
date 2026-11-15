@@ -278,6 +278,7 @@ const RecommendScreen = ({ navigation, route }) => {
   const [totalDishes, setTotalDishes]     = useState(0);
   const [error, setError]                 = useState(null);
   const [basketWarning, setBasketWarning] = useState(null); // object khi pool < 10, null bình thường
+  const [relaxedFilters, setRelaxedFilters] = useState([]); // bộ lọc theo bữa bị server nới khi pool rỗng
   const { setCurrentSessionId, profile, activeProfileId, savedDishIds, toggleSaveDish } = useAppStore();
 
   // ── Meal plan state ────────────────────────────────────────────────────────
@@ -408,6 +409,7 @@ const RecommendScreen = ({ navigation, route }) => {
       if (page === 1 && res.data.basket_warning) {
         setBasketWarning(res.data.basket_warning);
       }
+      if (page === 1) setRelaxedFilters(res.data.relaxed_filters || []);
 
       // Chỉ persist session + cache khi tải trang đầu
       if (page === 1) {
@@ -566,6 +568,13 @@ const RecommendScreen = ({ navigation, route }) => {
       )}
 
       {/* ── Basket small-pool warning ── */}
+      {relaxedFilters.length > 0 && (
+        <View style={{ marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 12, backgroundColor: '#FFF4DB', borderWidth: 1, borderColor: '#F59E0B' }}>
+          <Text style={{ fontSize: 13, color: '#5D4037', fontFamily: 'BeVietnamPro-SemiBold' }}>
+            {t('mealFilter.relaxed', { list: relaxedFilters.map(k => t(`mealFilter.relaxedNames.${k}`, { defaultValue: k })).join(', ') })}
+          </Text>
+        </View>
+      )}
       {basketWarning && (
         <View style={s.basketWarnBanner}>
           <View style={s.basketWarnHeader}>

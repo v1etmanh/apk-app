@@ -1,8 +1,10 @@
 /**
  * App.js — Auth-protected navigation
- * Luồng: loading → unauthenticated (Login) | authenticated → Onboarding | Main
+ * Luồng: loading → unauthenticated (Login) | authenticated → Onboarding (user mới) | Main
  */
 
+// PHẢI đứng đầu: vá InteractionManager (RN 0.88 đã gỡ) cho @react-navigation/stack 6.x
+import './utils/interactionManagerShim';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { StatusBar, View, Text, StyleSheet, Image, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,16 +36,18 @@ import HomeScreen              from './screens/HomeScreen';
 import HistoryScreen           from './screens/HistoryScreen';
 import ProfileScreen           from './screens/ProfileScreen';
 import SettingsScreen          from './screens/SettingsScreen';
-import FoodVideosScreen        from './screens/FoodVideosScreen';
 import DishDetailScreen        from './screens/DishDetailScreen';
 import MarketBasketScreen      from './screens/MarketBasketScreen';
 import HistoryDetailScreen     from './screens/HistoryDetailScreen';
 import EditPersonalScreen      from './screens/EditPersonalScreen';
 import BodyMetricsScreen       from './screens/BodyMetricsScreen';
 import AllergyScreen           from './screens/AllergyScreen';
-import CookingChallengeScreen  from './screens/CookingChallengeScreen';
 import TasteProfileScreen      from './screens/TasteProfileScreen';
-// Onboarding screens đã bị loại bỏ — không import nữa
+import OnboardingFlow          from './screens/onboarding/OnboardingFlow';
+import TasteOnboardingScreen  from './screens/onboarding/TasteOnboardingScreen';
+import OnboardingTabScreen    from './screens/onboarding/OnboardingTabScreen';
+import ProfileOnboardingScreen from './screens/onboarding/ProfileOnboardingScreen';
+import { needsOnboarding }    from './services/onboardingService';
 import RecommendScreen         from './screens/RecommendScreen';
 import ResetPasswordScreen     from './screens/ResetPasswordScreen';
 import AddEditProfileScreen    from './screens/AddEditProfileScreen';
@@ -101,10 +105,10 @@ const MainTabs = () => {
       options={{ tabBarLabel: t('tabs.profile'),     tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused}/> }}/>
     <Tab.Screen name="Settings"  component={SettingsScreen}
       options={{ tabBarLabel: t('tabs.settings'),   tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused}/> }}/>
-    <Tab.Screen name="FoodVideos" component={FoodVideosScreen}
+    <Tab.Screen name="Onboarding" component={OnboardingTabScreen}
       options={{
-        tabBarLabel: t('tabs.videos'),
-        tabBarIcon: ({ focused }) => <TabIcon emoji="🎬" focused={focused}/>,
+        tabBarLabel: t('tabs.onboarding'),
+        tabBarIcon: ({ focused }) => <TabIcon emoji="🍜" focused={focused}/>,
       }}/>
   </Tab.Navigator>
   );
@@ -465,6 +469,26 @@ const App = () => {
     }
   };
 
+  // [FIX PERM] GPS trước, notification sau (tránh 2 dialog chồng nhau)
+  const requestDevicePermissions = async () => {
+    const locResult = await getUserLocation();
+    if (locResult) {
+      useAppStore.getState().setLocation({
+        lat: Math.round(locResult.coords.latitude  * 100) / 100,
+        lon: Math.round(locResult.coords.longitude * 100) / 100,
+        province:    useAppStore.getState().location?.province    ?? '',
+        food_region: useAppStore.getState().location?.food_region ?? '',
+      });
+    }
+    // Notification permission + đăng ký token (chạy sau GPS để dialog không chồng)
+    registerDeviceToken(locResult);
+  };
+
+  const handleOnboardingFinish = async () => {
+    setShowOnboarding(false);
+    await requestDevicePermissions();
+  };
+
   const initializeApp = async () => {
     try {
       // authState chỉ chuyển sang authenticated sau khi Supabase khôi phục session.
@@ -522,22 +546,16 @@ const App = () => {
       // Notification channel (Android 8+ bắt buộc)
       await setupNotificationChannel();
 
-      // [FIX PERM] Request GPS + Notification permission SỚM — ngay sau splash
-      // để dialog hiện ra trước mặt user, không chạy ngầm background
-      // GPS trước, notification sau (tránh 2 dialog chồng nhau)
-      const locResult = await getUserLocation();
-      if (locResult) {
-        useAppStore.getState().setLocation({
-          lat: Math.round(locResult.coords.latitude  * 100) / 100,
-          lon: Math.round(locResult.coords.longitude * 100) / 100,
-          province:    useAppStore.getState().location?.province    ?? '',
-          food_region: useAppStore.getState().location?.food_region ?? '',
-        });
-      }
-      // Notification permission + đăng ký token (chạy sau GPS để dialog không chồng)
-      registerDeviceToken(locResult);
+      // Onboarding: hồ sơ chưa hoàn tất onboarding (user mới hoặc cũ) → chạy 5 màn onboarding.
+      // GPS + notification được xin ở cuối onboarding (Màn 5) thay vì ngay sau splash.
+      const { profile: loadedProfile } = useAppStore.getState();
+      const mustOnboard = needsOnboarding(loadedProfile);
 
-      setShowOnboarding(false);
+      if (!mustOnboard) {
+        await requestDevicePermissions();
+      }
+
+      setShowOnboarding(mustOnboard);
       setAppReady(true);
       appReadyRef.current = true; // [FIX LOC-001] sync ref
     } catch (e) {
@@ -584,7 +602,19 @@ const App = () => {
     );
   }
 
-  // Đã đăng nhập → toàn bộ app (onboarding đã bị loại bỏ)
+  // Đã đăng nhập nhưng chưa onboarding → 5 màn onboarding
+  if (showOnboarding) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F5EDDC' }}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F5EDDC" />
+        <NavigationContainer>
+          <OnboardingFlow mode="full" onFinish={handleOnboardingFinish} />
+        </NavigationContainer>
+      </SafeAreaView>
+    );
+  }
+
+  // Đã đăng nhập → toàn bộ app
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5EDDC" />
@@ -597,10 +627,11 @@ const App = () => {
           <Stack.Screen name="EditPersonal"     component={EditPersonalScreen}/>
           <Stack.Screen name="BodyMetrics"      component={BodyMetricsScreen}/>
           <Stack.Screen name="Allergy"          component={AllergyScreen}/>
-          <Stack.Screen name="CookingChallenge" component={CookingChallengeScreen}/>
           <Stack.Screen name="TasteProfile"     component={TasteProfileScreen}/>
           <Stack.Screen name="Recommend"        component={RecommendScreen}/>
           <Stack.Screen name="AddEditProfile"   component={AddEditProfileScreen}/>
+          <Stack.Screen name="TasteOnboarding"  component={TasteOnboardingScreen}/>
+          <Stack.Screen name="ProfileOnboarding" component={ProfileOnboardingScreen}/>
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaView>
