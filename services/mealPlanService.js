@@ -98,7 +98,11 @@ export async function addDishToMealPlan(profileInfo, dish) {
       cook_time_min: dish.cook_time_min || 0,
       nation:        dish.nation     || '',
       final_score:   dish.final_score || 0,
-      explanation:   dish.explanation?.[0] || '',
+      // Giữ lý do gợi ý để mở lại từ "Bữa hôm nay" vẫn thấy "Vì sao chọn món này"
+      explanation:   Array.isArray(dish.explanation) ? (dish.explanation[0] || '') : (dish.explanation || null),
+      why:           dish.why        || null,
+      match_pct:     dish.match_pct  ?? null,
+      rank:          dish.rank       ?? null,
       url:           dish.url        || '',   // ← giữ link hướng dẫn nấu
       est_cost_vnd:   dish.est_cost_vnd   ?? null,  // giá ước tính 1 phần (VND)
       est_cost_level: dish.est_cost_level ?? null,

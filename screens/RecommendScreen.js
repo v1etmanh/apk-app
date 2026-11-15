@@ -20,6 +20,7 @@ import WoodButton from '../components/ui/WoodButton';
 import { MascotCat, MascotSays } from '../components/ui/Mascot';
 import { CircleButton, Pill, DashedNote } from '../components/ui/Notebook';
 import { withIngredients } from '../utils/searchParams';
+import { hasWhy, whyHeadline, whyTags, reasonView } from '../utils/whyText';
 import ResultFilterBar, { DEFAULT_RESULT_FILTERS, sanitizeResultFilters, applyResultFilters } from '../components/ResultFilterBar';
 import { formatVnd } from '../utils/price';
 
@@ -37,15 +38,21 @@ import {
 const MAX_SESSIONS_STORED = 20; // Số phiên tối đa lưu trên Supabase
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-// Server trả `explanation` dạng object { headline, weather_reason, ingredient_note, tags, … };
-// dữ liệu cũ (cache / phiên đã lưu) có thể là mảng chuỗi.
-export const readExplanation = (exp) => {
-  if (Array.isArray(exp)) return { headline: exp[0] || '', tags: [] };
-  if (!exp || typeof exp !== 'object') return { headline: '', tags: [] };
+// Lý do gợi ý: ưu tiên `why` (server dựng từ sổ cái điểm, app ghép câu theo ngôn ngữ).
+// Dữ liệu cũ (cache / phiên đã lưu) chỉ có `explanation` dạng object { headline, tags } hoặc mảng chuỗi.
+export const readExplanation = (exp, why, t) => {
+  if (t && hasWhy(why)) {
+    return {
+      headline: whyHeadline(why, t),
+      reasons: why.reasons.slice(0, 2).map(r => reasonView(r, t)),
+      tags: whyTags(why, t),
+    };
+  }
+  if (Array.isArray(exp)) return { headline: exp[0] || '', reasons: [], tags: [] };
+  if (!exp || typeof exp !== 'object') return { headline: '', reasons: [], tags: [] };
   return {
     headline: exp.headline || '',
-    weather: exp.weather_reason || '',
-    ingredient: exp.ingredient_note || '',
+    reasons: [],
     tags: Array.isArray(exp.tags) ? exp.tags : [],
   };
 };
@@ -115,7 +122,7 @@ const LoadingView = ({ weather, picked, allergyCount, onCancel }) => {
 // ── Thẻ món hợp nhất (rank 1) ─────────────────────────────────────────────────
 const HeroCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }) => {
   const { t } = useTranslation();
-  const exp = readExplanation(item.explanation);
+  const exp = readExplanation(item.explanation, item.why, t);
   const priceLabel = usePriceLabel(item.est_cost_vnd);
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={s.hero}>
@@ -134,18 +141,12 @@ const HeroCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }
       <View style={s.heroBody}>
         <Text style={s.heroTitle} numberOfLines={2}>{item.title}</Text>
         {!!exp.headline && <Text style={s.heroHeadline}>{exp.headline}</Text>}
-        {!!exp.weather && (
-          <View style={s.reasonLine}>
-            <Ionicons name="sunny-outline" size={16} color="#B26A00" style={{ marginTop: 1 }} />
-            <Text style={s.reasonText}>{exp.weather}</Text>
+        {exp.reasons.map(r => (
+          <View key={r.key} style={s.reasonLine}>
+            <Ionicons name={r.icon} size={16} color={r.color} style={{ marginTop: 1 }} />
+            <Text style={s.reasonText}>{r.title}</Text>
           </View>
-        )}
-        {!!exp.ingredient && (
-          <View style={s.reasonLine}>
-            <Ionicons name="basket-outline" size={16} color={C.woodDark} style={{ marginTop: 1 }} />
-            <Text style={s.reasonText}>{exp.ingredient}</Text>
-          </View>
-        )}
+        ))}
         {item.missing_ingredients?.length > 0 && (
           <View style={s.reasonLine}>
             <Ionicons name="cart-outline" size={16} color={C.seasonText} style={{ marginTop: 1 }} />
@@ -171,7 +172,7 @@ const HeroCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }
 // ── Dòng món (rank 2+) ────────────────────────────────────────────────────────
 const ListRow = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }) => {
   const { t } = useTranslation();
-  const exp = readExplanation(item.explanation);
+  const exp = readExplanation(item.explanation, item.why, t);
   const priceLabel = usePriceLabel(item.est_cost_vnd);
   const meta = [
     priceLabel,
@@ -436,7 +437,7 @@ const RecommendScreen = ({ navigation, route }) => {
           ingredient_boost: d.ingredient_boost || 0, title: d.title,
           nation: d.nation || '', cook_time_min: d.cook_time_min || 0,
           est_cost_vnd: d.est_cost_vnd ?? null, est_cost_level: d.est_cost_level ?? null,
-          explanation: d.explanation || [], image_url: d.image_url || '', match_pct: d.match_pct,
+          explanation: d.explanation || [], why: d.why || null, image_url: d.image_url || '', match_pct: d.match_pct,
           url: d.url || '', score_breakdown: d.score_breakdown || {},
         })));
       }

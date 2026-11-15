@@ -647,6 +647,9 @@ export async function saveDish(dish) {
     url: dish.url || '',
     est_cost_vnd: dish.est_cost_vnd ?? null,
     est_cost_level: dish.est_cost_level ?? null,
+    match_pct: dish.match_pct ?? null,
+    explanation: dish.explanation || null,
+    why: dish.why || null,
     saved_at: nowIso(),
   };
   const userId = await currentUserId();
