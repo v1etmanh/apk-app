@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from './secureStorage';
 
 import { api } from '../services/api';
 import { supabase } from '../store/supabase';

@@ -127,7 +127,7 @@ const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
 const st = StyleSheet.create({
   // Backdrop
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(30,15,5,0.55)',
   },
 

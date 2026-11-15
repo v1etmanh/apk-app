@@ -681,7 +681,7 @@ const s = StyleSheet.create({
   },
 
   skyOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(255,255,255,0.28)',
   },
 

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStorage from '../utils/secureStorage';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -9,9 +9,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 const SecureStoreAdapter = {
-  getItem: (key) => SecureStore.getItemAsync(key),
-  setItem: (key, value) => SecureStore.setItemAsync(key, value),
-  removeItem: (key) => SecureStore.deleteItemAsync(key),
+  getItem: (key) => SecureStorage.getItemAsync(key),
+  setItem: (key, value) => SecureStorage.setItemAsync(key, value),
+  removeItem: (key) => SecureStorage.deleteItemAsync(key),
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

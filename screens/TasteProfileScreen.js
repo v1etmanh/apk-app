@@ -544,7 +544,7 @@ const st = StyleSheet.create({
     shadowOpacity: 0.2, shadowRadius: 6, elevation: 4,
   },
   saveBtnOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(80,45,15,0.12)',
     borderRadius: 16, justifyContent: 'center', alignItems: 'center',
   },

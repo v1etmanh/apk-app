@@ -89,7 +89,7 @@ const LoadingScreen = ({ isReady, onFinish }) => {
 
 const st = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 9999,
   },
   root: {

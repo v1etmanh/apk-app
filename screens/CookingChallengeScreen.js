@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   heroImg:          { width:'100%', height:'100%' },
   heroFallback:     { width:'100%', height:'100%', justifyContent:'center', alignItems:'center', backgroundColor:'#EFF6FF' },
   heroEmoji:        { fontSize:80 },
-  doneOverlay:      { ...StyleSheet.absoluteFillObject, backgroundColor:'rgba(74,222,128,0.7)',
+  doneOverlay:      { ...StyleSheet.absoluteFill, backgroundColor:'rgba(74,222,128,0.7)',
                       justifyContent:'center', alignItems:'center' },
   doneOverlayEmoji: { fontSize:52, marginBottom:4 },
   doneOverlayText:  { fontSize:24, fontFamily:'Patrick Hand', color:'#fff' },

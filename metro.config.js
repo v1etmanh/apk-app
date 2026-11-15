@@ -15,15 +15,4 @@ config.resolver.unstable_conditionNames = [
   'default',
 ];
 
-// 2. Đảm bảo .mjs không được resolve trước .js
-config.resolver.sourceExts = [
-  'js',
-  'jsx',
-  'ts',
-  'tsx',
-  'json',
-  'cjs',
-  'mjs',
-];
-
 module.exports = config;

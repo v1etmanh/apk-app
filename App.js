@@ -118,11 +118,11 @@ const SplashScreen = () => {
     {/* Layer 1 — wood background */}
     <Image
       source={TEX.wood}
-      style={[StyleSheet.absoluteFillObject, { opacity: 0.82 }]}
+      style={[StyleSheet.absoluteFill, { width: '100%', height: '100%', opacity: 0.82 }]}
       resizeMode="cover"
     />
     {/* Layer 2 — cream overlay */}
-    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(240,230,210,0.45)' }]} />
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(240,230,210,0.45)' }]} />
 
     {/* ParchmentCard chứa mascot */}
     <View style={sp.cardShadow}>

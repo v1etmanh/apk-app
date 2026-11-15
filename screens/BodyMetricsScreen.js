@@ -372,7 +372,7 @@ const CARD_SHADOW = Platform.select({
 
 const st = StyleSheet.create({
   root:       { flex: 1, backgroundColor: C.paper },
-  bgOverlay:  { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(250,243,224,0.5)' },
+  bgOverlay:  { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(250,243,224,0.5)' },
 
   // Header
   header: {
@@ -460,7 +460,7 @@ const st = StyleSheet.create({
   },
   saveBtn:        { height: 54, borderRadius: 16, overflow: 'hidden', justifyContent: 'center' },
   saveBtnOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(90,55,20,0.14)', borderRadius: 16, gap: 8,
   },

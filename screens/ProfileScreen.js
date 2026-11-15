@@ -81,7 +81,7 @@ const HeroAvatar = ({ avatar, displayName }) => (
   <View style={av.outer}>
     {/* Vòng ngoài gỗ */}
     <View style={[av.ring, nativeShadow('#8B5E3C', 0.25, 10, { width: 0, height: 5 }, 7)]}>
-      <View style={{ borderRadius: 60, overflow: 'hidden', ...StyleSheet.absoluteFillObject }}>
+      <View style={{ borderRadius: 60, overflow: 'hidden', ...StyleSheet.absoluteFill }}>
         <Image source={TEX.wood} style={{ width: '100%', height: '100%', opacity: 0.8 }} resizeMode="cover" />
       </View>
     </View>
@@ -101,7 +101,7 @@ const HeroAvatar = ({ avatar, displayName }) => (
 // ── WoodChip — tag metadata nhỏ ──────────────────────────────────────────────
 const WoodChip = ({ icon, label }) => (
   <View style={ch.wrap}>
-    <View style={{ borderRadius: 999, overflow: 'hidden', ...StyleSheet.absoluteFillObject }}>
+    <View style={{ borderRadius: 999, overflow: 'hidden', ...StyleSheet.absoluteFill }}>
       <Image source={TEX.wood} style={{ width: '100%', height: '100%', opacity: 0.75 }} resizeMode="cover" />
     </View>
     <Ionicons name={icon} size={13} color="#FDF5E6" style={{ zIndex: 1 }} />
@@ -291,9 +291,9 @@ const ProfileScreen = ({ navigation }) => {
     <View style={s.root}>
       <StatusBar barStyle="dark-content" />
       {/* Layer 1 — gỗ nền */}
-      <Image source={TEX.wood} style={[StyleSheet.absoluteFillObject, { opacity: 0.82 }]} resizeMode="cover" />
+      <Image source={TEX.wood} style={[StyleSheet.absoluteFill, { width: '100%', height: '100%', opacity: 0.82 }]} resizeMode="cover" />
       {/* Layer 2 — overlay kem */}
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(240,230,210,0.48)' }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(240,230,210,0.48)' }]} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

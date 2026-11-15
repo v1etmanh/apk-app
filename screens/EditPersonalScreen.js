@@ -428,7 +428,7 @@ const st = StyleSheet.create({
     backgroundColor: C.paper,
   },
   paperOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(250,243,224,0.55)',
   },
 
