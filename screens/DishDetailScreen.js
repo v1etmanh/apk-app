@@ -251,18 +251,37 @@ const DishDetailScreen = ({ route, navigation }) => {
             </View>
           ) : null}
 
+          {/* ── Cooking Steps CTA ── */}
+          <TouchableOpacity
+            style={[s.recipeBtn, dishUrl ? { marginBottom: 12 } : null]}
+            activeOpacity={0.85}
+            onPress={() =>
+              navigation.navigate('CookingSteps', {
+                dishId: dish.dish_id || dish.id,
+                dish,
+                dishUrl,
+              })
+            }
+          >
+            <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 16, opacity: 0.9 }} resizeMode="cover" />
+            <View style={s.recipeBtnInner}>
+              <Ionicons name="restaurant-outline" size={20} color="#FFFFFF" />
+              <Text style={s.recipeBtnText}>{t('dish.viewCookingSteps')}</Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+            </View>
+          </TouchableOpacity>
+
           {/* ── Recipe Link ── */}
           {dishUrl ? (
             <TouchableOpacity 
-              style={s.recipeBtn} 
-              activeOpacity={0.85}
+              style={s.sourceLinkBtn} 
+              activeOpacity={0.8}
               onPress={() => Linking.openURL(dishUrl)}
             >
-              <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 16, opacity: 0.9 }} resizeMode="cover" />
-              <View style={s.recipeBtnInner}>
-                <Ionicons name="book-outline" size={20} color="#FFFFFF" />
-                <Text style={s.recipeBtnText}>{t('dish.fullRecipe')}</Text>
-                <Ionicons name="open-outline" size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
+              <View style={s.sourceLinkBtnInner}>
+              <Ionicons name="book-outline" size={17} color={C.primary} />
+              <Text style={s.sourceLinkBtnText}>{t('dish.sourceRecipeLink')}</Text>
+              <Ionicons name="open-outline" size={15} color={C.primary} style={{ marginLeft: 6 }} />
               </View>
             </TouchableOpacity>
           ) : null}
@@ -640,6 +659,27 @@ const s = StyleSheet.create({
   },
 
   // Feedback Stamps
+  sourceLinkBtn: {
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.65)',
+    borderWidth: 1.2,
+    borderColor: C.paperStroke,
+    marginBottom: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sourceLinkBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sourceLinkBtnText: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 14,
+    color: C.primary,
+    marginLeft: 8,
+  },
   feedbackSection: {
     marginTop: 10,
     paddingTop: 24,

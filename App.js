@@ -37,6 +37,7 @@ import HistoryScreen           from './screens/HistoryScreen';
 import ProfileScreen           from './screens/ProfileScreen';
 import SettingsScreen          from './screens/SettingsScreen';
 import DishDetailScreen        from './screens/DishDetailScreen';
+import CookingStepsScreen      from './screens/CookingStepsScreen';
 import MarketBasketScreen      from './screens/MarketBasketScreen';
 import HistoryDetailScreen     from './screens/HistoryDetailScreen';
 import EditPersonalScreen      from './screens/EditPersonalScreen';
@@ -623,6 +624,7 @@ const App = () => {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Main"             component={MainTabs}/>
           <Stack.Screen name="DishDetail"       component={DishDetailScreen}/>
+          <Stack.Screen name="CookingSteps"     component={CookingStepsScreen}/>
           <Stack.Screen name="MarketBasket"     component={MarketBasketScreen}/>
           <Stack.Screen name="HistoryDetail"    component={HistoryDetailScreen}/>
           <Stack.Screen name="EditPersonal"     component={EditPersonalScreen}/>

@@ -34,7 +34,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true; // tránh loop vô hạn
 
       const { error: refreshError } = await supabase.auth.refreshSession();
@@ -43,10 +43,15 @@ api.interceptors.response.use(
         // check nếu việc refresh thành công thì thực hiện lấy secssion
         const { data: { session } } = await supabase.auth.getSession();
         // lấy dữ liệu là data và lấy thành phần con của data có tên là session
-        originalRequest.headers['Authorization'] = `Bearer ${session.access_token}`;
-        // thay token trong header bằng token mới
-        return api(originalRequest); // thử lại request cũ
+        if (session?.access_token) {
+          originalRequest.headers['Authorization'] = `Bearer ${session.access_token}`;
+          // thay token trong header bằng token mới
+          return api(originalRequest); // thử lại request cũ
+        }
       }
+      error.isAuthExpired = true;
+    } else if (error.response?.status === 401) {
+      error.isAuthExpired = true;
     }
 
     const msg = error.response?.data?.detail || error.message;
