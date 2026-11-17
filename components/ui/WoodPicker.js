@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from '../../theme';
+import { useTranslation } from 'react-i18next';
 
 const FlagMark = ({ code }) => {
   if (!code) return null;
@@ -84,6 +85,7 @@ const FlagMark = ({ code }) => {
 };
 
 const WoodPicker = ({ selectedValue, onValueChange, items, placeholder }) => {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -99,7 +101,7 @@ const WoodPicker = ({ selectedValue, onValueChange, items, placeholder }) => {
   };
 
   const selectedItem = items.find(i => String(i.value) === String(selectedValue));
-  const displayText = selectedItem ? selectedItem.label : (placeholder || 'Chọn');
+  const displayText = selectedItem ? selectedItem.label : (placeholder || t('common.search'));
 
   return (
     <>
@@ -115,7 +117,7 @@ const WoodPicker = ({ selectedValue, onValueChange, items, placeholder }) => {
           
           <View style={st.sheet}>
             <View style={st.sheetHeader}>
-              <Text style={st.sheetTitle}>{placeholder || 'Tùy chọn'}</Text>
+              <Text style={st.sheetTitle}>{placeholder || t('common.search')}</Text>
               <TouchableOpacity onPress={closePicker} style={st.closeBtn}>
                 <Ionicons name="close-circle" size={28} color={C.textMid} />
               </TouchableOpacity>

@@ -33,7 +33,9 @@ import {
   DEFAULT_REMINDER_TIMES,
 } from '../services/mealReminderService';
 import { useAppStore } from '../store/useAppStore';
-import { supabase }    from '../store/suppabase';
+import { supabase }    from '../store/supabase';
+import { useTranslation } from 'react-i18next';
+import i18n, { changeLanguage as changeAppLanguage } from '../i18n';
 import { C }           from '../theme';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard        from '../components/ui/PaperCard';
@@ -122,12 +124,12 @@ const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => ({
   value: String(m),
 }));
 
-const TimePickerRow = ({ meal, onChange, isLast }) => (
+const TimePickerRow = ({ meal, onChange, isLast, label }) => (
   <View style={[st.settingsRow, { paddingVertical: 10 }]}>
     <View style={[st.settingsIconBox, { backgroundColor: 'rgba(251,191,36,0.15)' }]}>
       <Clock weight="duotone" size={20} color={C.accentGold ?? '#C97A1A'} />
     </View>
-    <Text style={st.settingsRowLabel}>{meal.label}</Text>
+    <Text style={st.settingsRowLabel}>{label || meal.label}</Text>
     <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
       <WoodPicker
         selectedValue={String(meal.hour)}
@@ -145,9 +147,12 @@ const TimePickerRow = ({ meal, onChange, isLast }) => (
 
 // ─── SettingsScreen ──────────────────────────────────────────────────────────
 const SettingsScreen = () => {
+  const { t } = useTranslation();
   const [maxCookTime,       setMaxCookTime]          = useState('60');
   const [costPreference,    setCostPreferenceLocal]  = useState('2');
-  const [language,          setLanguage]             = useState('vi');
+  const [language,          setLanguage]             = useState(
+    i18n.language === 'en' ? 'en' : 'vi'
+  );
   const [unitSystem,        setUnitSystem]           = useState('metric');
   const [reminderEnabled,   setReminderEnabled]      = useState(false);
   const [reminderTimes,     setReminderTimes]        = useState(DEFAULT_REMINDER_TIMES);
@@ -193,7 +198,9 @@ const SettingsScreen = () => {
       ]);
       setMaxCookTime(cook           || '60');
       setCostPreferenceLocal(cost   || '2');
-      setLanguage(lang              || 'vi');
+      setLanguage(lang === 'en' || lang === 'vi'
+        ? lang
+        : (i18n.language === 'en' ? 'en' : 'vi'));
       setUnitSystem(unit            || 'metric');
       if (lat && lon) setLocation({
         ...location,
@@ -221,11 +228,11 @@ const SettingsScreen = () => {
           if (newStatus !== 'granted') {
             // Đã từng deny → dialog không hiện nữa → mở System Settings
             Alert.alert(
-              'Cần quyền thông báo',
-              'Vui lòng bật thông báo cho Daily Mate trong Cài đặt điện thoại.',
+              t('settings.reminderPermissionTitle'),
+              t('settings.reminderPermissionBody'),
               [
-                { text: 'Thôi', style: 'cancel' },
-                { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
+                { text: t('common.cancel'), style: 'cancel' },
+                { text: t('settings.openSettings'), onPress: () => Linking.openSettings() },
               ],
             );
             return; // switch không bật
@@ -238,9 +245,11 @@ const SettingsScreen = () => {
         const lunch  = reminderTimes.find(t => t.id === 'lunch');
         const dinner = reminderTimes.find(t => t.id === 'dinner');
         Alert.alert(
-          '✅ Đã bật',
-          `Nhắc bữa trưa lúc ${String(lunch.hour).padStart(2,'0')}:${String(lunch.minute).padStart(2,'0')} ` +
-          `và bữa tối lúc ${String(dinner.hour).padStart(2,'0')}:${String(dinner.minute).padStart(2,'0')}.`,
+          t('settings.reminderEnabled'),
+          t('settings.reminderBody', {
+            lunch: `${String(lunch.hour).padStart(2,'0')}:${String(lunch.minute).padStart(2,'0')}`,
+            dinner: `${String(dinner.hour).padStart(2,'0')}:${String(dinner.minute).padStart(2,'0')}`,
+          }),
         );
       } else {
         await cancelAllReminders();
@@ -249,7 +258,7 @@ const SettingsScreen = () => {
       }
     } catch (e) {
       console.error('handleReminderToggle:', e);
-      Alert.alert('Lỗi', 'Không thể thay đổi cài đặt thông báo.');
+      Alert.alert(t('common.error'), t('settings.notificationError'));
     }
   };
 
@@ -268,11 +277,19 @@ const SettingsScreen = () => {
 
   const save = async (key, val) => {
     try { await setSetting(key, String(val)); }
-    catch { Alert.alert('Lỗi', 'Không thể lưu cài đặt'); }
+    catch { Alert.alert(t('common.error'), t('settings.notificationError')); }
   };
 
   const handleCookTimeChange = async v => { setMaxCookTime(v);         await save('max_cook_time',  v); };
-  const handleLanguageChange = async v => { setLanguage(v);            await save('language',        v); };
+  const handleLanguageChange = async v => {
+    setLanguage(v);
+    await save('language', v);
+    await changeAppLanguage(v);
+    await useAppStore.getState().initializeIngredients(v);
+    if (reminderEnabled) {
+      await rescheduleAllReminders(reminderTimes);
+    }
+  };
   const handleUnitChange     = async v => { setUnitSystem(v);          await save('unit_system',     v); };
   const handleCostChange     = async v => {
     setCostPreferenceLocal(v);
@@ -281,15 +298,15 @@ const SettingsScreen = () => {
   };
 
   const clearHistory = () => {
-    Alert.alert('Xóa lịch sử', 'Hành động này không thể hoàn tác nhé!', [
-      { text: 'Thôi', style: 'cancel' },
+    Alert.alert(t('settings.clearHistory'), t('settings.clearHistoryBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Xóa hết', style: 'destructive', onPress: async () => {
+        text: t('settings.clearAll'), style: 'destructive', onPress: async () => {
           try {
             await clearAllHistory();
-            Alert.alert('Xong rồi! 🌿', 'Lịch sử đã được xóa sạch');
+            Alert.alert(t('common.done'), t('settings.historyCleared'));
           } catch {
-            Alert.alert('Ối!', 'Không thể xóa lịch sử');
+            Alert.alert(t('common.error'), t('settings.clearHistoryError'));
           }
         },
       },
@@ -297,20 +314,20 @@ const SettingsScreen = () => {
   };
 
   const syncIngredients = () => {
-    Alert.alert('Thông báo', 'Đang đồng bộ nguyên liệu...');
-    setTimeout(() => Alert.alert('Thành công ✓', 'Nguyên liệu đã được cập nhật'), 1000);
+    Alert.alert(t('settings.sync'), t('settings.syncStarted'));
+    setTimeout(() => Alert.alert(t('common.done'), t('settings.syncDone')), 1000);
   };
 
-  const exportData = () => Alert.alert('Xuất dữ liệu', 'Tính năng sẽ có trong phiên bản tới 🚀');
+  const exportData = () => Alert.alert(t('settings.export'), t('settings.exportSoon'));
 
   const handleLogout = () => {
     Alert.alert(
-      'Đăng xuất',
-      'Bạn chắc chắn muốn đăng xuất không? 🐱',
+      t('settings.logout'),
+      t('settings.logoutConfirm'),
       [
-        { text: 'Thôi', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Đăng xuất',
+          text: t('settings.logoutConfirmAction'),
           style: 'destructive',
           onPress: async () => {
             await supabase.auth.signOut();
@@ -349,8 +366,8 @@ const SettingsScreen = () => {
             <GearSix weight="duotone" size={44} color={C.textMid} />
           </Animated.View>
 
-          <Text style={st.headerTitle}>Cài đặt</Text>
-          <Text style={st.headerSub}>Tuỳ chỉnh theo ý bạn nhé</Text>
+          <Text style={st.headerTitle}>{t('settings.title')}</Text>
+          <Text style={st.headerSub}>{t('settings.subtitle')}</Text>
           <Svg width={SW} height={22} style={st.headerWave}>
             <Path
               d={`M0,8 Q${SW * .13},20 ${SW * .27},9 Q${SW * .41},0 ${SW * .55},11 Q${SW * .69},20 ${SW * .83},8 Q${SW * .92},2 ${SW},9 L${SW},22 L0,22 Z`}
@@ -360,12 +377,12 @@ const SettingsScreen = () => {
         </ImageBackground>
 
         {/* ── Section: Thông báo ── */}
-        <SectionHeader title="Thông báo nhắc ăn" />
+        <SectionHeader title={t('settings.notifications')} />
         <PaperCard containerStyle={st.cardWrapper}>
           <SettingsRow
             IconComponent={Bell}
             iconBg="rgba(251,191,36,0.2)"
-            label="Nhắc bữa trưa & tối"
+            label={t('settings.mealReminder')}
             isLast={true}
             control={
               <Switch
@@ -379,20 +396,20 @@ const SettingsScreen = () => {
 
         </PaperCard>
 
-        <SectionHeader title="Gợi ý mặc định" />
+        <SectionHeader title={t('settings.defaults')} />
         <PaperCard containerStyle={st.cardWrapper}>
           <SettingsRow
             IconComponent={CurrencyDollar}
             iconBg="rgba(56,176,122,0.2)"
-            label="Mức chi phí"
+            label={t('settings.cost')}
             control={
               <WoodPicker
                 selectedValue={costPreference}
                 onValueChange={handleCostChange}
                 items={[
-                  { label: '🌿 Tiết kiệm', value: '1' },
-                  { label: '💰 Vừa phải',  value: '2' },
-                  { label: '💎 Thoải mái', value: '3' },
+                  { label: t('settings.budget'), value: '1' },
+                  { label: t('settings.moderate'),  value: '2' },
+                  { label: t('settings.comfortable'), value: '3' },
                 ]}
               />
             }
@@ -400,12 +417,28 @@ const SettingsScreen = () => {
           <SettingsRow
             IconComponent={Timer}
             iconBg="rgba(52,152,219,0.2)"
-            label="Thời gian nấu tối đa"
+            label={t('settings.maxCookTime')}
             control={
               <WoodPicker
                 selectedValue={maxCookTime}
                 onValueChange={handleCookTimeChange}
-                items={['15', '30', '45', '60', '75', '90', '115'].map(v => ({ label: `${v} phút`, value: v }))}
+                items={['15', '30', '45', '60', '75', '90', '115'].map(v => ({ label: t('common.minutes', { count: v }), value: v }))}
+              />
+            }
+          />
+          <SettingsRow
+            IconComponent={Globe}
+            iconBg="rgba(96,165,250,0.18)"
+            label={t('language.label')}
+            control={
+              <WoodPicker
+                selectedValue={language}
+                onValueChange={handleLanguageChange}
+                placeholder={t('language.label')}
+                items={[
+                  { label: t('language.vietnamese'), value: 'vi', flagCode: 'VN' },
+                  { label: t('language.english'), value: 'en', flagCode: 'GLOBAL' },
+                ]}
               />
             }
             isLast
@@ -414,13 +447,13 @@ const SettingsScreen = () => {
 
 
         {/* ── Section: Tài khoản ── */}
-        <SectionHeader title="Tài khoản" />
+        <SectionHeader title={t('settings.account')} />
         <PaperCard containerStyle={st.cardWrapper}>
           <ActionRow
             IconComponent={SignOut}
             iconBg="rgba(231,76,60,0.2)"
-            label="Đăng xuất"
-            actionLabel="Thoát"
+            label={t('settings.logout')}
+            actionLabel={t('settings.logoutAction')}
             onPress={handleLogout}
             danger
             isLast
@@ -434,7 +467,7 @@ const SettingsScreen = () => {
               fill="none" stroke={C.dashed} strokeWidth={1.2} strokeDasharray="4,3" />
           </Svg>
           <View style={st.versionBadge}>
-            <Text style={st.versionText}>🌿 Phiên bản 1.0.0</Text>
+          <Text style={st.versionText}>{t('settings.version')}</Text>
           </View>
           <Text style={st.serverText}>api.wafrs.app</Text>
           <PawPrint weight="duotone" size={24} color={C.woodLight} style={{ opacity: 0.3, marginTop: 8 }} />

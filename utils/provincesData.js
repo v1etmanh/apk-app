@@ -1,5 +1,5 @@
 // utils/provincesData.js
-// Local JSON data layer cho provinces/taste-profile — thay thế Firestore getProvinces().
+// Local JSON data layer cho provinces/taste-profile.
 //
 // Single source of truth: assets/data/provinces.json (exported từ server)
 // Không cần network. Hoạt động offline hoàn toàn.

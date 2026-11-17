@@ -1,5 +1,6 @@
 import axios from 'axios';
-import { supabase } from '../store/suppabase'; // 👈 import supabase client
+import { supabase } from '../store/supabase';
+import i18n from '../i18n';
 
 // [FIX ID-M001] Dùng env var thay vì hardcode local IP + HTTP
 // Tạo .env: EXPO_PUBLIC_API_BASE_URL=https://your-production-server.com
@@ -19,6 +20,9 @@ api.interceptors.request.use(
     if (session?.access_token) {
       config.headers['Authorization'] = `Bearer ${session.access_token}`;
     }
+    // Backend can return localized dish/recommendation content when supported.
+    config.headers['Accept-Language'] = i18n.language || 'vi';
+    config.params = { ...(config.params || {}), lang: i18n.language || 'vi' };
     return config;
   },
   (error) => Promise.reject(error)
@@ -30,15 +34,24 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true; // tránh loop vô hạn
 
       const { error: refreshError } = await supabase.auth.refreshSession();
+      // trích xuất trường error ra và đổi tên nso thành refresherror
       if (!refreshError) {
+        // check nếu việc refresh thành công thì thực hiện lấy secssion
         const { data: { session } } = await supabase.auth.getSession();
-        originalRequest.headers['Authorization'] = `Bearer ${session.access_token}`;
-        return api(originalRequest); // thử lại request cũ
+        // lấy dữ liệu là data và lấy thành phần con của data có tên là session
+        if (session?.access_token) {
+          originalRequest.headers['Authorization'] = `Bearer ${session.access_token}`;
+          // thay token trong header bằng token mới
+          return api(originalRequest); // thử lại request cũ
+        }
       }
+      error.isAuthExpired = true;
+    } else if (error.response?.status === 401) {
+      error.isAuthExpired = true;
     }
 
     const msg = error.response?.data?.detail || error.message;

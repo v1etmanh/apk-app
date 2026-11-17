@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 import {
   saveProfileMember, loadProfileById,
   deleteProfileMember, getActiveProfileId, setActiveProfileId,
@@ -53,7 +54,9 @@ const SectionLabel = ({ text }) => (
   <Text style={st.sectionLabel}>{text}</Text>
 );
 
-const ChipGroup = ({ options, value, onChange }) => (
+const ChipGroup = ({ options, value, onChange, translationPath }) => {
+  const { t } = useTranslation();
+  return (
   <View style={st.chipRow}>
     {options.map(o => {
       const active = value === o.key;
@@ -64,16 +67,18 @@ const ChipGroup = ({ options, value, onChange }) => (
           activeOpacity={0.75}
           onPress={() => onChange(o.key)}
         >
-          <Text style={[st.chipText, active && st.chipTextActive]}>{o.label}</Text>
+          <Text style={[st.chipText, active && st.chipTextActive]}>{translationPath ? t(translationPath + '.' + o.key) : o.label}</Text>
         </TouchableOpacity>
       );
     })}
   </View>
-);
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 const AddEditProfileScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { loadAllProfilesAction, switchProfile, profiles, activeProfileId } = useAppStore();
 
   const editProfileId = route?.params?.profileId || null;
@@ -111,13 +116,30 @@ const AddEditProfileScreen = ({ navigation, route }) => {
   const handleSave = async () => {
     const trimmed = displayName.trim();
     if (!trimmed) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập tên thành viên.');
+      Alert.alert(t('profileEdit.required'), t('profileEdit.requiredBody'));
+      return;
+    }
+    const year = birthYear ? parseInt(birthYear, 10) : null;
+    // Thêm thành viên mới → chuyển sang onboarding (giới tính, chỉ số, vùng miền, chế độ ăn,
+    // dị ứng, khẩu vị). Hồ sơ được tạo khi hoàn tất onboarding.
+    if (!isEdit) {
+      navigation.replace('ProfileOnboarding', {
+        profileMeta: {
+          displayName:    trimmed,
+          relation,
+          avatar,
+          isDefault:      false,
+          birth_year:     year || null,
+          age:            year ? (new Date().getFullYear() - year) : null,
+          dietary_goal:   goal,
+          activity_level: activity,
+        },
+      });
       return;
     }
     setSaving(true);
     try {
-      const profileId = editProfileId || ('profile_' + Date.now().toString(36));
-      const year = birthYear ? parseInt(birthYear, 10) : null;
+      const profileId = editProfileId;
       await saveProfileMember({
         profileId,
         displayName:    trimmed,
@@ -137,7 +159,7 @@ const AddEditProfileScreen = ({ navigation, route }) => {
       navigation.goBack();
     } catch (e) {
       console.error('handleSave:', e);
-      Alert.alert('Lỗi', 'Không thể lưu thông tin. Thử lại sau.');
+      Alert.alert(t('common.error'), t('profileEdit.saveError'));
     } finally {
       setSaving(false);
     }
@@ -145,16 +167,16 @@ const AddEditProfileScreen = ({ navigation, route }) => {
 
   const handleDelete = () => {
     if (profiles.length <= 1) {
-      Alert.alert('Không thể xóa', 'Bạn cần ít nhất 1 thành viên.');
+      Alert.alert(t('profileEdit.cannotDelete'), t('profileEdit.cannotDeleteBody'));
       return;
     }
     Alert.alert(
-      'Xóa thành viên',
-      `Bạn có chắc muốn xóa "${displayName}"? Dữ liệu sẽ mất vĩnh viễn.`,
+      t('profileEdit.deleteTitle'),
+      t('profileEdit.deleteBody', { name: displayName }),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Xóa', style: 'destructive',
+          text: t('settings.clearAll'), style: 'destructive',
           onPress: async () => {
             setSaving(true);
             try {
@@ -168,7 +190,7 @@ const AddEditProfileScreen = ({ navigation, route }) => {
               navigation.goBack();
             } catch (e) {
               console.error('handleDelete:', e);
-              Alert.alert('Lỗi', 'Không thể xóa. Thử lại sau.');
+              Alert.alert(t('common.error'), t('profileEdit.deleteError'));
             } finally {
               setSaving(false);
             }
@@ -197,16 +219,16 @@ const AddEditProfileScreen = ({ navigation, route }) => {
         {/* ── Header ── */}
         <View style={st.headerRow}>
           <TouchableOpacity style={st.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Text style={st.backBtnText}>‹ Trở về</Text>
+            <Text style={st.backBtnText}>‹ {t('common.back')}</Text>
           </TouchableOpacity>
-          <Text style={st.screenTitle}>{isEdit ? 'Chỉnh sửa' : 'Thêm thành viên'}</Text>
+          <Text style={st.screenTitle}>{isEdit ? t('profileEdit.editTitle') : t('profileEdit.addTitle')}</Text>
           <View style={{ width: 72 }} />
         </View>
 
         {/* ── Avatar picker ── */}
         <View style={st.card}>
           <Image source={ASSETS.paper} style={[StyleSheet.absoluteFill, { borderRadius: 18, opacity: 0.5 }]} resizeMode="cover" />
-          <SectionLabel text="Chọn avatar" />
+          <SectionLabel text={t('profileEdit.chooseAvatar')} />
           <View style={st.avatarGrid}>
             {AVATARS.map(a => (
               <TouchableOpacity
@@ -224,10 +246,10 @@ const AddEditProfileScreen = ({ navigation, route }) => {
         {/* ── Tên + Quan hệ ── */}
         <View style={st.card}>
           <Image source={ASSETS.paper} style={[StyleSheet.absoluteFill, { borderRadius: 18, opacity: 0.5 }]} resizeMode="cover" />
-          <SectionLabel text="Tên thành viên *" />
+          <SectionLabel text={t('profileEdit.memberName')} />
           <TextInput
             style={st.input}
-            placeholder="Ví dụ: Bản thân, Bé Khánh..."
+            placeholder={t('profileEdit.namePlaceholder')}
             placeholderTextColor={C.textLight}
             value={displayName}
             onChangeText={setDisplayName}
@@ -235,16 +257,21 @@ const AddEditProfileScreen = ({ navigation, route }) => {
             autoCapitalize="words"
           />
 
-          <SectionLabel text="Quan hệ" />
-          <ChipGroup options={RELATIONS} value={relation} onChange={setRelation} />
+          <SectionLabel text={t('profileEdit.relation')} />
+          <ChipGroup options={RELATIONS} value={relation} onChange={setRelation} translationPath="profileEdit.relations" />
 
-          <SectionLabel text="Giới tính" />
-          <ChipGroup options={GENDERS} value={gender} onChange={setGender} />
+          {/* Thêm mới: giới tính hỏi ở onboarding */}
+          {isEdit && (
+            <>
+              <SectionLabel text={t('profileEdit.gender')} />
+              <ChipGroup options={GENDERS} value={gender} onChange={setGender} translationPath="profileEdit.genders" />
+            </>
+          )}
 
-          <SectionLabel text="Năm sinh (tuỳ chọn)" />
+          <SectionLabel text={t('profileEdit.birthYear')} />
           <TextInput
             style={st.input}
-            placeholder="Ví dụ: 1995"
+            placeholder={t('profileEdit.yearPlaceholder')}
             placeholderTextColor={C.textLight}
             value={birthYear}
             onChangeText={v => setBirthYear(v.replace(/[^0-9]/g, ''))}
@@ -256,14 +283,19 @@ const AddEditProfileScreen = ({ navigation, route }) => {
         {/* ── Ăn uống & vận động ── */}
         <View style={st.card}>
           <Image source={ASSETS.paper} style={[StyleSheet.absoluteFill, { borderRadius: 18, opacity: 0.5 }]} resizeMode="cover" />
-          <SectionLabel text="Mục tiêu ăn uống" />
-          <ChipGroup options={GOALS} value={goal} onChange={setGoal} />
+          <SectionLabel text={t('profileEdit.goal')} />
+          <ChipGroup options={GOALS} value={goal} onChange={setGoal} translationPath="profileEdit.goals" />
 
-          <SectionLabel text="Chế độ ăn" />
-          <ChipGroup options={DIETS} value={diet} onChange={setDiet} />
+          {/* Thêm mới: chế độ ăn hỏi ở onboarding */}
+          {isEdit && (
+            <>
+              <SectionLabel text={t('profileEdit.diet')} />
+              <ChipGroup options={DIETS} value={diet} onChange={setDiet} translationPath="profileEdit.diets" />
+            </>
+          )}
 
-          <SectionLabel text="Mức độ vận động" />
-          <ChipGroup options={ACTIVITIES} value={activity} onChange={setActivity} />
+          <SectionLabel text={t('profileEdit.activity')} />
+          <ChipGroup options={ACTIVITIES} value={activity} onChange={setActivity} translationPath="profileEdit.activities" />
         </View>
 
         {/* ── Buttons ── */}
@@ -275,7 +307,7 @@ const AddEditProfileScreen = ({ navigation, route }) => {
         >
           {saving
             ? <ActivityIndicator color="#FFF8EA" />
-            : <Text style={st.saveBtnText}>{isEdit ? '💾 Lưu thay đổi' : '✅ Thêm thành viên'}</Text>
+            : <Text style={st.saveBtnText}>{isEdit ? t('profileEdit.save') : t('profileEdit.addNext')}</Text>
           }
         </TouchableOpacity>
 
@@ -286,7 +318,7 @@ const AddEditProfileScreen = ({ navigation, route }) => {
             disabled={saving}
             activeOpacity={0.75}
           >
-            <Text style={st.deleteBtnText}>🗑 Xóa thành viên này</Text>
+            <Text style={st.deleteBtnText}>{t('profileEdit.delete')}</Text>
           </TouchableOpacity>
         )}
       </ScrollView>

@@ -5,12 +5,21 @@ import {
   ActivityIndicator, ImageBackground, Dimensions, Alert,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import LottieView from 'lottie-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { C as T, shadow } from '../theme';
+import WoodButton from '../components/ui/WoodButton';
+import { MascotCat } from '../components/ui/Mascot';
+import { CircleButton, CheckDot } from '../components/ui/Notebook';
+import { withIngredients } from '../utils/searchParams';
 import { useAppStore } from '../store/useAppStore';
+import i18n from '../i18n';
+import { CATEGORY_EN, buildMemberToParentMap } from '../utils/ingredientsData';
+import { useTranslation } from 'react-i18next';
 
 const { width: SW } = Dimensions.get('window');
 
-// ─── Design Tokens ─────────────────────────────────────────────────────────────
+// ─── Design Tokens (modal chọn nguyên liệu theo nhóm) ─────────────────────────
 const C = {
   wood:        '#C4955A',
   woodDark:    '#8B6340',
@@ -32,11 +41,8 @@ const C = {
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-const chunk = (arr, size) => {
-  const res = [];
-  for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
-  return res;
-};
+// Bỏ dấu tiếng Việt để tìm kiếm không phân biệt dấu
+const normalizeVi = (s = '') => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
 
 const CAT_META = {
   vegetable:            { display: 'Rau củ',             emoji: '🥦' },
@@ -64,7 +70,12 @@ const CAT_META = {
   dairy_poultry:        { display: 'Gia cầm & Sữa',       emoji: '🍗' },
   other:                { display: 'Khác',                emoji: '🫙' },
 };
-const getCatMeta = k => CAT_META[k] || { display: k.replace(/_/g, ' '), emoji: '🥬' };
+const getCatMeta = k => {
+  const fallback = CAT_META[k] || { display: k.replace(/_/g, ' '), emoji: '🥬' };
+  return i18n.language === 'en'
+    ? { ...fallback, display: CATEGORY_EN[k] || fallback.display }
+    : fallback;
+};
 
 // ─── WobblyCard ────────────────────────────────────────────────────────────────
 const WobblyCard = ({ children, w, h, fill, stroke, strokeWidth, style }) => {
@@ -94,29 +105,9 @@ const WobblyCard = ({ children, w, h, fill, stroke, strokeWidth, style }) => {
   );
 };
 
-// ─── SVG wavy underline ────────────────────────────────────────────────────────
-const WavyUnderline = ({ width = 180 }) => (
-  <Svg height={6} width={width} style={{ marginTop: 2 }}>
-    <Path
-      d={`M0 4 Q${width / 4} 2 ${width / 2} 4 Q${(width * 3) / 4} 6 ${width} 3`}
-      stroke={C.woodDark} strokeWidth={2} fill="none" strokeLinecap="round"
-    />
-  </Svg>
-);
-
-// ─── Section Header ────────────────────────────────────────────────────────────
-const SectionHeader = ({ icon, label }) => (
-  <View style={st.sectionHeader}>
-    <Text style={st.sectionHeaderIcon}>{icon}</Text>
-    <View>
-      <Text style={st.sectionHeaderText}>{label}</Text>
-      <WavyUnderline width={200} />
-    </View>
-  </View>
-);
-
 // ─── IngredientSearchModal ─────────────────────────────────────────────────────
 const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, onToggle, onClose }) => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const meta = getCatMeta(category);
 
@@ -146,13 +137,16 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
         <View style={{ flex: 1 }}>
           <Text style={[ms.itemName, sel && ms.itemNameActive]}>{item.name}</Text>
           {item.name_en ? <Text style={ms.itemSub}>{item.name_en}</Text> : null}
+          {item.member_ids?.length > 0 ? (
+            <Text style={ms.itemSub}>{t('basket.allParts', { count: item.member_ids.length })}</Text>
+          ) : null}
         </View>
         <View style={[ms.checkbox, sel && ms.checkboxActive]}>
           {sel && <Text style={ms.checkmark}>✓</Text>}
         </View>
       </TouchableOpacity>
     );
-  }, [selectedIds, onToggle]);
+  }, [selectedIds, onToggle, t]);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -168,10 +162,10 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
             </TouchableOpacity>
             <View style={{ flex: 1, alignItems: 'center' }}>
               <Text style={ms.headerTitle}>{meta.emoji} {meta.display}</Text>
-              <Text style={ms.headerSub}>{ingredients.length} nguyên liệu · {selectedInCat} đã chọn</Text>
+              <Text style={ms.headerSub}>{t('basket.allIngredients', { count: ingredients.length })} · {t('basket.selectedCount', { count: selectedInCat })}</Text>
             </View>
             <TouchableOpacity style={ms.doneBtn} onPress={onClose}>
-              <Text style={ms.doneTxt}>Xong ✓</Text>
+              <Text style={ms.doneTxt}>{t('basket.done')}</Text>
             </TouchableOpacity>
           </ImageBackground>
 
@@ -182,7 +176,7 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
                 <Text style={{ fontSize: 16, marginRight: 6 }}>🔍</Text>
                 <TextInput
                   style={ms.searchInput}
-                  placeholder="Tìm nguyên liệu..."
+                  placeholder={t('basket.search')}
                   placeholderTextColor={C.inkFaint}
                   value={query}
                   onChangeText={setQuery}
@@ -199,7 +193,7 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
           </View>
 
           <Text style={ms.resultCount}>
-            {query ? `${filtered.length} kết quả` : `Tất cả ${filtered.length} nguyên liệu`}
+            {query ? t('basket.searchResults', { count: filtered.length }) : t('basket.allIngredients', { count: filtered.length })}
           </Text>
 
           <FlatList
@@ -218,7 +212,7 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
               </Svg>
             )}
             ListEmptyComponent={
-              <Text style={ms.emptyText}>Không tìm thấy "{query}" 🥲</Text>
+              <Text style={ms.emptyText}>{t('basket.noResult', { query })}</Text>
             }
           />
         </ImageBackground>
@@ -227,132 +221,98 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
   );
 };
 
-// ─── SelectedIngredientsList — Danh sách nguyên liệu đã chọn có thể xoá từng cái
-const SelectedIngredientsList = ({ selectedIds, allIngredients, onRemove, onClearAll }) => {
-  const [expanded, setExpanded] = useState(false);
-
+// ─── SelectedTray — khay "Đã chọn" luôn hiện, mèo ngồi trên mép phải ─────────
+const SelectedTray = ({ selectedIds, allIngredients, onRemove, onClearAll, mascotText }) => {
+  const { t } = useTranslation();
   const selectedItems = useMemo(
     () => allIngredients.filter(i => selectedIds.includes(i.id)),
     [allIngredients, selectedIds]
   );
 
-  // Nhóm theo category để hiển thị gọn hơn
-  const grouped = useMemo(() => {
-    const map = {};
-    selectedItems.forEach(item => {
-      const cat = item.category || 'other';
-      if (!map[cat]) map[cat] = [];
-      map[cat].push(item);
-    });
-    return Object.entries(map).map(([cat, items]) => ({
-      cat,
-      meta: getCatMeta(cat),
-      items,
-    }));
-  }, [selectedItems]);
-
   const handleClearAll = () => {
     Alert.alert(
-      '🗑 Xoá tất cả?',
-      `Bạn có chắc muốn bỏ chọn ${selectedIds.length} nguyên liệu?`,
+      t('basket.clearTitle'),
+      t('basket.clearBody', { count: selectedIds.length }),
       [
-        { text: 'Huỷ', style: 'cancel' },
-        { text: 'Xoá tất cả', style: 'destructive', onPress: onClearAll },
+        { text: t('basket.cancel'), style: 'cancel' },
+        { text: t('basket.clear'), style: 'destructive', onPress: onClearAll },
       ]
     );
   };
 
   return (
-    <View style={sl.wrapper}>
-      {/* Header row — toggle expand / collapse */}
-      <TouchableOpacity style={sl.headerRow} onPress={() => setExpanded(v => !v)} activeOpacity={0.7}>
-        <View style={{ flex: 1 }}>
-          <Text style={sl.title}>✅ Đã chọn {selectedIds.length} nguyên liệu</Text>
-          <WavyUnderline width={200} />
-        </View>
-        <Text style={sl.expandIcon}>{expanded ? '▲' : '▼'}</Text>
-      </TouchableOpacity>
-
-      {/* Category summary pills — luôn hiển thị */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={sl.pillScroll} contentContainerStyle={sl.pillRow}>
-        {grouped.map(({ cat, meta, items }) => (
-          <View key={cat} style={sl.pill}>
-            <Text style={sl.pillTxt}>{meta.emoji} {items.length} {meta.display}</Text>
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* Expanded: danh sách từng nguyên liệu có nút xoá */}
-      {expanded && (
-        <View style={sl.listWrap}>
-          {grouped.map(({ cat, meta, items }) => (
-            <View key={cat} style={sl.group}>
-              <Text style={sl.groupTitle}>{meta.emoji} {meta.display}</Text>
-              <View style={sl.chipRow}>
-                {items.map(item => (
-                  <View key={item.id} style={sl.chip}>
-                    <Text style={sl.chipTxt} numberOfLines={1}>{item.name}</Text>
-                    <TouchableOpacity
-                      onPress={() => onRemove(item.id)}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                      <Text style={sl.chipRemove}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
+    <View style={tr.wrap}>
+      <MascotCat slot="basket" size={88} style={tr.cat} />
+      <View style={tr.card}>
+        <Text style={tr.bubble}>{mascotText}</Text>
+        {selectedItems.length === 0 ? (
+          <Text style={tr.empty}>{t('basket.info')}</Text>
+        ) : (
+          <>
+            <View style={tr.head}>
+              <Text style={tr.title}>{t('basket.trayTitle', { count: selectedItems.length })}</Text>
+              <TouchableOpacity onPress={handleClearAll} hitSlop={8} style={tr.clearBtn}>
+                <Text style={tr.clearTxt}>{t('basket.clearShort')}</Text>
+              </TouchableOpacity>
             </View>
-          ))}
-
-          {/* Nút xoá tất cả */}
-          <TouchableOpacity style={sl.clearAllBtn} onPress={handleClearAll} activeOpacity={0.8}>
-            <Text style={sl.clearAllTxt}>🗑 Xoá tất cả nguyên liệu</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+            <View style={tr.chips}>
+              {selectedItems.map(item => (
+                <View key={item.id} style={tr.chip}>
+                  <Text style={tr.chipTxt} numberOfLines={1}>{getCatMeta(item.category || 'other').emoji.split('&')[0]} {item.name}</Text>
+                  <TouchableOpacity
+                    onPress={() => onRemove(item.id)}
+                    style={tr.chipX}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('basket.removeOne', { name: item.name })}
+                    hitSlop={8}
+                  >
+                    <Text style={tr.chipXTxt}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+      </View>
     </View>
   );
 };
 
-// ─── Category Card ─────────────────────────────────────────────────────────────
-const CategoryCard = ({ cat, active, count, total, onPress }) => {
-  const cardW = (SW - 16 * 2 - 12) / 2;
-  const cardH = 108;
+// ─── Category Card (lưới 3 cột) ────────────────────────────────────────────────
+const CAT_W = (SW - 16 * 2 - 10 * 2) / 3;
+const CategoryCard = ({ cat, count, total, onPress }) => {
+  const { t } = useTranslation();
+  const on = count > 0;
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.8}
-      style={[st.catCardShadow, active && st.catCardShadowActive]}>
-      <WobblyCard
-        w={cardW} h={cardH}
-        fill={active ? '#FFF4DC' : C.paper}
-        stroke={active ? C.marketDark : C.paperStroke}
-        strokeWidth={active ? 2.5 : 1.5}>
-        <View style={st.catCardInner}>
-          <View style={[st.catTab, { backgroundColor: active ? C.marketDark : C.paperStroke }]} />
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={st.catEmoji}>{cat.emoji}</Text>
-            <Text style={[st.catText, active && st.catTextActive]} numberOfLines={2}>{cat.display}</Text>
-            <Text style={st.catCount}>{total} loại</Text>
-          </View>
-          {count > 0 && (
-            <View style={st.catBadge}>
-              <Text style={st.catBadgeTxt}>{count}</Text>
-            </View>
-          )}
+      activeOpacity={0.85}
+      style={[st.catCard, on && st.catCardOn]}
+      accessibilityRole="button"
+      accessibilityLabel={`${cat.display}, ${t('basket.categoryCount', { count: total })}`}
+    >
+      {on && (
+        <View style={st.catBadge}>
+          <Text style={st.catBadgeTxt}>{count}</Text>
         </View>
-      </WobblyCard>
+      )}
+      <Text style={st.catEmoji}>{cat.emoji}</Text>
+      <Text style={st.catText} numberOfLines={2}>{cat.display}</Text>
+      <Text style={st.catCount}>{t('basket.categoryCount', { count: total })}</Text>
     </TouchableOpacity>
   );
 };
 
 // ─── MarketBasketScreen ────────────────────────────────────────────────────────
-const MarketBasketScreen = ({ navigation }) => {
+const MarketBasketScreen = ({ navigation, route }) => {
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const { allIngredients, setMarketBasket, marketBasket, initializeIngredients } = useAppStore();
 
   // FIX 1: Khởi tạo selectedIds từ store — không bị mất khi quay lại màn hình
   const [selectedIds,  setSelectedIds]  = useState(() => marketBasket?.selectedIngredients ?? []);
-  const [selectedCats, setSelectedCats] = useState([]);
   const [modalCat,     setModalCat]     = useState(null);
+  const [query,        setQuery]        = useState('');
 
   // Load ingredients nếu chưa có (lần đầu mở app / sau khi reset store)
   useEffect(() => {
@@ -361,13 +321,21 @@ const MarketBasketScreen = ({ navigation }) => {
     }
   }, []);
 
+  // Lựa chọn cũ có thể là bộ phận con (vd. sườn heo) — giờ đã gộp vào nguyên liệu gốc (thịt heo)
+  useEffect(() => {
+    const toParent = buildMemberToParentMap(allIngredients);
+    if (toParent.size === 0) return;
+    setSelectedIds(prev => {
+      const next = [...new Set(prev.map(id => toParent.get(id) ?? id))];
+      return next.length === prev.length && next.every((id, i) => id === prev[i]) ? prev : next;
+    });
+  }, [allIngredients]);
+
   const categories = useMemo(() => {
     const catSet = new Set();
     allIngredients.forEach(i => { if (i.category) catSet.add(i.category); });
     return Array.from(catSet).sort().map(k => ({ key: k, ...getCatMeta(k) }));
   }, [allIngredients]);
-
-  const categoryRows = useMemo(() => chunk(categories, 2), [categories]);
 
   const byCategory = useMemo(() =>
     allIngredients.reduce((acc, i) => {
@@ -375,182 +343,150 @@ const MarketBasketScreen = ({ navigation }) => {
       return acc;
     }, {}), [allIngredients]);
 
+  // Tìm nhanh trên toàn bộ nguyên liệu (không cần mở từng nhóm)
+  const searchResults = useMemo(() => {
+    const q = normalizeVi(query.trim());
+    if (q.length < 2) return [];
+    return allIngredients
+      .filter(i => normalizeVi(i.name).includes(q) || normalizeVi(i.name_en).includes(q))
+      .slice(0, 8);
+  }, [query, allIngredients]);
+
   const isLoading = allIngredients.length === 0;
 
   const toggleId = useCallback(id =>
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]), []);
 
-  // FIX 2: Xoá từng nguyên liệu từ summary list
+  // FIX 2: Xoá từng nguyên liệu từ khay đã chọn
   const removeId = useCallback(id => setSelectedIds(prev => prev.filter(x => x !== id)), []);
 
   // FIX 3: Xoá tất cả (đã có confirm trong component)
   const clearAll = useCallback(() => setSelectedIds([]), []);
 
-  const openModal = catKey => {
-    if (!selectedCats.includes(catKey)) setSelectedCats(prev => [...prev, catKey]);
-    setModalCat(catKey);
+  // Chế độ "Từ tủ lạnh" (mở từ Home với next='recommend'): áp dụng → ra danh sách món luôn
+  const baseParams = route?.params?.baseParams;
+  const isFridge = route?.params?.next === 'recommend' && !!baseParams;
+  const goRecommend = (ids) => {
+    const picked = allIngredients
+      .filter(i => ids.includes(i.id))
+      .map(i => ({ id: i.id, name: i.name }));
+    navigation.replace('Recommend', {
+      searchParams: withIngredients(baseParams, ids, 'fridge'),
+      pickedIngredients: picked,
+      pickMode: 'fridge',
+      baseParams,
+    });
   };
 
   const handleApply = () => {
     setMarketBasket({ isSkipped: false, selectedIngredients: selectedIds, boostStrategy: 'strict' });
-    navigation.goBack();
+    if (isFridge) goRecommend(selectedIds);
+    else navigation.goBack();
   };
 
-  // FIX 4: Skip không xoá selection trong store, chỉ mark isSkipped
+  // FIX 4: Skip không xoá selection trong store, chỉ mark isSkipped → không cần hỏi lại
   const handleSkip = () => {
-    Alert.alert(
-      '⚠️ Bỏ qua giỏ nguyên liệu?',
-      selectedIds.length > 0
-        ? `Bạn đang có ${selectedIds.length} nguyên liệu đã chọn.\nBỏ qua sẽ không dùng danh sách này cho gợi ý.`
-        : 'Gợi ý món sẽ không ưu tiên theo nguyên liệu sẵn có.',
-      [
-        { text: 'Huỷ', style: 'cancel' },
-        {
-          text: 'Bỏ qua',
-          style: 'destructive',
-          onPress: () => {
-            setMarketBasket({ isSkipped: true, selectedIngredients: selectedIds, boostStrategy: 'none' });
-            navigation.goBack();
-          },
-        },
-      ]
-    );
+    setMarketBasket({ isSkipped: true, selectedIngredients: selectedIds, boostStrategy: 'none' });
+    if (isFridge) goRecommend([]);
+    else navigation.goBack();
   };
 
   const countInCat = catKey => (byCategory[catKey] || []).filter(i => selectedIds.includes(i.id)).length;
+  const n = selectedIds.length;
 
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
-    <ImageBackground source={require('../assets/textures/wood_light.png')} style={st.root}>
+    <View style={[st.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      {/* Nav bar */}
-      <ImageBackground
-        source={require('../assets/textures/sky_watercolor.png')}
-        style={st.nav}
-        imageStyle={{ borderBottomLeftRadius: 28, borderBottomRightRadius: 28, opacity: 0.95 }}>
-        <View style={st.tape} />
-        <View style={st.navRow}>
-          <TouchableOpacity style={st.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={st.backIcon}>←</Text>
-          </TouchableOpacity>
-          <View style={st.navCenter}>
-            <Text style={st.navTitle}>🛒 Đi chợ hôm nay</Text>
-            <Text style={st.navSubtitle}>Chọn nguyên liệu bạn đang có</Text>
-          </View>
-          <TouchableOpacity onPress={handleSkip} style={st.skipBtn}>
-            <Text style={st.skipTxt}>Bỏ qua</Text>
-          </TouchableOpacity>
+      {/* Header */}
+      <View style={st.header}>
+        <CircleButton onPress={() => navigation.goBack()} label={t('common.back')} />
+        <View style={{ flex: 1 }}>
+          <Text style={st.title}>{isFridge ? t('basket.fridgeTitle') : t('basket.title')}</Text>
+          <Text style={st.subtitle}>{isFridge ? t('basket.fridgeSubtitle') : t('basket.subtitle')}</Text>
         </View>
-        <View style={st.lottieWrap} pointerEvents="none">
-          <LottieView
-            source={require('../assets/animations/Lazy cat.json')}
-            autoPlay loop style={{ width: 80, height: 80 }}
+      </View>
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={st.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <SelectedTray
+          selectedIds={selectedIds}
+          allIngredients={allIngredients}
+          onRemove={removeId}
+          onClearAll={clearAll}
+          mascotText={t('basket.mascot')}
+        />
+
+        {/* Tìm nhanh */}
+        <View style={st.searchBox}>
+          <Ionicons name="search" size={18} color={T.textSoft} />
+          <TextInput
+            style={st.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('basket.searchAll')}
+            placeholderTextColor={T.textLight}
+            accessibilityLabel={t('basket.searchAll')}
+            returnKeyType="done"
           />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8} accessibilityLabel={t('basket.cancel')}>
+              <Ionicons name="close-circle" size={18} color={T.textLight} />
+            </TouchableOpacity>
+          )}
         </View>
-      </ImageBackground>
+        {searchResults.map(i => {
+          const on = selectedIds.includes(i.id);
+          return (
+            <TouchableOpacity key={i.id} style={st.searchRow} onPress={() => toggleId(i.id)} activeOpacity={0.75}>
+              <CheckDot on={on} square />
+              <Text style={st.searchName}>{i.name}</Text>
+              <Text style={st.searchCat}>{getCatMeta(i.category || 'other').display}</Text>
+            </TouchableOpacity>
+          );
+        })}
 
-      {/* Info / badge bar */}
-      {selectedIds.length > 0 ? (
-        <View style={st.badgeBar}>
-          <Text style={st.badgeBarTxt}>✅ Đã chọn</Text>
-          <View style={st.badgePill}>
-            <Text style={st.badgePillTxt}>{selectedIds.length} nguyên liệu</Text>
-          </View>
-        </View>
-      ) : (
-        <View style={st.infoBar}>
-          <Text style={st.infoTxt}>💡 Chọn nhóm → bấm để chọn nguyên liệu cụ thể</Text>
-        </View>
-      )}
-
-      {/* Scrollable content */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={st.scroll} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <View style={st.loadWrap}>
-            <ActivityIndicator color={C.wood} size="large" />
-            <Text style={st.loadTxt}>Đang tải nguyên liệu...</Text>
+            <ActivityIndicator color={T.primary} size="large" />
+            <Text style={st.loadTxt}>{t('basket.loading')}</Text>
           </View>
         ) : (
           <>
-            {/* Content card — category grid */}
-            <View style={st.contentCardShadow}>
-              <ImageBackground
-                source={require('../assets/textures/paper_cream.png')}
-                style={st.contentCard}
-                imageStyle={{ borderRadius: 24 }}>
-                <Text style={st.cornerStamp}>🛒</Text>
-                <SectionHeader icon="🗂" label={`Nhóm nguyên liệu (${categories.length})`} />
-                {categoryRows.map((row, ri) => (
-                  <View key={ri} style={st.catRow}>
-                    {row.map(cat => (
-                      <CategoryCard
-                        key={cat.key}
-                        cat={cat}
-                        active={selectedCats.includes(cat.key)}
-                        count={countInCat(cat.key)}
-                        total={(byCategory[cat.key] || []).length}
-                        onPress={() => openModal(cat.key)}
-                      />
-                    ))}
-                    {row.length === 1 && <View style={{ flex: 1 }} />}
-                  </View>
-                ))}
-                <View style={st.bottomTape} />
-              </ImageBackground>
+            <View style={st.sectionHead}>
+              <Text style={st.sectionTitle}>{t('basket.groupsTitle')}</Text>
+              <Text style={st.sectionHint}>{t('basket.tapToOpen')}</Text>
             </View>
-
-            {/* FIX 5: Summary card với danh sách nguyên liệu đã chọn đầy đủ */}
-            {selectedIds.length > 0 && (
-              <View style={st.summaryCardShadow}>
-                <ImageBackground
-                  source={require('../assets/textures/paper_cream.png')}
-                  style={st.summaryCard}
-                  imageStyle={{ borderRadius: 20 }}>
-                  <SelectedIngredientsList
-                    selectedIds={selectedIds}
-                    allIngredients={allIngredients}
-                    onRemove={removeId}
-                    onClearAll={clearAll}
-                  />
-                </ImageBackground>
-              </View>
-            )}
+            <View style={st.catGrid}>
+              {categories.map(cat => (
+                <CategoryCard
+                  key={cat.key}
+                  cat={cat}
+                  count={countInCat(cat.key)}
+                  total={(byCategory[cat.key] || []).length}
+                  onPress={() => setModalCat(cat.key)}
+                />
+              ))}
+            </View>
           </>
         )}
-
-        {/* Tip */}
-        <View style={st.tipCard}>
-          <Text style={st.tipIcon}>💡</Text>
-          <Text style={st.tipText}>
-            Mẹo: Chọn nguyên liệu bạn đang có ở nhà để nhận gợi ý món phù hợp hơn nhé!
-          </Text>
-        </View>
-        <View style={{ height: 20 }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
 
       {/* Footer */}
-      <ImageBackground
-        source={require('../assets/textures/wood_light.png')}
-        style={st.footer}
-        imageStyle={{ opacity: 0.7 }}>
-        <View style={st.footerInner}>
-          <TouchableOpacity
-            style={[st.applyBtn, selectedIds.length === 0 && st.applyBtnOutline]}
-            onPress={handleApply}
-            activeOpacity={0.85}>
-            {selectedIds.length > 0 ? (
-              <Text style={st.applyBtnText}>
-                {'🛒 Áp dụng ' + selectedIds.length + ' nguyên liệu →'}
-              </Text>
-            ) : (
-              <Text style={[st.applyBtnText, { color: C.woodDark }]}>
-                Tiếp tục không chọn nguyên liệu
-              </Text>
-            )}
+      <View style={[st.footer, { paddingBottom: insets.bottom + 12 }]}>
+        <WoodButton
+          title={n > 0
+            ? (isFridge ? t('basket.cookFrom', { count: n }) : t('basket.apply', { count: n }))
+            : t('basket.continue')}
+          onPress={n > 0 ? handleApply : handleSkip}
+        />
+        {n > 0 && (
+          <TouchableOpacity onPress={handleSkip} style={st.skipBtn} hitSlop={8}>
+            <Text style={st.skipTxt}>{t('basket.continue')}</Text>
           </TouchableOpacity>
-        </View>
-      </ImageBackground>
+        )}
+      </View>
 
       {/* Modal */}
       {modalCat && (
@@ -563,156 +499,71 @@ const MarketBasketScreen = ({ navigation }) => {
           onClose={() => setModalCat(null)}
         />
       )}
-    </ImageBackground>
+    </View>
   );
 };
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.woodLight },
-  nav: {
-    paddingTop: Platform.OS === 'ios' ? 52 : 36,
-    paddingBottom: 48, paddingHorizontal: 16,
-    borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'visible',
+  root: { flex: 1, backgroundColor: T.bg },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 },
+  title: { fontSize: 19, fontFamily: 'Lora-Bold', color: T.text },
+  subtitle: { fontSize: 12.5, fontFamily: 'BeVietnamPro-Regular', color: T.textSoft, marginTop: 1 },
+  scroll: { paddingHorizontal: 16, paddingTop: 8 },
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 46, marginTop: 14,
+    backgroundColor: T.surface, borderRadius: 16, borderWidth: 1.5, borderColor: T.border, paddingHorizontal: 14,
   },
-  tape: { position: 'absolute', top: 0, left: 0, right: 0, height: 5, backgroundColor: C.woodDark, opacity: 0.2 },
-  navRow:    { flexDirection: 'row', alignItems: 'center' },
-  navCenter: { flex: 1, alignItems: 'center' },
-  navTitle:  { fontSize: 22, fontFamily: 'PatrickHand-Regular', color: C.ink },
-  navSubtitle:{ fontSize: 12, fontFamily: 'Nunito-Regular', color: C.inkLight, marginTop: 2 },
-  backBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: C.paperStroke,
+  searchInput: { flex: 1, fontSize: 14, fontFamily: 'BeVietnamPro-Regular', color: T.text, paddingVertical: 10 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, borderBottomWidth: 1, borderBottomColor: T.borderLight },
+  searchName: { flex: 1, fontSize: 15, fontFamily: 'BeVietnamPro-Regular', color: T.text },
+  searchCat: { fontSize: 11.5, fontFamily: 'BeVietnamPro-Regular', color: T.textSoft },
+  loadWrap: { alignItems: 'center', paddingTop: 50 },
+  loadTxt:  { fontSize: 14, fontFamily: 'BeVietnamPro-Regular', color: T.textSoft, marginTop: 12 },
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 18, marginBottom: 10 },
+  sectionTitle: { fontSize: 17, fontFamily: 'Lora-SemiBold', color: T.text },
+  sectionHint: { fontSize: 12, fontFamily: 'BeVietnamPro-Regular', color: T.textSoft },
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  catCard: {
+    width: CAT_W, alignItems: 'center', gap: 3, paddingVertical: 12, paddingHorizontal: 6,
+    borderRadius: 18, borderWidth: 1.5, borderColor: T.border, backgroundColor: 'rgba(255,255,255,0.55)',
   },
-  backIcon: { fontSize: 18, color: C.inkLight },
-  skipBtn:  { paddingHorizontal: 10, paddingVertical: 6 },
-  skipTxt:  { fontSize: 13, fontFamily: 'Nunito-Regular', color: C.inkFaint },
-  lottieWrap: { position: 'absolute', right: 20, bottom: -28, width: 80, height: 80 },
-  infoBar: {
-    marginHorizontal: 16, marginTop: 36, marginBottom: 4,
-    backgroundColor: C.marketLight, borderRadius: 14,
-    borderWidth: 1, borderColor: '#E8C96E', borderStyle: 'dashed',
-    paddingHorizontal: 14, paddingVertical: 9,
+  catCardOn: { borderWidth: 2, borderColor: T.primary, backgroundColor: T.parchmentLight, ...shadow(2) },
+  catEmoji: { fontSize: 26 },
+  catText:  { fontSize: 13, fontFamily: 'BeVietnamPro-Bold', color: T.text, textAlign: 'center' },
+  catCount: { fontSize: 11, fontFamily: 'BeVietnamPro-Regular', color: T.textSoft },
+  catBadge: {
+    position: 'absolute', top: -8, right: -6, minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 5,
+    backgroundColor: T.primary, alignItems: 'center', justifyContent: 'center',
   },
-  infoTxt: { fontSize: 13, fontFamily: 'Nunito-Regular', color: C.marketDark },
-  badgeBar: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 16, marginTop: 36, marginBottom: 4,
-    backgroundColor: '#F0FAF0', borderRadius: 14,
-    borderWidth: 1, borderColor: C.green, borderStyle: 'dashed',
-    paddingHorizontal: 14, paddingVertical: 9,
-  },
-  badgeBarTxt: { fontSize: 13, fontFamily: 'Nunito-Regular', color: C.greenDark, flex: 1 },
-  badgePill: { backgroundColor: C.green, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
-  badgePillTxt: { fontSize: 12, fontFamily: 'Nunito-Bold', color: '#fff', fontWeight: '700' },
-  scroll: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 20 },
-  loadWrap: { alignItems: 'center', paddingTop: 60 },
-  loadTxt:  { fontSize: 14, fontFamily: 'Nunito-Regular', color: C.inkFaint, marginTop: 12 },
-  contentCardShadow: {
-    borderRadius: 24, shadowColor: C.shadow,
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10,
-    elevation: 6, marginBottom: 12,
-  },
-  contentCard: { borderRadius: 24, padding: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: C.paperStroke },
-  cornerStamp: { position: 'absolute', right: 14, top: 12, fontSize: 20, opacity: 0.4 },
-  bottomTape:  { height: 4, backgroundColor: C.woodDark, opacity: 0.1, marginHorizontal: -16, marginTop: 16, marginBottom: -16 },
-  sectionHeader:     { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
-  sectionHeaderIcon: { fontSize: 18, marginRight: 8, marginTop: 2 },
-  sectionHeaderText: { fontSize: 15, fontFamily: 'Nunito-Bold', color: C.inkLight, fontWeight: '700' },
-  catRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  catCardShadow: {
-    flex: 1, shadowColor: C.shadow,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2, borderRadius: 16,
-  },
-  catCardShadowActive: { shadowOpacity: 0.2, shadowRadius: 7, elevation: 5 },
-  catCardInner: { flexDirection: 'row', alignItems: 'center', flex: 1, paddingHorizontal: 8, paddingVertical: 8, position: 'relative' },
-  catTab:  { width: 4, height: 52, borderRadius: 2, marginRight: 8 },
-  catEmoji:{ fontSize: 26, marginBottom: 4 },
-  catText: { fontSize: 12, fontFamily: 'Nunito-Bold', color: C.inkLight, fontWeight: '700', textAlign: 'center' },
-  catTextActive: { color: C.marketDark },
-  catCount:{ fontSize: 11, fontFamily: 'Nunito-Regular', color: C.inkFaint, marginTop: 2 },
-  catBadge:{
-    position: 'absolute', top: 6, right: 6,
-    minWidth: 22, height: 22, borderRadius: 11,
-    backgroundColor: C.market, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 5,
-  },
-  catBadgeTxt: { fontSize: 11, fontFamily: 'Nunito-Bold', color: '#fff', fontWeight: '800' },
-  summaryCardShadow: {
-    borderRadius: 20, marginBottom: 12,
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.14, shadowRadius: 7, elevation: 4,
-  },
-  summaryCard: { borderRadius: 20, padding: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: C.green, borderStyle: 'dashed' },
-  tipCard: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    marginHorizontal: 4, marginTop: 4, marginBottom: 8,
-    backgroundColor: '#FFF9E6', borderRadius: 16,
-    borderWidth: 1, borderColor: '#E8C96E', borderStyle: 'dashed', padding: 14,
-  },
-  tipIcon: { fontSize: 16, marginRight: 8, marginTop: 1 },
-  tipText: { flex: 1, fontSize: 13, fontFamily: 'Nunito-Regular', color: C.inkFaint, lineHeight: 19 },
-  footer: { overflow: 'hidden' },
-  footerInner: { paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 2, borderTopColor: C.woodDark },
-  applyBtn: {
-    backgroundColor: C.woodDark, borderRadius: 20, paddingVertical: 15, alignItems: 'center',
-    shadowColor: C.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 4,
-  },
-  applyBtnOutline: { backgroundColor: C.cream, borderWidth: 2, borderColor: C.woodDark, borderStyle: 'dashed', shadowOpacity: 0, elevation: 0 },
-  applyBtnText: {
-    fontSize: 16, fontFamily: 'PatrickHand-Regular', color: C.cream,
-    textShadowColor: '#00000030', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2,
-  },
+  catBadgeTxt: { fontSize: 12, fontFamily: 'BeVietnamPro-Bold', color: '#fff' },
+  footer: { paddingHorizontal: 16, paddingTop: 10, gap: 6, backgroundColor: T.bg, borderTopWidth: 1, borderTopColor: T.parchmentDark },
+  skipBtn: { alignItems: 'center', paddingVertical: 6 },
+  skipTxt: { fontSize: 13, fontFamily: 'BeVietnamPro-SemiBold', color: T.textMid, textDecorationLine: 'underline' },
 });
 
-// ─── SelectedIngredientsList Styles ───────────────────────────────────────────
-const sl = StyleSheet.create({
-  wrapper: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10,
+// ─── SelectedTray Styles ──────────────────────────────────────────────────────
+const tr = StyleSheet.create({
+  wrap: { marginTop: 34 },
+  cat: { position: 'absolute', right: 10, top: -60, zIndex: 2, elevation: 10 },
+  card: {
+    backgroundColor: T.parchmentLight, borderRadius: 18, borderWidth: 1.5, borderColor: T.paperStroke,
+    padding: 14, gap: 10, ...shadow(2),
   },
-  title: { fontSize: 15, fontFamily: 'PatrickHand-Regular', color: C.ink },
-  expandIcon: { fontSize: 13, color: C.inkFaint, marginLeft: 8, marginTop: 3 },
-
-  // Pills — category summary
-  pillScroll: { marginBottom: 4 },
-  pillRow:    { flexDirection: 'row', gap: 6, paddingBottom: 4 },
-  pill: {
-    backgroundColor: C.marketLight, borderRadius: 20,
-    borderWidth: 1, borderColor: C.market,
-    paddingHorizontal: 10, paddingVertical: 4,
-  },
-  pillTxt: { fontSize: 12, fontFamily: 'Nunito-Regular', color: C.marketDark },
-
-  // Expanded list
-  listWrap: { marginTop: 8 },
-  group:    { marginBottom: 12 },
-  groupTitle: {
-    fontSize: 12, fontFamily: 'Nunito-Bold', color: C.inkLight,
-    fontWeight: '700', marginBottom: 6,
-  },
-  chipRow:  { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  bubble: { fontFamily: 'Patrick Hand', fontSize: 15, lineHeight: 21, color: '#4A3728', paddingRight: 92 },
+  empty: { fontSize: 13, fontFamily: 'BeVietnamPro-Regular', color: T.textSoft, lineHeight: 19 },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: 13.5, fontFamily: 'BeVietnamPro-Bold', color: T.text },
+  clearBtn: { minHeight: 32, justifyContent: 'center' },
+  clearTxt: { fontSize: 12.5, fontFamily: 'BeVietnamPro-Bold', color: T.primary },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#F0FAF0', borderRadius: 20,
-    borderWidth: 1, borderColor: C.green,
-    paddingHorizontal: 10, paddingVertical: 5,
-    maxWidth: SW / 2 - 24,
+    flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: SW - 80,
+    backgroundColor: T.chipBg, borderRadius: 999, paddingLeft: 10, paddingRight: 4, paddingVertical: 4,
   },
-  chipTxt: {
-    fontSize: 13, fontFamily: 'Nunito-Regular', color: C.greenDark,
-    flexShrink: 1, marginRight: 5,
-  },
-  chipRemove: { fontSize: 11, color: C.red, fontWeight: '700' },
-
-  // Clear all button
-  clearAllBtn: {
-    marginTop: 12, alignSelf: 'center',
-    backgroundColor: C.redLight, borderRadius: 20,
-    borderWidth: 1, borderColor: C.red, borderStyle: 'dashed',
-    paddingHorizontal: 18, paddingVertical: 8,
-  },
-  clearAllTxt: { fontSize: 13, fontFamily: 'Nunito-Regular', color: C.red },
+  chipTxt: { fontSize: 12.5, fontFamily: 'BeVietnamPro-Regular', color: T.text, flexShrink: 1 },
+  chipX: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#D9C9AC', alignItems: 'center', justifyContent: 'center' },
+  chipXTxt: { fontSize: 11, color: T.woodDark, fontFamily: 'BeVietnamPro-Bold' },
 });
 
 // ─── Modal Styles ──────────────────────────────────────────────────────────────

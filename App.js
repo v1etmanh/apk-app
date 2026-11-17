@@ -1,10 +1,12 @@
 /**
  * App.js — Auth-protected navigation
- * Luồng: loading → unauthenticated (Login) | authenticated → Onboarding | Main
+ * Luồng: loading → unauthenticated (Login) | authenticated → Onboarding (user mới) | Main
  */
 
+// PHẢI đứng đầu: vá InteractionManager (RN 0.88 đã gỡ) cho @react-navigation/stack 6.x
+import './utils/interactionManagerShim';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StatusBar, View, Text, StyleSheet, Image, AppState } from 'react-native';
+import { StatusBar, View, Text, StyleSheet, Image, AppState, Button } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LottieView from 'lottie-react-native';
 import { useFonts } from 'expo-font';
@@ -22,9 +24,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
-import { supabase } from './store/suppabase';
-import { initDB, setSetting, migrateExistingProfile, getDeviceId, getActiveProfileId, setActiveProfileId, saveProfileMember } from './utils/database';
-import { ensureFirebaseAuth } from './utils/firebaseConfig';
+import { supabase } from './store/supabase';
+import { setSetting, getSetting, migrateExistingProfile, getDeviceId } from './utils/database';
 import { useAppStore } from './store/useAppStore';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -36,19 +37,26 @@ import HistoryScreen           from './screens/HistoryScreen';
 import ProfileScreen           from './screens/ProfileScreen';
 import SettingsScreen          from './screens/SettingsScreen';
 import DishDetailScreen        from './screens/DishDetailScreen';
+import CookingStepsScreen      from './screens/CookingStepsScreen';
 import MarketBasketScreen      from './screens/MarketBasketScreen';
 import HistoryDetailScreen     from './screens/HistoryDetailScreen';
 import EditPersonalScreen      from './screens/EditPersonalScreen';
 import BodyMetricsScreen       from './screens/BodyMetricsScreen';
 import AllergyScreen           from './screens/AllergyScreen';
-import CookingChallengeScreen  from './screens/CookingChallengeScreen';
 import TasteProfileScreen      from './screens/TasteProfileScreen';
-// Onboarding screens đã bị loại bỏ — không import nữa
+import OnboardingFlow          from './screens/onboarding/OnboardingFlow';
+import TasteOnboardingScreen  from './screens/onboarding/TasteOnboardingScreen';
+import OnboardingTabScreen    from './screens/onboarding/OnboardingTabScreen';
+import ProfileOnboardingScreen from './screens/onboarding/ProfileOnboardingScreen';
+import { needsOnboarding }    from './services/onboardingService';
 import RecommendScreen         from './screens/RecommendScreen';
+import IngredientSuggestScreen from './screens/IngredientSuggestScreen';
 import ResetPasswordScreen     from './screens/ResetPasswordScreen';
 import AddEditProfileScreen    from './screens/AddEditProfileScreen';
 import ChosenDishScreen        from './screens/ChosenDishScreen';
 import MealReminderModal       from './components/MealReminderModal';
+import i18n, { restoreLanguage, changeLanguage } from './i18n';
+import { useTranslation } from 'react-i18next';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -77,8 +85,10 @@ const TabIcon = ({ emoji, focused }) => (
 );
 
 // ── Main Tabs ─────────────────────────────────────────────────────────────
-const MainTabs = () => (
-  <Tab.Navigator
+const MainTabs = () => {
+  const { t } = useTranslation();
+  return (
+    <Tab.Navigator
     screenOptions={{
       tabBarActiveTintColor:   '#60A5FA',
       tabBarInactiveTintColor: '#8B7355',
@@ -87,30 +97,38 @@ const MainTabs = () => (
     }}
   >
     <Tab.Screen name="Home"      component={HomeScreen}
-      options={{ tabBarLabel: 'Trang chủ', tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused}/> }}/>
+      options={{ tabBarLabel: t('tabs.home'), tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused}/> }}/>
    
     <Tab.Screen name="ChosenDish" component={ChosenDishScreen}
-      options={{ tabBarLabel: 'Bữa hôm nay', tabBarIcon: ({ focused }) => <TabIcon emoji="🍱" focused={focused}/> }}/>
+      options={{ tabBarLabel: t('tabs.today'), tabBarIcon: ({ focused }) => <TabIcon emoji="🍱" focused={focused}/> }}/>
     <Tab.Screen name="History"   component={HistoryScreen}
-      options={{ tabBarLabel: 'Lịch sử',   tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused}/> }}/>
+      options={{ tabBarLabel: t('tabs.history'),   tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused}/> }}/>
     <Tab.Screen name="Profile"   component={ProfileScreen}
-      options={{ tabBarLabel: 'Hồ sơ',     tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused}/> }}/>
+      options={{ tabBarLabel: t('tabs.profile'),     tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused}/> }}/>
     <Tab.Screen name="Settings"  component={SettingsScreen}
-      options={{ tabBarLabel: 'Cài đặt',   tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused}/> }}/>
+      options={{ tabBarLabel: t('tabs.settings'),   tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused}/> }}/>
+    <Tab.Screen name="Onboarding" component={OnboardingTabScreen}
+      options={{
+        tabBarLabel: t('tabs.onboarding'),
+        tabBarIcon: ({ focused }) => <TabIcon emoji="🍜" focused={focused}/>,
+      }}/>
   </Tab.Navigator>
-);
+  );
+};
 
 // ── Splash Screen (Lottie Lazy Cat) ──────────────────────────────────────
-const SplashScreen = () => (
+const SplashScreen = ({ onRetry }) => {
+  const { t } = useTranslation();
+  return (
   <View style={sp.root}>
     {/* Layer 1 — wood background */}
     <Image
       source={TEX.wood}
-      style={[StyleSheet.absoluteFillObject, { opacity: 0.82 }]}
+      style={[StyleSheet.absoluteFill, { width: '100%', height: '100%', opacity: 0.82 }]}
       resizeMode="cover"
     />
     {/* Layer 2 — cream overlay */}
-    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(240,230,210,0.45)' }]} />
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(240,230,210,0.45)' }]} />
 
     {/* ParchmentCard chứa mascot */}
     <View style={sp.cardShadow}>
@@ -130,22 +148,23 @@ const SplashScreen = () => (
             style={[sp.lottie, { pointerEvents: 'none' }]}
           />
           <Text style={sp.title}>Daily Mate</Text>
-          <Text style={sp.sub}>Đang chuẩn bị món ngon... 🍳</Text>
+          <Text style={sp.sub}>{t(onRetry ? 'splash.profileError' : 'splash.preparing')}</Text>
 
           {/* Loading dots */}
-          <View style={sp.dotsRow}>
+          {onRetry ? <Button title={t('common.retry')} onPress={onRetry} /> : <View style={sp.dotsRow}>
             {[0, 1, 2].map(i => (
               <View key={i} style={[sp.dot, { opacity: 0.35 + i * 0.2 }]} />
             ))}
-          </View>
+          </View>}
         </View>
       </View>
     </View>
 
     {/* Footer */}
-    <Text style={sp.footer}>🍜 Bạn đồng hành ẩm thực</Text>
+    <Text style={sp.footer}>{t('splash.companion')}</Text>
   </View>
-);
+  );
+};
 
 // ── Splash styles (design.md compliant) ──────────────────────────────────
 const sp = StyleSheet.create({
@@ -216,10 +235,7 @@ const sp = StyleSheet.create({
 // ── Root App ──────────────────────────────────────────────────────────────
 const App = () => {
   const {
-    loadProfile, loadLatestMetrics, loadAllergies,
-    initializeLocation, initializeMaxPrepTime,
-    initializeCostPreference, initializeIngredients,
-    initializeSettings, loadAllProfilesAction,
+    initializeIngredients, initializeSettings, loadAllProfilesAction,
   } = useAppStore();
 
   // navigationRef — dùng để navigate từ notification listener (ngoài navigator context)
@@ -228,9 +244,14 @@ const App = () => {
   const appStateRef   = useRef(AppState.currentState);
 
 
-  const [authState,      setAuthState]      = useState('loading');
-  const [appReady,       setAppReady]       = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  // undefined until Supabase emits INITIAL_SESSION, null while signed out.
+  const [account, setAccount] = useState(undefined);
+  const currentAccount = useRef(undefined);
+  const pendingInit = useRef(Promise.resolve());
+  const appReadyRef = useRef(false);
+  const [route, setRoute] = useState('loading');
+  const [attempt, setAttempt] = useState(0);
+  const [languageReady,  setLanguageReady] = useState(false);
   const [showReset,      setShowReset]      = useState(false);
 
   const [fontsLoaded] = useFonts({
@@ -250,19 +271,22 @@ const App = () => {
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthState(session ? 'authenticated' : 'unauthenticated');
-    });
+    restoreLanguage()
+      .catch(error => console.warn('[i18n] Could not restore language:', error?.message))
+      .finally(() => setLanguageReady(true));
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthState(session ? 'authenticated' : 'unauthenticated');
-      if (!session) {
-        setAppReady(false);
-        // [FIX SAVE-001] resetStore() giờ là async — phải await để đảm bảo
-        // clearUserLocalCache() xong TRƯỚC khi authState thay đổi kích hoạt
-        // initializeApp() ở lần login tiếp theo.
-        useAppStore.getState().resetStore().catch(e =>
-          console.warn('[App] resetStore error (non-critical):', e.message)
-        );
+      const previous = currentAccount.current;
+      const userId = session?.user?.id ?? null;
+      if (previous !== undefined && (previous?.id ?? null) === userId) return;
+      const next = userId ? { id: userId } : null;
+      currentAccount.current = next;
+      appReadyRef.current = false;
+      setRoute('loading');
+      setAccount(next);
+      if (previous) {
+        setShowReset(false);
+        pendingInit.current = pendingInit.current.then(() => useAppStore.getState().resetStore(previous.id));
       }
     });
     return () => subscription.unsubscribe();
@@ -331,9 +355,19 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (authState === 'authenticated' && !appReady) initializeApp();
-    if (authState === 'unauthenticated')            setAppReady(true);
-  }, [authState]);
+    if (!account) return;
+    let cancelled = false;
+    const isCurrent = () => !cancelled && currentAccount.current === account;
+    pendingInit.current = pendingInit.current.then(async () => {
+      if (isCurrent()) await initializeApp(isCurrent);
+    }).catch(error => {
+      if (isCurrent()) {
+        console.error('[App] initializeApp:', error);
+        setRoute('error');
+      }
+    });
+    return () => { cancelled = true; };
+  }, [account, attempt]);
 
   const getUserLocation = async () => {
     try {
@@ -365,14 +399,9 @@ const App = () => {
     } catch { return null; }
   };
 
-  const appReadyRef = useRef(false); // [FIX LOC-001] ref để tránh re-create checkLocationOnResume
-
   // ── Fetch location mỗi lần app mở / resume từ background ────────────────
-  // [FIX LOC-001] Dùng ref thay vì deps [authState, appReady] để useCallback không
-  // re-create mỗi khi appReady thay đổi → tránh AppState listener bị remove/add lại
-  // liên tục → tránh setLocation gọi nhiều lần → tránh HomeScreen nhấp nháy.
   const checkLocationOnResume = useCallback(async () => {
-    if (authState !== 'authenticated' || !appReadyRef.current) return;
+    if (!account || !appReadyRef.current) return;
     if (__DEV__) console.log('[Location] App resume — re-fetch location');
     // [FIX LOC-002] dùng getLocationWithoutRequest — không hiển thị permission dialog
     const loc = await getLocationWithoutRequest();
@@ -392,7 +421,7 @@ const App = () => {
       }
       registerDeviceToken(loc);
     }
-  }, [authState]); // ← bỏ appReady khỏi deps
+  }, [account]);
 
   // ── Lắng nghe AppState — chạy checkLocationOnResume khi về foreground ─────
   useEffect(() => {
@@ -447,101 +476,73 @@ const App = () => {
     }
   };
 
-  const initializeApp = async () => {
-    try {
-      // Bước 1: chờ Firebase Auth sẵn sàng HOÀN TOÀN trước khi đụng Firestore.
-      // ensureFirebaseAuth() gọi waitForFirebaseAuth() bên trong — block cho đến khi
-      // onAuthStateChanged fire (session restore từ AsyncStorage) hoặc signInAnonymously xong.
-      // Đây là root cause của "lần đầu đăng nhập không ghi được Firestore":
-      // Firebase persistence là async, currentUser = null cho đến khi SDK load xong.
-      await ensureFirebaseAuth();
-
-      await initDB();
-
-      // Migration: profile cũ → multi-profile schema (chỉ chạy 1 lần)
-      await migrateExistingProfile();
-
-      // Guard: nếu migration fail (Firestore write bị reject) và activeProfileId vẫn null
-      // → tạo profile khẩn cấp. Lần này Firebase auth đã chắc chắn ready.
-      let earlyProfileId = await getActiveProfileId();
-      if (!earlyProfileId) {
-        if (__DEV__) console.warn('[App] activeProfileId null sau migration — tạo profile khẩn cấp');
-        const emergencyId = 'profile_' + Date.now().toString(36);
-        await saveProfileMember({
-          profileId:   emergencyId,
-          displayName: 'Bản thân',
-          relation:    'self',
-          avatar:      '🧑',
-          isDefault:   true,
-          created_at:  new Date().toISOString(),
-          updated_at:  new Date().toISOString(),
-        });
-        await setActiveProfileId(emergencyId);
-        earlyProfileId = emergencyId;
-      }
-
-      // Sync activeProfileId vào Zustand NGAY, trước initializeSettings
-      useAppStore.getState().setActiveProfileId(earlyProfileId);
-
-      // Load settings (bao gồm activeProfileId, location, costPref, v.v.)
-      await initializeSettings();
-
-      // Load data song song — tất cả đều cần Firebase auth đã sẵn sàng (đảm bảo ở bước 1)
-      await Promise.all([
-        loadProfile(),
-        loadLatestMetrics(),
-        loadAllergies(),
-        loadAllProfilesAction(),
-        initializeIngredients(),
-        useAppStore.getState().loadSavedDishes(), // load món yêu thích — auth đã xong ở bước 1
-      ]);
-
-      // Notification channel (Android 8+ bắt buộc)
-      await setupNotificationChannel();
-
-      // [FIX PERM] Request GPS + Notification permission SỚM — ngay sau splash
-      // để dialog hiện ra trước mặt user, không chạy ngầm background
-      // GPS trước, notification sau (tránh 2 dialog chồng nhau)
-      const locResult = await getUserLocation();
-      if (locResult) {
-        useAppStore.getState().setLocation({
-          lat: Math.round(locResult.coords.latitude  * 100) / 100,
-          lon: Math.round(locResult.coords.longitude * 100) / 100,
-          province:    useAppStore.getState().location?.province    ?? '',
-          food_region: useAppStore.getState().location?.food_region ?? '',
-        });
-      }
-      // Notification permission + đăng ký token (chạy sau GPS để dialog không chồng)
-      registerDeviceToken(locResult);
-
-      setShowOnboarding(false);
-      setAppReady(true);
-      appReadyRef.current = true; // [FIX LOC-001] sync ref
-    } catch (e) {
-      console.error('[App] initializeApp error:', e);
-      // KHÔNG setAppReady(true) khi lỗi Firebase auth — retry khi authState thay đổi lại.
-      // Chỉ setAppReady(true) nếu lỗi không phải permission/auth để tránh màn hình trắng mãi.
-      const isAuthError = e?.code === 'permission-denied' || e?.message?.includes('permission');
-      if (!isAuthError) {
-        setAppReady(true);
-        appReadyRef.current = true; // [FIX LOC-001]
-      } else {
-        console.warn('[App] Firebase permission error — giữ splash, chờ auth ổn định rồi retry');
-        // Retry sau 2 giây
-        setTimeout(() => {
-          if (!appReady) initializeApp();
-        }, 2000);
-      }
+  // [FIX PERM] GPS trước, notification sau (tránh 2 dialog chồng nhau)
+  const requestDevicePermissions = async () => {
+    const locResult = await getUserLocation();
+    if (currentAccount.current !== account) return;
+    if (locResult) {
+      useAppStore.getState().setLocation({
+        lat: Math.round(locResult.coords.latitude  * 100) / 100,
+        lon: Math.round(locResult.coords.longitude * 100) / 100,
+        province:    useAppStore.getState().location?.province    ?? '',
+        food_region: useAppStore.getState().location?.food_region ?? '',
+      });
     }
+    // Notification permission + đăng ký token (chạy sau GPS để dialog không chồng)
+    registerDeviceToken(locResult);
+  };
+
+  const handleOnboardingFinish = async () => {
+    if (currentAccount.current !== account) return;
+    setRoute('main');
+    appReadyRef.current = true;
+    await requestDevicePermissions();
+  };
+
+  const initializeApp = async (isCurrent) => {
+    const profile = await migrateExistingProfile();
+    if (!isCurrent()) return;
+    useAppStore.getState().setActiveProfileId(profile.profileId);
+    useAppStore.getState().setProfile(profile);
+
+    // Keep the persisted device setting and i18n preference in sync.
+    // First login: use the language already selected by i18n (device locale
+    // when supported, otherwise vi) and persist it for future launches.
+    const savedLanguage = await getSetting('language');
+    if (!isCurrent()) return;
+    const language = savedLanguage === 'vi' || savedLanguage === 'en'
+      ? savedLanguage
+      : (i18n.language === 'en' ? 'en' : 'vi');
+    await changeLanguage(language);
+    if (isCurrent() && savedLanguage !== language) {
+      await setSetting('language', language);
+    }
+
+    if (!isCurrent()) return;
+    await initializeSettings();
+    if (!isCurrent()) return;
+    await Promise.all([
+      loadAllProfilesAction(),
+      initializeIngredients(),
+      useAppStore.getState().loadSavedDishes(),
+    ]);
+
+    if (!isCurrent()) return;
+    await setupNotificationChannel().catch(error => console.warn('[Push] Notification channel:', error.message));
+    if (!isCurrent()) return;
+    const mustOnboard = needsOnboarding(profile);
+    setRoute(mustOnboard ? 'onboarding' : 'main');
+    appReadyRef.current = !mustOnboard;
+    if (!mustOnboard) requestDevicePermissions().catch(error => console.warn('[Permissions]', error.message));
   };
 
   // Fonts chưa load hoặc đang khởi tạo → Splash với Lazy Cat
-  if (!fontsLoaded || authState === 'loading' || (authState === 'authenticated' && !appReady)) {
+  if (!fontsLoaded || !languageReady || account === undefined || (account && route === 'loading')) {
     return <SplashScreen />;
   }
 
   // Chưa đăng nhập → LoginScreen
-  if (authState === 'unauthenticated') {
+  if (!account) {
     return (
       <>
         <StatusBar barStyle="light-content" backgroundColor="#8B5E3C" />
@@ -560,7 +561,22 @@ const App = () => {
     );
   }
 
-  // Đã đăng nhập → toàn bộ app (onboarding đã bị loại bỏ)
+  if (route === 'error') {
+    return <SplashScreen onRetry={() => { setRoute('loading'); setAttempt(n => n + 1); }} />;
+  }
+
+  if (route === 'onboarding') {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F5EDDC' }}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F5EDDC" />
+        <NavigationContainer>
+          <OnboardingFlow mode="full" onFinish={handleOnboardingFinish} />
+        </NavigationContainer>
+      </SafeAreaView>
+    );
+  }
+
+  // Đã đăng nhập → toàn bộ app
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5EDDC" />
@@ -568,15 +584,18 @@ const App = () => {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Main"             component={MainTabs}/>
           <Stack.Screen name="DishDetail"       component={DishDetailScreen}/>
+          <Stack.Screen name="CookingSteps"     component={CookingStepsScreen}/>
           <Stack.Screen name="MarketBasket"     component={MarketBasketScreen}/>
           <Stack.Screen name="HistoryDetail"    component={HistoryDetailScreen}/>
           <Stack.Screen name="EditPersonal"     component={EditPersonalScreen}/>
           <Stack.Screen name="BodyMetrics"      component={BodyMetricsScreen}/>
           <Stack.Screen name="Allergy"          component={AllergyScreen}/>
-          <Stack.Screen name="CookingChallenge" component={CookingChallengeScreen}/>
           <Stack.Screen name="TasteProfile"     component={TasteProfileScreen}/>
           <Stack.Screen name="Recommend"        component={RecommendScreen}/>
+          <Stack.Screen name="IngredientSuggest" component={IngredientSuggestScreen}/>
           <Stack.Screen name="AddEditProfile"   component={AddEditProfileScreen}/>
+          <Stack.Screen name="TasteOnboarding"  component={TasteOnboardingScreen}/>
+          <Stack.Screen name="ProfileOnboarding" component={ProfileOnboardingScreen}/>
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaView>

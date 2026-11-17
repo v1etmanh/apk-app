@@ -45,6 +45,7 @@ import { Sparkle } from 'phosphor-react-native/lib/module/icons/Sparkle';
 
 import { loadProfileById, saveProfileMember } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -65,13 +66,15 @@ const C = {
 };
 
 // ─── Options ──────────────────────────────────────────────────────────────────
+// Đúng các lựa chọn của onboarding (không còn tuổi / mục tiêu / vận động / bệnh lý)
 const GENDER_OPTS   = [{ key:'male',   Icon: GenderMale,   text:'Nam'       },
-                       { key:'female', Icon: GenderFemale, text:'Nữ'        },
-                       { key:'other',  Icon: GenderNeuter, text:'Khác'      }];
-const DIET_OPTS     = [{ key:'omnivore',    Icon: ForkKnife, text:'Ăn tất cả'  },
-                       { key:'vegetarian', Icon: Leaf,      text:'Chay'        },
-                       { key:'vegan',      Icon: Plant,     text:'Thuần chay'  },
-                       { key:'pescatarian',Icon: Fish,      text:'Ăn cá'       }];
+                       { key:'female', Icon: GenderFemale, text:'Nữ'        }];
+const DIET_OPTS     = [{ key:'omnivore',    Icon: ForkKnife, text:'Ăn mặn'     },
+                       { key:'vegetarian', Icon: Leaf,      text:'Ăn chay'     },
+                       { key:'vegan',      Icon: Plant,     text:'Thuần chay'  }];
+const REGION_OPTS   = [{ key:'northern', emoji:'🏞️' }, { key:'central', emoji:'🌶️' },
+                       { key:'southern', emoji:'🥥' }, { key:'national', emoji:'🇻🇳' },
+                       { key:'other', emoji:'🌏' }];
 const GOAL_OPTS     = [{ key:'maintenance', Icon: Scales,      text:'Duy trì'   },
                        { key:'weight_loss', Icon: TrendDown,   text:'Giảm cân'  },
                        { key:'muscle_gain', Icon: Barbell,     text:'Tăng cơ'   },
@@ -138,17 +141,20 @@ const StampChip = ({ Icon, text, active, onPress }) => (
 );
 
 // ─── Chip group ───────────────────────────────────────────────────────────────
-const ChipGroup = ({ label, Icon, options, value, onChange }) => (
+const ChipGroup = ({ label, Icon, options, value, onChange, translationPath }) => {
+  const { t } = useTranslation();
+  return (
   <View style={st.block}>
     <SectionLabel text={label} Icon={Icon} />
     <View style={st.chips}>
       {options.map(o => (
-        <StampChip key={o.key} Icon={o.Icon} text={o.text}
+        <StampChip key={o.key} Icon={o.Icon} text={translationPath ? t(translationPath + '.' + o.key) : t('onboarding.diet.diets.' + o.key + '.label', { defaultValue: o.text })}
           active={value === o.key} onPress={() => onChange(o.key)} />
       ))}
     </View>
   </View>
-);
+  );
+};
 
 // ─── Card wrapper với wobbly frame ────────────────────────────────────────────
 const NoteCard = ({ children, style }) => {
@@ -173,91 +179,57 @@ const NoteCard = ({ children, style }) => {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 const EditPersonalScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const [age, setAge]           = useState('25');
-  const [gender, setGender]     = useState('female');
+  const { t } = useTranslation();
+  const [gender, setGender]     = useState(null);
   const [dietType, setDietType] = useState('omnivore');
-  const [goal, setGoal]         = useState('maintenance');
-  const [activity, setActivity] = useState('moderately_active');
+  const [region, setRegion]     = useState('national');
   const [saving, setSaving]     = useState(false);
-  const { profile, setProfile, activeProfileId } = useAppStore();
-  const [healthConditions, setHealthConditions] = useState([]);
-
-const toggleHealth = (key) => {
-  if (key === 'none') { setHealthConditions([]); return; }
-  setHealthConditions(prev =>
-    prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-  );
-};
+  const { profile, activeProfileId, switchProfile } = useAppStore();
   const lottieRef = useRef(null);
+
+  const applyProfile = (p) => {
+    if (!p) return;
+    setGender(p.gender === 'female' || p.gender === 'male' ? p.gender : null);
+    setDietType(['omnivore', 'vegetarian', 'vegan'].includes(p.diet_type) ? p.diet_type : 'omnivore');
+    setRegion(p.nation === 'other' ? 'other' : (p.home_region || 'national'));
+  };
 
   useEffect(() => {
     if (!activeProfileId) return;
-    const p = profile;
-    if (p) {
-      setAge(String(p.age || '25'));
-      setGender(p.gender || 'female');
-      setDietType(p.diet_type || 'omnivore');
-      setGoal(p.dietary_goal || 'maintenance');
-      setActivity(p.activity_level || 'moderately_active');
-      setHealthConditions(p.health_condition || []);
-    } else {
-      loadProfileById(activeProfileId).then(r => {
-        if (r) {
-          setAge(String(r.age || '25'));
-          setGender(r.gender || 'female');
-          setHealthConditions(r.health_condition || []);
-          setDietType(r.diet_type || 'omnivore');
-          setGoal(r.dietary_goal || 'maintenance');
-          setActivity(r.activity_level || 'moderately_active');
-          setProfile(r);
-        }
-      }).catch(console.error);
-    }
+    if (profile) applyProfile(profile);
+    else loadProfileById(activeProfileId).then(applyProfile).catch(console.error);
   }, [activeProfileId]);
 
   const handleSave = async () => {
-    const ageNum = parseInt(age);
-    if (!age || isNaN(ageNum) || ageNum < 10 || ageNum > 100) {
-      Alert.alert('Ối!', 'Tuổi phải từ 10 đến 100 nhé 😊'); return;
-    }
-
-    // [FIX] activeProfileId có thể null ở lần đầu đăng nhập nếu store chưa kịp set.
-    // Fallback: đọc thẳng từ AsyncStorage.
     let profileId = activeProfileId;
     if (!profileId) {
       const { getActiveProfileId } = await import('../utils/database');
       profileId = await getActiveProfileId();
     }
     if (!profileId) {
-      Alert.alert('Ối!', 'Không tìm thấy hồ sơ. Vui lòng thử lại sau.');
+      Alert.alert(t('personal.missing'), t('personal.missingBody'));
       return;
     }
 
     setSaving(true);
     lottieRef.current?.play();
     try {
-      const now = new Date().toISOString();
-      const data = {
-        age: ageNum, gender, diet_type: dietType,
-        dietary_goal: goal, activity_level: activity,
-        health_condition: healthConditions,
-        updated_at: now,
-      };
-      await saveProfileMember({ profileId, ...data });
-      setProfile({ profileId, ...data, created_at: now });
-      Alert.alert('Đã lưu ✓', 'Thông tin cá nhân đã được cập nhật.');
+      await saveProfileMember({
+        profileId,
+        ...(gender ? { gender } : {}),
+        diet_type:   dietType,
+        nation:      region === 'other' ? 'other' : 'vietnam',
+        home_region: region === 'other' ? 'national' : region,
+        updated_at:  new Date().toISOString(),
+      });
+      // Nạp lại toàn bộ hồ sơ vào store (không ghi đè các field khác)
+      await switchProfile(profileId);
+      Alert.alert(t('personal.saved'), t('personal.savedBody'));
       navigation.goBack();
     } catch (e) {
       console.error('[EditPersonal] handleSave error:', e?.message, e);
-      Alert.alert('Ối!', `Không thể lưu. Thử lại nhé 🙏\n${__DEV__ ? e?.message : ''}`);
+      Alert.alert(t('personal.error'), t('personal.errorBody'));
     } finally { setSaving(false); }
-  };
-
-  const stepAge = (delta) => {
-    setAge(a => {
-      const cur = parseInt(a) || 25;
-      return String(Math.max(10, Math.min(100, cur + delta)));
-    });
   };
 
   return (
@@ -280,7 +252,7 @@ const toggleHealth = (key) => {
           onPress={() => navigation.goBack()} 
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Quay lại"
+          accessibilityLabel={t('common.back')}
         >
           <View style={st.backBtnInner}>
             <CaretRight weight="bold" size={22} color={C.ink} style={{ transform: [{ rotate: '180deg' }] }} />
@@ -288,7 +260,7 @@ const toggleHealth = (key) => {
         </TouchableOpacity>
 
         <View style={st.titleWrap}>
-          <Text style={st.navTitle} numberOfLines={1}>Thông tin cá nhân</Text>
+          <Text style={st.navTitle} numberOfLines={1}>{t('personal.title')}</Text>
           <View style={st.titleUnderline} />
         </View>
 
@@ -310,83 +282,39 @@ const toggleHealth = (key) => {
         keyboardShouldPersistTaps="handled"
       >
 
-        {/* Age stepper card */}
-        <NoteCard style={st.cardSpacing}>
-          <View style={st.cardPad}>
-            <SectionLabel text="Tuổi" Icon={Cake} />
-            <View style={st.ageRow}>
-              <TouchableOpacity style={st.stepper} onPress={() => stepAge(-1)} activeOpacity={0.7}>
-                <View style={st.stepInner}>
-                  <Text style={st.stepIcon}>−</Text>
-                </View>
-              </TouchableOpacity>
-
-              <View style={st.ageInputWrap}>
-                <TextInput
-                  style={st.ageInput}
-                  value={age}
-                  onChangeText={setAge}
-                  keyboardType="numeric"
-                  maxLength={3}
-                  textAlign="center"
-                />
-                <Text style={st.ageUnit}>tuổi</Text>
-              </View>
-
-              <TouchableOpacity style={st.stepper} onPress={() => stepAge(1)} activeOpacity={0.7}>
-                <View style={st.stepInner}>
-                  <Text style={st.stepIcon}>+</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </NoteCard>
-
         {/* Gender */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Giới tính" Icon={IdentificationBadge} options={GENDER_OPTS} value={gender} onChange={setGender} />
+            <ChipGroup label={t('personal.gender')} Icon={IdentificationBadge} options={GENDER_OPTS} value={gender} onChange={setGender} translationPath="onboarding.body" />
           </View>
         </NoteCard>
 
         {/* Diet */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Chế độ ăn" Icon={BowlFood} options={DIET_OPTS} value={dietType} onChange={setDietType} />
+            <ChipGroup label={t('personal.diet')} Icon={BowlFood} options={DIET_OPTS} value={dietType} onChange={setDietType} />
           </View>
         </NoteCard>
 
-        {/* Goal */}
+        {/* Region */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
-            <ChipGroup label="Mục tiêu" Icon={Target} options={GOAL_OPTS} value={goal} onChange={setGoal} />
+            <SectionLabel text={t('profileScreen.regionLabel')} Icon={Target} />
+            <View style={st.chips}>
+              {REGION_OPTS.map(o => (
+                <StampChip
+                  key={o.key}
+                  text={`${o.emoji} ${o.key === 'other'
+                    ? t('onboarding.region.nations.other')
+                    : t('onboarding.region.regions.' + o.key + '.label')}`}
+                  active={region === o.key}
+                  onPress={() => setRegion(o.key)}
+                />
+              ))}
+            </View>
           </View>
         </NoteCard>
 
-        {/* Activity */}
-        <NoteCard style={st.cardSpacing}>
-          <View style={st.cardPad}>
-            <ChipGroup label="Mức vận động" Icon={PersonSimpleRun} options={ACTIVITY_OPTS} value={activity} onChange={setActivity} />
-          </View>
-        </NoteCard>
-<NoteCard style={st.cardSpacing}>
-  <View style={st.cardPad}>
-    <SectionLabel text="Tình trạng sức khoẻ" Icon={Sparkle} />
-    <View style={st.chips}>
-      {HEALTH_OPTS.map(o => (
-        <StampChip
-          key={o.key}
-          Icon={o.Icon}
-          text={o.text}
-          active={o.key === 'none'
-            ? healthConditions.length === 0
-            : healthConditions.includes(o.key)}
-          onPress={() => toggleHealth(o.key)}
-        />
-      ))}
-    </View>
-  </View>
-</NoteCard>
         {/* ── Save button (wood texture) ── */}
         <TouchableOpacity onPress={handleSave} disabled={saving} activeOpacity={0.82} style={st.saveBtnWrap}>
           <ImageBackground
@@ -399,7 +327,7 @@ const toggleHealth = (key) => {
               <WobblyFrame width={SW - 40} height={60} color="#8B5E3C" strokeWidth={2} />
               <View style={st.saveBtnContent}>
                 <Text style={st.saveBtnText}>
-                  {saving ? '✦ Đang lưu...' : '✦ Lưu thông tin'}
+                  {saving ? t('personal.saving') : t('personal.save')}
                 </Text>
               </View>
             </ImageBackground>
@@ -423,7 +351,7 @@ const st = StyleSheet.create({
     backgroundColor: C.paper,
   },
   paperOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(250,243,224,0.55)',
   },
 

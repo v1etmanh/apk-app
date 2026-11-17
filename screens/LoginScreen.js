@@ -9,9 +9,10 @@ import {
   ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator,
   Animated, Image, Alert,
 } from 'react-native';
-import { supabase } from '../store/suppabase';
+import { supabase } from '../store/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import { useTranslation } from 'react-i18next';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -23,6 +24,7 @@ const TEX = {
 
 // ── Mode: 'login' | 'register' | 'forgot' ────────────────────────────────────
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const [mode, setMode]         = useState('login');
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
@@ -53,13 +55,13 @@ export default function LoginScreen() {
     if (isSubmittingRef.current) return;
     if (!email || !password) { shake(); return; }
     // [FIX ID-M009] Validate email format trước khi gọi server
-    if (!isValidEmail(email)) { Alert.alert('Email không hợp lệ 😿', 'Kiểm tra lại địa chỉ email nhé!'); shake(); return; }
+    if (!isValidEmail(email)) { Alert.alert(t('auth.emailInvalid'), t('auth.emailInvalidBody')); shake(); return; }
     isSubmittingRef.current = true;
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        Alert.alert('Đăng nhập thất bại 😿', friendlyError(error.message));
+        Alert.alert(t('auth.login'), friendlyError(error.message, t));
         shake();
       }
       // Nếu thành công, onAuthStateChange trong App.js sẽ tự chuyển màn hình
@@ -74,14 +76,14 @@ export default function LoginScreen() {
     if (isSubmittingRef.current) return;
     if (!email || !password || !confirm) { shake(); return; }
     // [FIX ID-M009] Validate email format
-    if (!isValidEmail(email)) { Alert.alert('Email không hợp lệ 😿', 'Kiểm tra lại địa chỉ email nhé!'); shake(); return; }
+    if (!isValidEmail(email)) { Alert.alert(t('auth.emailInvalid'), t('auth.emailInvalidBody')); shake(); return; }
     if (password !== confirm) {
-      Alert.alert('Mật khẩu không khớp 😿', 'Nhập lại mật khẩu xác nhận nhé!');
+      Alert.alert(t('auth.passwordMismatch'), t('auth.passwordMismatchBody'));
       shake(); return;
     }
     // [AUD-010] Min 8 ký tự — phù hợp app lưu dữ liệu sức khỏe cá nhân
     if (password.length < 8) {
-      Alert.alert('Mật khẩu quá ngắn 😿', 'Cần ít nhất 8 ký tự!');
+      Alert.alert(t('auth.passwordShort'), t('auth.passwordShortBody'));
       shake(); return;
     }
     isSubmittingRef.current = true;
@@ -89,13 +91,13 @@ export default function LoginScreen() {
     try {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) {
-        Alert.alert('Đăng ký thất bại 😿', friendlyError(error.message));
+        Alert.alert(t('auth.register'), friendlyError(error.message, t));
         shake();
       } else {
         Alert.alert(
-          'Kiểm tra email nhé! 📬',
-          'Chúng tôi đã gửi link xác nhận vào email của bạn.',
-          [{ text: 'OK', onPress: () => setMode('login') }]
+          t('auth.register'),
+          t('auth.sendReset'),
+          [{ text: t('common.ok'), onPress: () => setMode('login') }]
         );
       }
     } finally {
@@ -116,12 +118,12 @@ export default function LoginScreen() {
     });
     setLoading(false);
     if (error) {
-      Alert.alert('Lỗi 😿', friendlyError(error.message));
+      Alert.alert(t('common.error'), friendlyError(error.message, t));
     } else {
       Alert.alert(
-        'Đã gửi email! 📬',
-        'Kiểm tra hộp thư và làm theo hướng dẫn nhé.',
-        [{ text: 'OK', onPress: () => setMode('login') }]
+        t('auth.sendReset'),
+        t('auth.sendReset'),
+        [{ text: t('common.ok'), onPress: () => setMode('login') }]
       );
     }
   };
@@ -142,8 +144,8 @@ export default function LoginScreen() {
           skipBrowserRedirect: true,
         },
       });
-      if (error) { Alert.alert('Lỗi Google 😿', error.message); return; }
-      if (!data?.url) { Alert.alert('Lỗi Google 😿', 'Không lấy được URL đăng nhập.'); return; }
+      if (error) { Alert.alert(t('common.error'), error.message); return; }
+      if (!data?.url) { Alert.alert(t('common.error'), t('auth.googleUrlError')); return; }
 
       const result = await WebBrowser.openAuthSessionAsync(
         data.url,
@@ -167,11 +169,11 @@ export default function LoginScreen() {
             access_token: accessToken,
             refresh_token: refreshToken,
           });
-          if (sessionError) Alert.alert('Lỗi phiên đăng nhập 😿', sessionError.message);
+          if (sessionError) Alert.alert(t('common.error'), sessionError.message);
         } else if (code) {
           // PKCE flow — Android thường dùng flow này
           const { error: codeError } = await supabase.auth.exchangeCodeForSession(urlStr);
-          if (codeError) Alert.alert('Lỗi phiên đăng nhập 😿', codeError.message);
+          if (codeError) Alert.alert(t('common.error'), codeError.message);
         }
         // onAuthStateChange trong App.js tự chuyển màn hình khi session ready
       }
@@ -181,7 +183,7 @@ export default function LoginScreen() {
         console.log('[Google OAuth] WebBrowser result:', result.type, '— chờ deep link từ Android...');
       }
     } catch (e) {
-      Alert.alert('Lỗi Google 😿', e?.message || 'Đã xảy ra lỗi không xác định.');
+      Alert.alert(t('common.error'), e?.message || t('auth.unknownError'));
     }
   };
 
@@ -191,22 +193,22 @@ export default function LoginScreen() {
 
   // ── UI helpers ─────────────────────────────────────────────────────────────
   const TITLES = {
-    login:    { emoji: '🍳', title: 'Chào trở lại!',    sub: 'Đăng nhập để tiếp tục hành trình ẩm thực' },
-    register: { emoji: '🌿', title: 'Tạo tài khoản',    sub: 'Bắt đầu khám phá hàng trăm món ngon nhé' },
-    forgot:   { emoji: '🔑', title: 'Quên mật khẩu?',  sub: 'Nhập email để nhận link đặt lại mật khẩu' },
+    login:    { emoji: '🍳', title: t('auth.loginTitle'),    sub: t('auth.loginSubtitle') },
+    register: { emoji: '🌿', title: t('auth.registerTitle'),    sub: t('auth.registerSubtitle') },
+    forgot:   { emoji: '🔑', title: t('auth.forgotTitle'),  sub: t('auth.forgotSubtitle') },
   };
   const { emoji, title, sub } = TITLES[mode];
 
   return (
     <View style={s.root}>
       {/* Layer 1 — wood background */}
-      <Image source={TEX.wood} style={[StyleSheet.absoluteFillObject, { opacity: 0.82 }]} resizeMode="cover" />
+      <Image source={TEX.wood} style={[StyleSheet.absoluteFill, { width: '100%', height: '100%', opacity: 0.82 }]} resizeMode="cover" />
       {/* Layer 2 — cream overlay */}
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(240,230,210,0.45)' }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(240,230,210,0.45)' }]} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           contentContainerStyle={s.scroll}
@@ -218,9 +220,9 @@ export default function LoginScreen() {
             <Text style={s.mascotEmoji}>🐱</Text>
             <View style={s.mascotBubble}>
               <Text style={s.mascotText}>
-                {mode === 'login'    ? 'Đăng nhập đi rồi tao chọn món cho mày! 😋'
-                : mode === 'register' ? 'Gia nhập hội sành ăn nào bạn ơi~ 🍜'
-                :                       'Không sao, tao giúp mày lấy lại mật khẩu! 🔑'}
+                {mode === 'login'    ? t('auth.loginSubtitle')
+                : mode === 'register' ? t('auth.registerSubtitle')
+                :                       t('auth.forgotSubtitle')}
               </Text>
             </View>
           </View>
@@ -242,7 +244,7 @@ export default function LoginScreen() {
                 <View style={s.divider} />
 
                 {/* Email input */}
-                <Text style={s.label}>📧 Email</Text>
+                <Text style={s.label}>{t('auth.email')}</Text>
                 <View style={s.inputWrap}>
                   <TextInput
                     style={s.input}
@@ -259,7 +261,7 @@ export default function LoginScreen() {
                 {/* Password input */}
                 {mode !== 'forgot' && (
                   <>
-                    <Text style={s.label}>🔒 Mật khẩu</Text>
+                    <Text style={s.label}>{t('auth.password')}</Text>
                     <View style={s.inputWrap}>
                       <TextInput
                         style={[s.input, { flex: 1 }]}
@@ -280,7 +282,7 @@ export default function LoginScreen() {
                 {/* Confirm password (register only) */}
                 {mode === 'register' && (
                   <>
-                    <Text style={s.label}>🔒 Xác nhận mật khẩu</Text>
+                    <Text style={s.label}>{t('auth.confirmPassword')}</Text>
                     <View style={s.inputWrap}>
                       <TextInput
                         style={s.input}
@@ -298,7 +300,7 @@ export default function LoginScreen() {
                 {/* Forgot password link */}
                 {mode === 'login' && (
                   <TouchableOpacity onPress={() => setMode('forgot')} style={s.forgotBtn}>
-                    <Text style={s.forgotText}>Quên mật khẩu?</Text>
+                    <Text style={s.forgotText}>{t('auth.forgotPassword')}</Text>
                   </TouchableOpacity>
                 )}
 
@@ -311,9 +313,9 @@ export default function LoginScreen() {
                     {loading
                       ? <ActivityIndicator color="#fff" />
                       : <Text style={s.ctaText}>
-                          {mode === 'login' ? '🍳 Đăng nhập'
-                          : mode === 'register' ? '🌿 Tạo tài khoản'
-                          : '📬 Gửi email'}
+                          {mode === 'login' ? `🍳 ${t('auth.login')}`
+                          : mode === 'register' ? `🌿 ${t('auth.registerTitle')}`
+                          : `📬 ${t('auth.sendReset')}`}
                         </Text>
                     }
                   </TouchableOpacity>
@@ -324,13 +326,13 @@ export default function LoginScreen() {
                   <>
                     <View style={s.orRow}>
                       <View style={s.orLine} />
-                      <Text style={s.orText}>hoặc</Text>
+                      <Text style={s.orText}>{t('auth.or')}</Text>
                       <View style={s.orLine} />
                     </View>
 
                     <TouchableOpacity style={s.googleBtn} onPress={handleGoogle} activeOpacity={0.85}>
                       <Text style={s.googleIcon}>🌐</Text>
-                      <Text style={s.googleText}>Tiếp tục với Google</Text>
+                      <Text style={s.googleText}>{t('auth.continueGoogle')}</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -339,23 +341,23 @@ export default function LoginScreen() {
                 <View style={s.switchRow}>
                   {mode === 'login' && (
                     <>
-                      <Text style={s.switchText}>Chưa có tài khoản? </Text>
+                      <Text style={s.switchText}>{t('auth.noAccount')}</Text>
                       <TouchableOpacity onPress={() => setMode('register')}>
-                        <Text style={s.switchLink}>Đăng ký ngay</Text>
+                        <Text style={s.switchLink}>{t('auth.registerNow')}</Text>
                       </TouchableOpacity>
                     </>
                   )}
                   {mode === 'register' && (
                     <>
-                      <Text style={s.switchText}>Đã có tài khoản? </Text>
+                      <Text style={s.switchText}>{t('auth.haveAccount')}</Text>
                       <TouchableOpacity onPress={() => setMode('login')}>
-                        <Text style={s.switchLink}>Đăng nhập</Text>
+                        <Text style={s.switchLink}>{t('auth.login')}</Text>
                       </TouchableOpacity>
                     </>
                   )}
                   {mode === 'forgot' && (
                     <TouchableOpacity onPress={() => setMode('login')}>
-                      <Text style={s.switchLink}>← Quay lại đăng nhập</Text>
+                      <Text style={s.switchLink}>{t('auth.backToLogin')}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -364,7 +366,7 @@ export default function LoginScreen() {
           </Animated.View>
 
           {/* Footer */}
-          <Text style={s.footer}>🍜 Daily Mate — Bạn đồng hành ẩm thực</Text>
+          <Text style={s.footer}>{t('auth.companion')}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -372,11 +374,11 @@ export default function LoginScreen() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function friendlyError(msg = '') {
-  if (msg.includes('Invalid login'))        return 'Email hoặc mật khẩu không đúng.';
-  if (msg.includes('Email not confirmed'))  return 'Hãy xác nhận email trước nhé!';
-  if (msg.includes('already registered'))   return 'Email này đã được đăng ký rồi.';
-  if (msg.includes('Network'))              return 'Không có mạng. Kiểm tra kết nối nhé!';
+function friendlyError(msg = '', t = (key) => key) {
+  if (msg.includes('Invalid login'))        return t('auth.emailInvalidBody');
+  if (msg.includes('Email not confirmed'))  return t('auth.loginSubtitle');
+  if (msg.includes('already registered'))   return t('auth.emailInvalidBody');
+  if (msg.includes('Network'))              return t('auth.unknownError');
   return msg;
 }
 

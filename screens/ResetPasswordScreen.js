@@ -10,7 +10,8 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator,
   Animated, Image, Alert, ScrollView,
 } from 'react-native';
-import { supabase } from '../store/suppabase';
+import { supabase } from '../store/supabase';
+import { useTranslation } from 'react-i18next';
 
 const TEX = {
   wood:  require('../assets/textures/wood_light.png'),
@@ -18,6 +19,7 @@ const TEX = {
 };
 
 export default function ResetPasswordScreen({ onDone }) {
+  const { t } = useTranslation();
   const [password, setPassword]   = useState('');
   const [confirm, setConfirm]     = useState('');
   const [showPass, setShowPass]   = useState(false);
@@ -36,11 +38,11 @@ export default function ResetPasswordScreen({ onDone }) {
   const handleReset = async () => {
     if (!password || !confirm) { shake(); return; }
     if (password !== confirm) {
-      Alert.alert('Mật khẩu không khớp 😿', 'Nhập lại mật khẩu xác nhận nhé!');
+      Alert.alert(t('auth.passwordMismatch'), t('auth.passwordMismatchBody'));
       shake(); return;
     }
     if (password.length < 6) {
-      Alert.alert('Mật khẩu quá ngắn 😿', 'Cần ít nhất 6 ký tự!');
+      Alert.alert(t('auth.passwordShort'), t('auth.passwordShortBody'));
       shake(); return;
     }
 
@@ -49,14 +51,14 @@ export default function ResetPasswordScreen({ onDone }) {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Đổi mật khẩu thất bại 😿', error.message);
+      Alert.alert(t('common.error'), error.message);
       shake();
     } else {
       Alert.alert(
-        'Thành công! 🎉',
-        'Mật khẩu đã được cập nhật. Đăng nhập lại nhé!',
+        t('common.done'),
+        t('auth.resetSuccess'),
         [{
-          text: 'OK',
+          text: t('common.ok'),
           onPress: async () => {
             await supabase.auth.signOut();
             onDone?.(); // ẩn màn hình reset, App.js tự chuyển về Login
@@ -68,17 +70,17 @@ export default function ResetPasswordScreen({ onDone }) {
 
   return (
     <View style={s.root}>
-      <Image source={TEX.wood} style={[StyleSheet.absoluteFillObject, { opacity: 0.82 }]} resizeMode="cover" />
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(240,230,210,0.45)' }]} />
+      <Image source={TEX.wood} style={[StyleSheet.absoluteFill, { width: '100%', height: '100%', opacity: 0.82 }]} resizeMode="cover" />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(240,230,210,0.45)' }]} />
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
           {/* Mascot */}
           <View style={s.mascotRow}>
             <Text style={s.mascotEmoji}>🐱</Text>
             <View style={s.mascotBubble}>
-              <Text style={s.mascotText}>Đặt mật khẩu mới cho mày nào! 🔐</Text>
+              <Text style={s.mascotText}>{t('auth.resetTitle')} 🔐</Text>
             </View>
           </View>
 
@@ -91,17 +93,17 @@ export default function ResetPasswordScreen({ onDone }) {
 
               <View style={{ zIndex: 1 }}>
                 <Text style={s.emoji}>🔑</Text>
-                <Text style={s.title}>Đặt mật khẩu mới</Text>
-                <Text style={s.sub}>Nhập mật khẩu mới cho tài khoản của bạn</Text>
+                <Text style={s.title}>{t('auth.resetTitle')}</Text>
+                <Text style={s.sub}>{t('auth.resetSubtitle')}</Text>
 
                 <View style={s.divider} />
 
                 {/* Password mới */}
-                <Text style={s.label}>🔒 Mật khẩu mới</Text>
+                <Text style={s.label}>{t('auth.newPassword')}</Text>
                 <View style={s.inputWrap}>
                   <TextInput
                     style={[s.input, { flex: 1 }]}
-                    placeholder="Tối thiểu 6 ký tự"
+                    placeholder={t('auth.minPassword')}
                     placeholderTextColor="#C8A96E"
                     value={password}
                     onChangeText={setPassword}
@@ -114,11 +116,11 @@ export default function ResetPasswordScreen({ onDone }) {
                 </View>
 
                 {/* Xác nhận */}
-                <Text style={s.label}>🔒 Xác nhận mật khẩu</Text>
+                <Text style={s.label}>{t('auth.confirmPassword')}</Text>
                 <View style={s.inputWrap}>
                   <TextInput
                     style={s.input}
-                    placeholder="Nhập lại mật khẩu mới"
+                    placeholder={t('auth.confirmNewPassword')}
                     placeholderTextColor="#C8A96E"
                     value={confirm}
                     onChangeText={setConfirm}
@@ -135,7 +137,7 @@ export default function ResetPasswordScreen({ onDone }) {
                     </View>
                     {loading
                       ? <ActivityIndicator color="#fff" />
-                      : <Text style={s.ctaText}>🔐 Cập nhật mật khẩu</Text>
+                      : <Text style={s.ctaText}>🔐 {t('auth.resetPassword')}</Text>
                     }
                   </TouchableOpacity>
                 </View>
@@ -143,7 +145,7 @@ export default function ResetPasswordScreen({ onDone }) {
             </View>
           </Animated.View>
 
-          <Text style={s.footer}>🍜 Daily Mate — Bạn đồng hành ẩm thực</Text>
+          <Text style={s.footer}>{t('auth.companion')}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

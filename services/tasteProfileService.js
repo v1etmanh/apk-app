@@ -1,13 +1,15 @@
 // services/tasteProfileService.js
 // F08 — Taste Profile CRUD
 //
-// Provinces đã migrate sang local JSON (assets/data/provinces.json).
-// Firestore chỉ còn dùng để lưu/đọc taste profile của từng user.
+// Provinces là dữ liệu tĩnh local; khẩu vị được lưu trong hồ sơ Supabase.
 
-import { firestore } from '../utils/firebaseConfig';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  getActiveProfileId,
+  loadTasteProfileForProfile,
+  saveTasteProfileForProfile,
+} from '../utils/database';
 
-// Local JSON — provinces + default taste (thay thế FALLBACK_PROVINCES & Firestore query)
+// Local JSON — provinces + default taste
 import { ALL_PROVINCES, DEFAULT_TASTE } from '../utils/provincesData';
 
 // Re-export để các screen import từ 1 chỗ không cần đổi
@@ -27,21 +29,16 @@ export const REGION_FLAVOR_MAP = {
 // ─── API Functions ─────────────────────────────────────────────────────────────
 
 /**
- * Lấy taste_profile của user từ Firestore.
- * @param {string} uid
+ * Lấy taste profile của hồ sơ đang hoạt động.
+ * @param {string} profileId
  * @returns {{ tasteProfile, hometownProvinceId, tasteMode } | null}
  */
-export const getTasteProfile = async (uid) => {
+export const getTasteProfile = async (profileId) => {
   try {
-    const ref = doc(firestore, 'users', uid);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return null;
-    const data = snap.data();
-    return {
-      tasteProfile:       data.taste_profile       ?? null,
-      hometownProvinceId: data.hometown_province_id ?? null,
-      tasteMode:          data.taste_mode           ?? 'hometown',
-    };
+    const resolvedId = profileId && profileId !== 'local_user'
+      ? profileId
+      : await getActiveProfileId();
+    return resolvedId ? loadTasteProfileForProfile(resolvedId) : null;
   } catch (e) {
     console.error('[tasteProfileService] getTasteProfile:', e);
     return null;
@@ -49,18 +46,16 @@ export const getTasteProfile = async (uid) => {
 };
 
 /**
- * Lưu taste_profile lên Firestore (merge: true để không ghi đè field khác).
- * @param {string} uid
+ * Lưu taste profile vào hồ sơ Supabase đang hoạt động.
+ * @param {string} profileId
  * @param {{ tasteProfile, hometownProvinceId, tasteMode }} data
  */
-export const saveTasteProfile = async (uid, { tasteProfile, hometownProvinceId, tasteMode }) => {
-  const ref = doc(firestore, 'users', uid);
-  await setDoc(ref, {
-    taste_profile:        tasteProfile,
-    hometown_province_id: hometownProvinceId ?? null,
-    taste_mode:           tasteMode,
-    taste_updated_at:     serverTimestamp(),
-  }, { merge: true });
+export const saveTasteProfile = async (profileId, data) => {
+  const resolvedId = profileId && profileId !== 'local_user'
+    ? profileId
+    : await getActiveProfileId();
+  if (!resolvedId) throw new Error('No active profile');
+  await saveTasteProfileForProfile(resolvedId, data);
 };
 
 /**

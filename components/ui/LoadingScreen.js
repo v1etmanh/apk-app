@@ -2,18 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, ImageBackground, Dimensions } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { C } from '../../theme';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 
-const TIPS = [
-  "Đang dọn dẹp nhà bếp...",
-  "Đang chuẩn bị nguyên liệu...",
-  "Đang thắp sáng lò nướng...",
-  "Đang viết menu hôm nay...",
-  "Đang tìm công thức mới..."
-];
-
 const LoadingScreen = ({ isReady, onFinish }) => {
+  const { t } = useTranslation();
+  const tips = t('loading.tips', { returnObjects: true });
   const [tipIndex, setTipIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const exitAnim = useRef(new Animated.Value(1)).current;
@@ -26,7 +21,7 @@ const LoadingScreen = ({ isReady, onFinish }) => {
       Animated.sequence([
         Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
       ]).start(() => {
-        setTipIndex(prev => (prev + 1) % TIPS.length);
+        setTipIndex(prev => (prev + 1) % tips.length);
         Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
       });
     }, 2000);
@@ -84,7 +79,7 @@ const LoadingScreen = ({ isReady, onFinish }) => {
           />
           
           <Animated.View style={{ opacity: fadeAnim, alignItems: 'center' }}>
-            <Text style={st.loadingText}>{TIPS[tipIndex]}</Text>
+            <Text style={st.loadingText}>{tips[tipIndex]}</Text>
           </Animated.View>
         </View>
       </ImageBackground>
@@ -94,7 +89,7 @@ const LoadingScreen = ({ isReady, onFinish }) => {
 
 const st = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 9999,
   },
   root: {

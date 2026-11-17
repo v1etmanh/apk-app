@@ -12,6 +12,9 @@ import MetaChip from '../components/ui/MetaChip';
 import PaperCard from '../components/ui/PaperCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import ScreenBackground from '../components/ui/ScreenBackground';
+import { useTranslation } from 'react-i18next';
+import { formatVnd } from '../utils/price';
+import WhyThisDish from '../components/WhyThisDish';
 
 const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 320;
@@ -21,41 +24,12 @@ const ASSETS = {
   paper: require('../assets/textures/paper_cream.png'),
 };
 
-// Tách ingredient_source_note thành các dòng con có icon riêng
-const parseSourceNote = (text) => {
-  if (!text) return null;
-  // Tách 3 câu: [0] "X chủ yếu đến từ...", [1] "...tổng hợp...", [2] "Phương pháp..."
-  const parts = text.split(/(?<=\.)\s+(?=[A-ZĐÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬÉÈẺẼẸÊẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÚÙỦŨỤƯỨỪỬỮỰÝỲỶỸỴ])/u);
-  return parts.filter(Boolean);
-};
-
-// Thứ tự hiển thị các row giải thích — KHÔNG bao gồm headline và tags (xử lý riêng)
-// ingredient_source_note và active_reasons được xử lý riêng bên dưới
-const explanationConfig = [
-  { key: "weather_reason",         label: "Thời tiết",        icon: "partly-sunny-outline",  color: C.accentGold  || '#C8860A' },
-  { key: "dish_match",             label: "Phù hợp",          icon: "restaurant-outline",    color: C.accentBlue || '#3498DB' },
-  { key: "ingredient_source_note", label: "Vì sao có chỉ số này", icon: "flask-outline",     color: '#8B5CF6' },
-  { key: "nutrition_note",         label: "Dinh dưỡng",       icon: "leaf-outline",          color: C.accentGreen || '#38B07A' },
-  { key: "ingredient_note",        label: "Giỏ hàng",         icon: "basket-outline",        color: '#A78BFA' },
-  { key: "seasonal_note",          label: "Mùa vụ",           icon: "calendar-outline",      color: '#EC4899' },
-];
-
-// Map active_reason code → nhãn hiển thị ngắn gọn
-const REASON_LABELS = {
-  "weather_cooling":      { label: "Mát",            icon: "snow-outline",           color: '#2DD4BF' },
-  "weather_warming":      { label: "Giữ ấm",         icon: "flame-outline",          color: '#F97316' },
-  "weather_hydration":    { label: "Bù nước",        icon: "water-outline",          color: '#3B82F6' },
-  "weather_energy":       { label: "Năng lượng",     icon: "flash-outline",          color: '#FBBF24' },
-  "disease_hypertension": { label: "Ít muối",        icon: "heart-outline",          color: '#EF4444' },
-  "disease_diabetes":     { label: "GL thấp",        icon: "fitness-outline",        color: '#10B981' },
-  "disease_gout":         { label: "Ít purine",      icon: "medical-outline",        color: '#6366F1' },
-  "bmi_overweight":       { label: "Ít calo",        icon: "scale-outline",          color: '#F59E0B' },
-  "bmi_underweight":      { label: "Bổ năng lượng",  icon: "barbell-outline",        color: '#84CC16' },
-  "location_season":      { label: "Hợp mùa vụ",    icon: "leaf-outline",           color: '#34D399' },
-};
-
 const DishDetailScreen = ({ route, navigation }) => {
-  const { dish } = route.params;
+  const { t, i18n } = useTranslation();
+  const priceLang = (i18n?.language || 'vi').startsWith('en') ? 'en' : 'vi';
+  const { dish: initialDish, pickedIds = [] } = route.params;
+  const pickedSet = new Set(pickedIds.map(Number));
+  const [dish, setDish] = useState(initialDish);
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -65,7 +39,6 @@ const DishDetailScreen = ({ route, navigation }) => {
   const [loadingDetail, setLoadingDetail]           = useState(true);
   const [feedbackState, setFeedbackState]           = useState({}); // { eaten: 'loading'|'done'|'error' }
   const [dishUrl, setDishUrl]                       = useState(dish.url || ''); // fallback cho url từ API
-
   useEffect(() => { loadDetail(); }, []);
 
   const loadDetail = async () => {
@@ -73,6 +46,7 @@ const DishDetailScreen = ({ route, navigation }) => {
       const dishId = dish.dish_id || dish.id;
       if (!dishId) return;
       const res = await api.get(`/api/v1/dishes/${dishId}`);
+      setDish(prev => ({ ...prev, ...res.data }));
       setIngredients(res.data.ingredients || []);
       // Nếu dish trong params (từ meal plan cũ) không có url → lấy từ API
       if (!dishUrl && res.data.url) {
@@ -111,23 +85,9 @@ const DishDetailScreen = ({ route, navigation }) => {
     }
   };
 
-  // Metric Card for Scores
-  const MetricCard = ({ label, value, color, icon }) => (
-    <View style={s.metricCard}>
-      <View style={[s.metricIconWrap, { backgroundColor: color + '15' }]}>
-        <Ionicons name={icon} size={16} color={color} />
-      </View>
-      <View style={s.metricInfo}>
-        <Text style={s.metricLabel}>{label}</Text>
-        <View style={s.metricTrack}>
-          <View style={[s.metricFill, { width: `${Math.min(100, Math.round((value || 0) * 100))}%`, backgroundColor: color }]} />
-        </View>
-      </View>
-      <Text style={[s.metricVal, { color: color }]}>{Math.round((value || 0) * 100)}%</Text>
-    </View>
-  );
-
-  const breakdown = dish.score_breakdown || {};
+  // match_pct: điểm tương đối so với món tốt nhất của lần gợi ý (server mới); dữ liệu cũ dùng final_score
+  const matchPct = dish.match_pct ?? Math.round((dish.final_score || 0) * 100);
+  const missingIngredients = Array.isArray(dish.missing_ingredients) ? dish.missing_ingredients : [];
   const mainIngredients = ingredients.filter(i => i.is_main);
   const sideIngredients = ingredients.filter(i => !i.is_main);
 
@@ -205,148 +165,53 @@ const DishDetailScreen = ({ route, navigation }) => {
                 <View style={s.metaChipsRow}>
                   <MetaChip icon={<Ionicons name="time-outline" size={13} color={C.textMid}/>} label={`${dish.cook_time_min}p`} style={s.chipSpacing} />
                   <MetaChip icon={<Ionicons name="earth" size={13} color={C.accentBlue}/>} label={dish.nation || 'Việt Nam'} style={s.chipSpacing} />
-                  <MetaChip variant="accent" icon={<Ionicons name="star" size={13} color={C.accentGreen}/>} label={`${((dish.final_score||0)*100).toFixed(0)}%`} style={s.chipSpacing} />
+                  <MetaChip variant="accent" icon={<Ionicons name="star" size={13} color={C.accentGreen}/>} label={`${matchPct}%`} style={s.chipSpacing} />
+                  {!!formatVnd(dish.est_cost_vnd, priceLang) && (
+                    <MetaChip
+                      icon={<Ionicons name="wallet-outline" size={13} color={C.textMid}/>}
+                      label={t('price.perServing', { price: formatVnd(dish.est_cost_vnd, priceLang) })}
+                      style={s.chipSpacing}
+                    />
+                  )}
                 </View>
+                {!!formatVnd(dish.est_cost_vnd, priceLang) && (
+                  <Text style={s.priceNote}>{t('price.note')}</Text>
+                )}
               </View>
             </ImageBackground>
           </View>
 
-          {/* ── Why Recommended (Expert Note) ── */}
-          {dish.explanation && Object.keys(dish.explanation).length > 0 && (
-            <View style={s.section}>
-              <SectionHeader title="Ghi chú từ bếp" icon="document-text-outline" />
-              <PaperCard priority="primary" innerStyle={{ padding: 18 }}>
-
-                {/* Headline — banner nổi bật đầu card */}
-                {dish.explanation.headline ? (
-                  <View style={s.headlineBanner}>
-                    <Ionicons name="sparkles-outline" size={15} color={C.accentGold || '#C8860A'} style={{ marginRight: 8, marginTop: 1 }} />
-                    <Text style={s.headlineText}>{dish.explanation.headline}</Text>
-                  </View>
-                ) : null}
-
-                {/* ── Active Reasons pills — "Món này fit vì..." ── */}
-                {Array.isArray(dish.explanation.active_reasons) && dish.explanation.active_reasons.length > 0 && (
-                  <View style={s.activeReasonsBlock}>
-                    <Text style={s.activeReasonsLabel}>Phù hợp với bạn vì</Text>
-                    <View style={s.activeReasonsPills}>
-                      {dish.explanation.active_reasons.map((reason) => {
-                        const info = REASON_LABELS[reason];
-                        if (!info) return null;
-                        return (
-                          <View key={reason} style={[s.reasonPill, { backgroundColor: info.color + '15', borderColor: info.color + '40' }]}>
-                            <Ionicons name={info.icon} size={12} color={info.color} style={{ marginRight: 4 }} />
-                            <Text style={[s.reasonPillText, { color: info.color }]}>{info.label}</Text>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-
-                {/* Divider sau active_reasons nếu có */}
-                {Array.isArray(dish.explanation.active_reasons) && dish.explanation.active_reasons.length > 0 && (
-                  <View style={s.sectionDivider} />
-                )}
-
-                {/* Các row giải thích theo thứ tự trong explanationConfig */}
-                {explanationConfig.map(({ key, label, icon, color }) => {
-                  const value = dish?.explanation?.[key];
-                  if (!value) return null;
-
-                  // ingredient_source_note — render dạng card nổi bật với sub-lines
-                  if (key === 'ingredient_source_note') {
-                    const sourceParts = parseSourceNote(value);
-                    const subIcons = ['list-outline', 'calculator-outline', 'flame-outline'];
-                    return (
-                      <View key={key} style={s.sourceNoteBlock}>
-                        <View style={s.sourceNoteHeader}>
-                          <View style={[s.noteIconBox, { backgroundColor: color + '18' }]}>
-                            <Ionicons name={icon} size={14} color={color} />
-                          </View>
-                          <Text style={[s.noteLabel, { color, marginLeft: 8, alignSelf: 'center' }]}>{label}</Text>
-                        </View>
-                        <View style={[s.sourceNoteBody, { borderLeftColor: color + '50' }]}>
-                          {sourceParts && sourceParts.length > 1 ? (
-                            sourceParts.map((part, idx) => (
-                              <View key={idx} style={s.sourceNoteLine}>
-                                <Ionicons
-                                  name={subIcons[idx] || 'ellipse-outline'}
-                                  size={12}
-                                  color={color}
-                                  style={s.sourceNoteLineIcon}
-                                />
-                                <Text style={s.sourceNoteText}>{part}</Text>
-                              </View>
-                            ))
-                          ) : (
-                            <Text style={s.sourceNoteText}>{value}</Text>
-                          )}
-                        </View>
-                      </View>
-                    );
-                  }
-
-                  return (
-                    <View key={key} style={s.noteRow}>
-                      <View style={[s.noteIconBox, { backgroundColor: color + '18' }]}>
-                        <Ionicons name={icon} size={14} color={color} />
-                      </View>
-                      <View style={s.noteTextWrap}>
-                        <Text style={[s.noteLabel, { color }]}>{label}</Text>
-                        <Text style={s.noteText}>{value}</Text>
-                      </View>
-                    </View>
-                  );
-                })}
-
-                {/* Tags — pills ngang */}
-                {Array.isArray(dish.explanation.tags) && dish.explanation.tags.length > 0 && (
-                  <View style={s.tagsWrap}>
-                    {dish.explanation.tags.map((tag, i) => (
-                      <View key={i} style={s.tagPill}>
-                        <Text style={s.tagText}>{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-              </PaperCard>
-            </View>
-          )}
-
-          {/* ── Score Breakdown ── */}
-          <View style={s.section}>
-            <SectionHeader title="Phân tích độ phù hợp" icon="analytics-outline" />
-            <PaperCard innerStyle={{ padding: 16, gap: 12 }}>
-              <MetricCard label="Tổng thể" value={dish.final_score} color={C.accentGreen || '#38B07A'} icon="checkmark-circle" />
-              {breakdown.hydration > 0 && <MetricCard label="Cấp nước" value={breakdown.hydration} color={C.accentBlue || '#3498DB'} icon="water" />}
-              {breakdown.warming   > 0 && <MetricCard label="Giữ ấm" value={breakdown.warming} color={C.accentGold || '#F59E0B'} icon="thermometer" />}
-              {breakdown.cooling   > 0 && <MetricCard label="Làm mát" value={breakdown.cooling} color="#2DD4BF" icon="snow" />}
-              {breakdown.boost     > 0 && <MetricCard label="Nguyên liệu có sẵn" value={breakdown.boost} color="#A78BFA" icon="basket" />}
-            </PaperCard>
-          </View>
+          {/* ── Vì sao chọn món này — sinh từ sổ cái điểm của lần gợi ý ── */}
+          <WhyThisDish why={dish.why} explanation={dish.explanation} />
 
           {/* ── Ingredients Pantry ── */}
           <View style={s.section}>
-            <SectionHeader title="Tủ nguyên liệu" icon="cart-outline" />
+            <SectionHeader title={t('dish.pantry')} icon="cart-outline" />
             
             {loadingDetail ? (
               <ActivityIndicator color={C.primary} style={{ marginVertical: 20 }} />
             ) : ingredients.length === 0 ? (
               <View style={s.emptyState}>
                 <Ionicons name="fast-food-outline" size={32} color={C.border} />
-                <Text style={s.emptyText}>Chưa có thông tin nguyên liệu</Text>
+                <Text style={s.emptyText}>{t('dish.noIngredients')}</Text>
               </View>
             ) : (
               <View style={s.pantryContainer}>
+                {missingIngredients.length > 0 && (
+                  <View style={s.needBuy}>
+                    <Ionicons name="cart-outline" size={16} color={C.seasonText} />
+                    <Text style={s.needBuyText}>{t('dish.needToBuy', { list: missingIngredients.join(', ') })}</Text>
+                  </View>
+                )}
                 {mainIngredients.length > 0 && (
                   <View style={s.pantryGroup}>
-                    <Text style={s.pantryTitle}>Nguyên liệu chính</Text>
+                    <Text style={s.pantryTitle}>{t('dish.mainIngredients')}</Text>
                     <View style={s.ingGrid}>
                       {mainIngredients.map(ing => (
-                        <View key={ing.id} style={s.ingChipMain}>
-                          <Text style={s.ingTextMain}>{ing.name}</Text>
+                        <View key={ing.id} style={[s.ingChipMain, pickedSet.has(Number(ing.id)) && s.ingChipHave]}>
+                          <Text style={[s.ingTextMain, pickedSet.has(Number(ing.id)) && s.ingTextHave]}>
+                            {pickedSet.has(Number(ing.id)) ? '✓ ' : ''}{ing.name}
+                          </Text>
                           {ing.quantity_g > 0 && (
                             <View style={s.ingQtyBadge}>
                               <Text style={s.ingQtyText}>{ing.quantity_g}g</Text>
@@ -360,11 +225,13 @@ const DishDetailScreen = ({ route, navigation }) => {
                 
                 {sideIngredients.length > 0 && (
                   <View style={[s.pantryGroup, { marginTop: 16 }]}>
-                    <Text style={s.pantryTitle}>Gia vị & Phụ liệu</Text>
+                    <Text style={s.pantryTitle}>{t('dish.sides')}</Text>
                     <View style={s.ingGrid}>
                       {sideIngredients.map(ing => (
-                        <View key={ing.id} style={s.ingChipSide}>
-                          <Text style={s.ingTextSide}>{ing.name}</Text>
+                        <View key={ing.id} style={[s.ingChipSide, pickedSet.has(Number(ing.id)) && s.ingChipHave]}>
+                          <Text style={[s.ingTextSide, pickedSet.has(Number(ing.id)) && s.ingTextHave]}>
+                            {pickedSet.has(Number(ing.id)) ? '✓ ' : ''}{ing.name}
+                          </Text>
                         </View>
                       ))}
                     </View>
@@ -377,32 +244,51 @@ const DishDetailScreen = ({ route, navigation }) => {
           {/* ── Serving suggestion ── */}
           {dish.serving_suggestion ? (
             <View style={s.section}>
-              <SectionHeader title="Gợi ý thưởng thức" icon="restaurant-outline" />
+              <SectionHeader title={t('dish.servingSuggestion')} icon="restaurant-outline" />
               <PaperCard innerStyle={{ padding: 16 }}>
                 <Text style={s.servingText}>{dish.serving_suggestion}</Text>
               </PaperCard>
             </View>
           ) : null}
 
+          {/* ── Cooking Steps CTA ── */}
+          <TouchableOpacity
+            style={[s.recipeBtn, dishUrl ? { marginBottom: 12 } : null]}
+            activeOpacity={0.85}
+            onPress={() =>
+              navigation.navigate('CookingSteps', {
+                dishId: dish.dish_id || dish.id,
+                dish,
+                dishUrl,
+              })
+            }
+          >
+            <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 16, opacity: 0.9 }} resizeMode="cover" />
+            <View style={s.recipeBtnInner}>
+              <Ionicons name="restaurant-outline" size={20} color="#FFFFFF" />
+              <Text style={s.recipeBtnText}>{t('dish.viewCookingSteps')}</Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+            </View>
+          </TouchableOpacity>
+
           {/* ── Recipe Link ── */}
           {dishUrl ? (
             <TouchableOpacity 
-              style={s.recipeBtn} 
-              activeOpacity={0.85}
+              style={s.sourceLinkBtn} 
+              activeOpacity={0.8}
               onPress={() => Linking.openURL(dishUrl)}
             >
-              <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 16, opacity: 0.9 }} resizeMode="cover" />
-              <View style={s.recipeBtnInner}>
-                <Ionicons name="book-outline" size={20} color="#FFFFFF" />
-                <Text style={s.recipeBtnText}>Xem công thức đầy đủ</Text>
-                <Ionicons name="open-outline" size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
+              <View style={s.sourceLinkBtnInner}>
+              <Ionicons name="book-outline" size={17} color={C.primary} />
+              <Text style={s.sourceLinkBtnText}>{t('dish.sourceRecipeLink')}</Text>
+              <Ionicons name="open-outline" size={15} color={C.primary} style={{ marginLeft: 6 }} />
               </View>
             </TouchableOpacity>
           ) : null}
 
           {/* ── Feedback Actions ── */}
           <View style={s.feedbackSection}>
-            <Text style={s.feedbackQuestion}>Quyết định của bạn hôm nay?</Text>
+            <Text style={s.feedbackQuestion}>{t('dish.decision')}</Text>
             <View style={s.feedbackRow}>
 
               {/* Đã Ăn */}
@@ -425,7 +311,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                         : <Ionicons name="checkmark-done" size={18} color="#FFF" />}
                 </View>
                 <Text style={[s.actionStampText, { color: C.accentGreen }]}>
-                  {feedbackState.eaten === 'done' ? 'Đã Lưu!' : feedbackState.eaten === 'error' ? 'Lỗi!' : 'Đã Ăn'}
+                  {feedbackState.eaten === 'done' ? t('dish.saved') : feedbackState.eaten === 'error' ? t('common.error') : t('dish.eaten')}
                 </Text>
               </TouchableOpacity>
 
@@ -447,7 +333,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                       : <Ionicons name="star" size={18} color="#FFF" />}
                 </View>
                 <Text style={[s.actionStampText, { color: C.accentGold || '#F59E0B' }]}>
-                  {feedbackState.rated === 'done' ? 'Đã Lưu!' : 'Đánh Giá'}
+                  {feedbackState.rated === 'done' ? t('dish.saved') : t('dish.rating')}
                 </Text>
               </TouchableOpacity>
 
@@ -471,7 +357,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                         : <Ionicons name="close" size={18} color="#FFF" />}
                 </View>
                 <Text style={[s.actionStampText, { color: C.accentRed || '#E74C3C' }]}>
-                  {feedbackState.skipped === 'done' ? 'Đã Lưu!' : feedbackState.skipped === 'error' ? 'Lỗi!' : 'Bỏ Qua'}
+                  {feedbackState.skipped === 'done' ? t('dish.saved') : feedbackState.skipped === 'error' ? t('common.error') : t('dish.skipped')}
                 </Text>
               </TouchableOpacity>
 
@@ -486,13 +372,13 @@ const DishDetailScreen = ({ route, navigation }) => {
           <ImageBackground source={ASSETS.paper} style={s.modalCard} imageStyle={{ borderRadius: 24, opacity: 0.98 }} resizeMode="cover">
             <View style={s.modalInner}>
               <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>Đánh giá món ăn</Text>
+                <Text style={s.modalTitle}>{t('dish.rate')}</Text>
                 <TouchableOpacity onPress={() => setRatingModalVisible(false)} style={s.closeModalBtn}>
                   <Ionicons name="close" size={24} color={C.textLight} />
                 </TouchableOpacity>
               </View>
               
-              <Text style={s.modalSub}>Món "{dish.title}" hôm nay thế nào?</Text>
+              <Text style={s.modalSub}>{t('dish.rateBody', { name: dish.title })}</Text>
               
               <View style={s.starsRow}>
                 {[1, 2, 3, 4, 5].map(star => (
@@ -518,7 +404,7 @@ const DishDetailScreen = ({ route, navigation }) => {
                 activeOpacity={0.8}
               >
                 <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 18, opacity: 0.9 }} />
-                <Text style={s.modalConfirmText}>Gửi Đánh Giá</Text>
+                <Text style={s.modalConfirmText}>{t('dish.submitRating')}</Text>
               </TouchableOpacity>
             </View>
           </ImageBackground>
@@ -636,6 +522,13 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
+  priceNote: {
+    fontFamily: 'BeVietnamPro-Regular',
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: C.textMid,
+    marginTop: 2,
+  },
   chipSpacing: {
     marginRight: 8,
     marginBottom: 8,
@@ -645,121 +538,13 @@ const s = StyleSheet.create({
   section: {
     marginBottom: 24,
   },
-
-  // Expert Notes
-  noteRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
+  needBuy: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, padding: 10, borderRadius: 12,
+    backgroundColor: C.seasonBg,
   },
-  noteIconBox: {
-    width: 32, height: 32,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    marginTop: 2,
-  },
-  noteTextWrap: {
-    flex: 1,
-  },
-  noteLabel: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 13,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  noteText: {
-    fontFamily: 'Nunito_400Regular',
-    fontSize: 15,
-    color: C.textMid,
-    lineHeight: 22,
-  },
-
-  // Headline banner — đầu card "Ghi chú từ bếp"
-  headlineBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: (C.accentGold || '#C8860A') + '12',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 16,
-    borderLeftWidth: 3,
-    borderLeftColor: C.accentGold || '#C8860A',
-    borderTopRightRadius: 12,
-    borderBottomRightRadius: 12,
-  },
-  headlineText: {
-    flex: 1,
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 15,
-    color: C.text,
-    lineHeight: 22,
-    fontStyle: 'italic',
-  },
-
-  // Tags pills
-  tagsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: C.borderLight,
-  },
-  tagPill: {
-    backgroundColor: (C.accentBlue || '#3498DB') + '12',
-    borderRadius: 9999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: (C.accentBlue || '#3498DB') + '30',
-  },
-  tagText: {
-    fontFamily: 'Nunito_600SemiBold',
-    fontSize: 12,
-    color: C.accentBlue || '#3498DB',
-  },
-
-  // Metrics
-  metricCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  metricIconWrap: {
-    width: 36, height: 36,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  metricInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  metricLabel: {
-    fontFamily: 'Nunito_600SemiBold',
-    fontSize: 14,
-    color: C.textMid,
-    marginBottom: 6,
-  },
-  metricTrack: {
-    height: 8,
-    backgroundColor: 'rgba(92,58,30,0.08)',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  metricFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  metricVal: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 15,
-    width: 40,
-    textAlign: 'right',
-  },
+  needBuyText: { flex: 1, fontSize: 13, color: C.seasonText, fontFamily: 'BeVietnamPro-SemiBold' },
+  ingChipHave: { backgroundColor: C.freshBg, borderColor: '#9FD3B6' },
+  ingTextHave: { color: C.freshText },
 
   // Pantry
   pantryContainer: {
@@ -874,6 +659,27 @@ const s = StyleSheet.create({
   },
 
   // Feedback Stamps
+  sourceLinkBtn: {
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.65)',
+    borderWidth: 1.2,
+    borderColor: C.paperStroke,
+    marginBottom: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sourceLinkBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sourceLinkBtnText: {
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 14,
+    color: C.primary,
+    marginLeft: 8,
+  },
   feedbackSection: {
     marginTop: 10,
     paddingTop: 24,
@@ -982,76 +788,6 @@ const s = StyleSheet.create({
     color: '#FFF',
     position: 'absolute',
     zIndex: 2,
-  },
-
-  // ── Active Reasons block
-  activeReasonsBlock: {
-    marginBottom: 14,
-  },
-  activeReasonsLabel: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 11,
-    color: C.textLight,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  activeReasonsPills: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  reasonPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 9999,
-    borderWidth: 1,
-  },
-  reasonPillText: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 12,
-  },
-
-  // ── Section divider inside card
-  sectionDivider: {
-    height: 1,
-    backgroundColor: C.borderLight,
-    marginVertical: 14,
-    opacity: 0.6,
-  },
-
-  // ── Ingredient source note (truy nguyên chỉ số)
-  sourceNoteBlock: {
-    marginBottom: 16,
-  },
-  sourceNoteHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  sourceNoteBody: {
-    borderLeftWidth: 2,
-    marginLeft: 16,
-    paddingLeft: 12,
-    gap: 8,
-  },
-  sourceNoteLine: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-  },
-  sourceNoteLineIcon: {
-    marginTop: 3,
-    flexShrink: 0,
-  },
-  sourceNoteText: {
-    flex: 1,
-    fontFamily: 'Nunito_400Regular',
-    fontSize: 14,
-    color: C.textMid,
-    lineHeight: 21,
   },
 });
 

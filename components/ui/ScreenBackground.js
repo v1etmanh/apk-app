@@ -28,7 +28,7 @@ export default function ScreenBackground({
   const innerContent = (
     <>
       <StatusBar barStyle={statusBarStyle} backgroundColor="transparent" translucent />
-      <View style={[StyleSheet.absoluteFillObject, styles.overlay, overlayStyle]} />
+      <View style={[StyleSheet.absoluteFill, styles.overlay, overlayStyle]} />
       <View style={[styles.container, { paddingTop, paddingBottom, paddingLeft, paddingRight }, style]}>
         {children}
       </View>

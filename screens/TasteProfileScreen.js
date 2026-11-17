@@ -20,6 +20,7 @@ import Slider from '@react-native-community/slider';
 import LottieView from 'lottie-react-native';
 
 import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 import { getTasteProfile, saveTasteProfile, getProvinces, regionToTaste, DEFAULT_TASTE }
   from '../services/tasteProfileService';
 import { saveTasteProfileForProfile, loadTasteProfileForProfile } from '../utils/database';
@@ -75,9 +76,11 @@ const SpiralBinding = () => {
 };
 
 // ─── Stamp mode toggle ────────────────────────────────────────────────────────
-const ModeToggle = ({ mode, onChange }) => (
+const ModeToggle = ({ mode, onChange }) => {
+  const { t } = useTranslation();
+  return (
   <View style={st.modeRow}>
-    {[['hometown','🗺  Theo quê quán'], ['manual','📋  Thủ công']].map(([m, label]) => {
+    {[['hometown', t('taste.hometown')], ['manual', t('taste.manual')]].map(([m, label]) => {
       const active = mode === m;
       return (
         <TouchableOpacity key={m} onPress={() => onChange(m)} activeOpacity={0.75}
@@ -95,14 +98,17 @@ const ModeToggle = ({ mode, onChange }) => (
       );
     })}
   </View>
-);
+  );
+};
 
 // ─── Taste bar (RadarMini) ────────────────────────────────────────────────────
-const TasteBars = ({ taste }) => (
+const TasteBars = ({ taste }) => {
+  const { t } = useTranslation();
+  return (
   <View style={st.barsWrap}>
     {TASTE_KEYS.map(k => (
       <View key={k} style={st.barRow}>
-        <Text style={st.barKey}>{TASTE_VI[k]}</Text>
+        <Text style={st.barKey}>{t('taste.tastes.' + k)}</Text>
         <View style={st.barBg}>
           <View style={[st.barFill, { width: `${(taste[k] ?? 0) * 100}%`, backgroundColor: TASTE_COLOR[k] }]} />
         </View>
@@ -110,14 +116,16 @@ const TasteBars = ({ taste }) => (
       </View>
     ))}
   </View>
-);
+  );
+};
 
 // ─── Taste slider ─────────────────────────────────────────────────────────────
 const TasteSlider = ({ tastKey, value, onChange }) => {
+  const { t } = useTranslation();
   const color = TASTE_COLOR[tastKey];
   return (
     <View style={st.sliderRow}>
-      <Text style={st.sliderLabel}>{TASTE_VI[tastKey]}</Text>
+      <Text style={st.sliderLabel}>{t('taste.tastes.' + tastKey)}</Text>
       <Slider
         style={{ flex: 1, height: 34 }}
         minimumValue={0} maximumValue={1} step={0.05}
@@ -150,6 +158,7 @@ const ProvinceRow = React.memo(({ item, selected, onPress }) => (
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 const TasteProfileScreen = ({ navigation }) => {
+  const { t } = useTranslation();
   const {
     tasteProfile: storeProfile, hometownProvinceId: storeHometownId,
     tasteMode: storeTasteMode, provinces: storeProvinces,
@@ -235,7 +244,7 @@ const TasteProfileScreen = ({ navigation }) => {
 
   const handleSave = async () => {
     const total = TASTE_KEYS.reduce((s, k) => s + (taste[k] ?? 0), 0);
-    if (total === 0) { Alert.alert('Chưa thiết lập', 'Chọn ít nhất một vị nhé.'); return; }
+    if (total === 0) { Alert.alert(t('taste.notSet'), t('taste.notSetBody')); return; }
     setSaving(true);
     try {
       // Cập nhật store
@@ -248,10 +257,10 @@ const TasteProfileScreen = ({ navigation }) => {
         hometownProvinceId: selectedProvince?.id ?? null,
         tasteMode: mode,
       });
-      Alert.alert('✅ Đã lưu', 'Khẩu vị đã được cập nhật!', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      Alert.alert(t('taste.saved'), t('taste.savedBody'), [{ text: t('common.ok'), onPress: () => navigation.goBack() }]);
     } catch (e) {
       console.error('[TasteProfile] handleSave:', e);
-      Alert.alert('Lỗi', 'Không thể lưu khẩu vị. Thử lại nhé.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      Alert.alert(t('taste.error'), t('taste.errorBody'), [{ text: t('common.ok'), onPress: () => navigation.goBack() }]);
     } finally { setSaving(false); }
   };
 
@@ -276,9 +285,9 @@ const TasteProfileScreen = ({ navigation }) => {
         <View style={st.headerContainer}>
           <View style={st.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={st.backBtn} activeOpacity={0.7}>
-              <Text style={st.backArrow}>← Quay lại</Text>
+              <Text style={st.backArrow}>← {t('common.back')}</Text>
             </TouchableOpacity>
-            <Text style={st.title}>Khẩu vị của tôi</Text>
+            <Text style={st.title}>{t('taste.title')}</Text>
             <View style={{ width: 36 }} />
           </View>
 
@@ -296,14 +305,14 @@ const TasteProfileScreen = ({ navigation }) => {
             {/* ── Hometown mode ── */}
             {mode === 'hometown' && (
               <View>
-                <Text style={st.sectionLabel}>Quê quán của bạn</Text>
+                <Text style={st.sectionLabel}>{t('taste.hometownQuestion')}</Text>
 
                 {/* Search */}
                 <View style={st.searchBox}>
                   <Text style={st.searchIcon}>🔍</Text>
                   <TextInput
                     style={st.searchInput}
-                    placeholder="Tìm tỉnh/thành..."
+                    placeholder={t('taste.searchProvince')}
                     placeholderTextColor={C.faint}
                     value={search}
                     onChangeText={setSearch}
@@ -315,7 +324,7 @@ const TasteProfileScreen = ({ navigation }) => {
                 {selectedProvince && (
                   <View style={st.previewBox}>
                     <Text style={st.previewTitle}>
-                      📍 Khẩu vị vùng {selectedProvince.name}
+                      {t('taste.regionTaste', { name: selectedProvince.name })}
                     </Text>
                     {selectedProvince.regional_flavor
                       ? <Text style={st.previewFlavor}>{selectedProvince.regional_flavor}</Text>
@@ -338,7 +347,7 @@ const TasteProfileScreen = ({ navigation }) => {
                       )}
                       ItemSeparatorComponent={() => <View style={st.listDivider} />}
                       ListEmptyComponent={
-                        <Text style={st.emptyText}>Không tìm thấy "{search}"</Text>
+                        <Text style={st.emptyText}>{t('taste.notFound', { name: search })}</Text>
                       }
                     />
                   )}
@@ -348,13 +357,13 @@ const TasteProfileScreen = ({ navigation }) => {
             {/* ── Manual mode ── */}
             {mode === 'manual' && (
               <View>
-                <Text style={st.sectionLabel}>Tự điều chỉnh khẩu vị</Text>
-                <Text style={st.hint}>Kéo thanh trượt: 0 = không thích · 10 = rất thích</Text>
+                <Text style={st.sectionLabel}>{t('taste.manualTitle')}</Text>
+                <Text style={st.hint}>{t('taste.hint')}</Text>
                 {TASTE_KEYS.map(k => (
                   <TasteSlider key={k} tastKey={k} value={taste[k] ?? 0.5} onChange={handleSlider} />
                 ))}
                 <View style={st.previewBox}>
-                  <Text style={st.previewTitle}>Xem trước khẩu vị</Text>
+                  <Text style={st.previewTitle}>{t('taste.preview')}</Text>
                   <TasteBars taste={taste} />
                 </View>
               </View>
@@ -388,7 +397,7 @@ const TasteProfileScreen = ({ navigation }) => {
           <View style={st.saveBtnOverlay}>
             {saving
               ? <ActivityIndicator color={C.ink} />
-              : <Text style={st.saveBtnText}>✓  Lưu khẩu vị</Text>
+              : <Text style={st.saveBtnText}>{t('taste.save')}</Text>
             }
           </View>
         </TouchableOpacity>
@@ -535,7 +544,7 @@ const st = StyleSheet.create({
     shadowOpacity: 0.2, shadowRadius: 6, elevation: 4,
   },
   saveBtnOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(80,45,15,0.12)',
     borderRadius: 16, justifyContent: 'center', alignItems: 'center',
   },

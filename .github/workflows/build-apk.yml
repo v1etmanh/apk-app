@@ -1,0 +1,50 @@
+name: Build Android APK
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Install Android SDK components
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-37" "build-tools;37.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
+
+      - name: Assemble release APK for internal testing
+        working-directory: android
+        env:
+          EXPO_PUBLIC_API_BASE_URL: 'https://dailyserver-production.up.railway.app'
+          EXPO_PUBLIC_SUPABASE_URL: "https://cluqexxdclgtybmryati.supabase.co"
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          : "${EXPO_PUBLIC_SUPABASE_ANON_KEY:?Set the EXPO_PUBLIC_SUPABASE_ANON_KEY repository secret}"
+          bash gradlew :app:assembleRelease --no-daemon --max-workers=2
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: DailyMate-APK
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          compression-level: 0

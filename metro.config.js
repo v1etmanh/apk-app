@@ -1,4 +1,4 @@
-// metro.config.js — Expo SDK 54 / React Native 0.77
+// metro.config.js — Expo SDK 58 / React Native 0.88
 // Fix: "Cannot use 'import.meta' outside a module"
 // Root cause: Metro was resolving zustand's ESM .mjs files instead of CJS entries
 
@@ -13,17 +13,6 @@ config.resolver.unstable_conditionNames = [
   'react-native',
   'require',
   'default',
-];
-
-// 2. Đảm bảo .mjs không được resolve trước .js
-config.resolver.sourceExts = [
-  'js',
-  'jsx',
-  'ts',
-  'tsx',
-  'json',
-  'cjs',
-  'mjs',
 ];
 
 module.exports = config;

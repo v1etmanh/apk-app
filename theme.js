@@ -27,7 +27,17 @@ export const C = {
   // Text
   text:         '#3E2723',   // Dark brown text for contrast on parchment
   textMid:      '#5D4037',   // Medium brown
-  textLight:    '#8D6E63',   // Light brown hint/placeholder
+  textLight:    '#8D6E63',   // Light brown hint/placeholder (chỉ dùng cho chữ ≥ 18px hoặc placeholder)
+  textSoft:     '#6B4F44',   // Chữ phụ nhỏ — đủ tương phản 4.5:1 trên nền giấy
+
+  // Sổ tay / bóng thoại mèo
+  paperStroke:  '#C8A96E',   // Viền giấy, viền bóng thoại
+  chipBg:       '#EFE6D2',   // Nền chip trung tính
+  seasonBg:     '#FDEBC8',   // Chip "đang mùa" / cảnh báo nhẹ
+  seasonText:   '#8A4B0B',
+  freshBg:      '#E3F4EA',   // Chip "mát / có sẵn"
+  freshText:    '#24563F',
+  inkGreen:     '#2F8F62',   // Tick hoàn thành
 
   // Borders
   border:       '#D7CCC8',
