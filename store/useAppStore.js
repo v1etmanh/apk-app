@@ -150,13 +150,13 @@ export const useAppStore = create((set, get) => ({
 
   // [FIX ID-M011] Reset toàn bộ store về trạng thái ban đầu khi logout
   // Gọi từ App.js trong onAuthStateChange khi session = null
-  resetStore: async () => {
+  resetStore: async (userId) => {
     clearDeviceId(); // [AUD-002] Reset cached deviceId
     // [FIX SAVE-001] PHẢI await clearUserLocalCache() — hàm này async.
     // Trước đây fire-and-forget gây race condition: store reset xong, login lại,
     // initializeApp chạy loadSavedDishes() trong khi clearUserLocalCache() chưa
     // chạy xong → AsyncStorage bị xóa SAU khi đã load → savedDishes = [].
-    await clearUserLocalCache();
+    await clearUserLocalCache(userId);
     set({
     profile:             null,
     latestMetrics:       null,

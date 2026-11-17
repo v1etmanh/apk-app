@@ -6,9 +6,11 @@ import { api } from './api';
 import { supabase } from '../store/supabase';
 import {
   getActiveProfileId,
+  migrateExistingProfile,
   loadAllIngredients,
   saveProfileMember,
   saveBodyMetricsForProfile,
+  loadLatestMetricsForProfile,
   loadAllergiesForProfile,
   addAllergyForProfile,
   removeAllergyForProfile,
@@ -80,11 +82,9 @@ export const isLegacyUser = (profile, latestMetrics) =>
 
 /**
  * Mọi hồ sơ chưa hoàn tất onboarding (kể cả user cũ) đều phải đi qua 5 màn.
- * profile = null nghĩa là tải hồ sơ thất bại (App luôn tạo sẵn hồ sơ mặc định)
- * → không ép onboarding để tránh bắt user đã làm rồi làm lại khi mạng lỗi.
  */
 export const needsOnboarding = (profile) =>
-  FORCE_ONBOARDING || (!!profile && !profile.onboarding_completed_at);
+  FORCE_ONBOARDING || !profile?.onboarding_completed_at;
 
 /**
  * Banner "Cập nhật khẩu vị" ở Home: chỉ còn ý nghĩa khi onboarding bị bỏ qua
@@ -95,27 +95,34 @@ export const shouldShowTasteBanner = (profile) =>
 
 // ── Nháp ─────────────────────────────────────────────────────────────────────
 
-async function draftKey() {
+async function draftKeys() {
   // Nháp riêng theo tài khoản + hồ sơ đang chọn (gia đình nhiều thành viên)
   const { data: { session } } = await supabase.auth.getSession();
-  let profileId = 'default';
-  try { profileId = (await getActiveProfileId()) || 'default'; } catch {}
-  return `${DRAFT_KEY}:${session?.user?.id ?? 'anon'}:${profileId}`;
+  const profileId = (await getActiveProfileId()) || 'profile_default';
+  const prefix = `${DRAFT_KEY}:${session?.user?.id ?? 'anon'}:`;
+  // Older versions used "default" while the first profile was missing.
+  return profileId === 'profile_default'
+    ? [prefix + profileId, prefix + 'default']
+    : [prefix + profileId];
 }
 
 export async function loadDraft() {
   try {
-    const raw = await AsyncStorage.getItem(await draftKey());
+    const [key, legacyKey] = await draftKeys();
+    const raw = await AsyncStorage.getItem(key) ?? (legacyKey && await AsyncStorage.getItem(legacyKey));
     return raw ? { ...DEFAULT_DRAFT, ...JSON.parse(raw) } : null;
   } catch { return null; }
 }
 
 export async function saveDraft(draft) {
-  try { await AsyncStorage.setItem(await draftKey(), JSON.stringify(draft)); } catch {}
+  try {
+    const [key] = await draftKeys();
+    await AsyncStorage.setItem(key, JSON.stringify(draft));
+  } catch {}
 }
 
 export async function clearDraft() {
-  try { await AsyncStorage.removeItem(await draftKey()); } catch {}
+  try { await AsyncStorage.multiRemove(await draftKeys()); } catch {}
 }
 
 // ── Dị ứng ───────────────────────────────────────────────────────────────────
@@ -229,8 +236,7 @@ async function syncAllergies(profileId, draft, labelFor) {
  */
 export async function completeOnboarding(draft, allergyLabel = (k) => k, target = {}) {
   // target.profileId + target.meta: tạo hồ sơ thành viên mới (tên, quan hệ, avatar…)
-  const profileId = target.profileId || await getActiveProfileId();
-  if (!profileId) throw new Error('No active profile');
+  const profileId = target.profileId || (await migrateExistingProfile()).profileId;
   const now = new Date().toISOString();
   if (target.meta) {
     await saveProfileMember({ profileId, ...target.meta, created_at: now });
@@ -239,6 +245,17 @@ export async function completeOnboarding(draft, allergyLabel = (k) => k, target 
   const homeRegion = effectiveRegion(draft);
   const taste = draft.taste_weight || regionTaste(homeRegion);
 
+  await syncAllergies(profileId, draft, allergyLabel);
+  const height = Number(draft.height);
+  const weight = Number(draft.weight);
+  const latest = await loadLatestMetricsForProfile(profileId);
+  if (latest?.note !== 'onboarding' || latest.height_cm !== height || latest.weight_kg !== weight) {
+    await saveBodyMetricsForProfile(profileId, {
+      height_cm: height, weight_kg: weight, measured_at: now, note: 'onboarding',
+    });
+  }
+
+  // Mark onboarding complete only after both dependent writes succeed.
   await saveProfileMember({
     profileId,
     gender:                  draft.gender || 'male',
@@ -257,22 +274,13 @@ export async function completeOnboarding(draft, allergyLabel = (k) => k, target 
     updated_at:              now,
   });
 
-  await saveBodyMetricsForProfile(profileId, {
-    height_cm:   Number(draft.height),
-    weight_kg:   Number(draft.weight),
-    measured_at: now,
-    note:        'onboarding',
-  });
-
-  await syncAllergies(profileId, draft, allergyLabel);
   if (!target.meta) await clearDraft();
   return profileId;
 }
 
 /** Chỉ cập nhật phần khẩu vị (banner cho user cũ). */
 export async function saveTasteOnly(draft) {
-  const profileId = await getActiveProfileId();
-  if (!profileId) throw new Error('No active profile');
+  const { profileId } = await migrateExistingProfile();
   const now = new Date().toISOString();
   const taste = draft.taste_weight || regionTaste(effectiveRegion(draft));
   await saveProfileMember({

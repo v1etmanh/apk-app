@@ -31,6 +31,7 @@ export default {
     onboarding: 'Khẩu vị',
   },
   splash: {
+    profileError: 'Chưa thể tải hồ sơ của bạn. Vui lòng thử lại.',
     preparing: 'Đang chuẩn bị món ngon... 🍳',
     companion: '🍜 Bạn đồng hành ẩm thực',
   },

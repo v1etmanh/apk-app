@@ -7,7 +7,7 @@ export default {
   },
   language: { label: 'Language', vietnamese: 'Tiếng Việt', english: 'English' },
   tabs: { home: 'Home', today: 'Today', history: 'History', profile: 'Profile', settings: 'Settings', onboarding: 'Taste' },
-  splash: { preparing: 'Preparing something delicious... 🍳', companion: '🍜 Your food companion' },
+  splash: { preparing: 'Preparing something delicious... 🍳', companion: '🍜 Your food companion', profileError: 'Couldn’t load your profile. Please try again.' },
   loading: { tips: ['Tidying the kitchen...', 'Preparing ingredients...', 'Warming up the oven...', 'Writing today\'s menu...', 'Finding a new recipe...'] },
   settings: {
     title: 'Settings', subtitle: 'Make it yours', notifications: 'Meal reminders', mealReminder: 'Lunch & dinner reminders', lunch: 'Lunch', dinner: 'Dinner',

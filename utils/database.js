@@ -440,6 +440,10 @@ export async function setActiveProfileId(profileId) {
 
 export async function loadAllProfiles() {
   const userId = await currentUserId();
+  return loadProfilesForUser(userId);
+}
+
+async function loadProfilesForUser(userId) {
   const { data, error } = await supabase
     .from('app_profiles')
     .select('profile_id, data, created_at, updated_at')
@@ -583,18 +587,17 @@ export async function loadTasteProfileForProfile(profileId) {
 }
 
 export async function migrateExistingProfile() {
-  const profiles = await loadAllProfiles();
-  let activeId = await getActiveProfileId();
+  const userId = await currentUserId();
+  const key = `${ACTIVE_PROFILE_KEY}.${userId}`;
+  const profiles = await loadProfilesForUser(userId);
   if (profiles.length) {
-    if (!profiles.some(profile => profile.profileId === activeId)) {
-      activeId = profiles[0].profileId;
-      await setActiveProfileId(activeId);
-    }
-    return;
+    const activeId = await SecureStore.getItemAsync(key);
+    const profile = profiles.find(p => p.profileId === activeId) ?? profiles[0];
+    if (profile.profileId !== activeId) await SecureStore.setItemAsync(key, profile.profileId);
+    return profile;
   }
   const profileId = 'profile_default';
-  await saveProfileMember({
-    profileId,
+  const defaults = {
     displayName: 'Bản thân',
     relation: 'self',
     avatar: '🧑',
@@ -606,8 +609,16 @@ export async function migrateExistingProfile() {
     health_condition: [],
     taste_preference: [],
     created_at: nowIso(),
-  });
-  await setActiveProfileId(profileId);
+  };
+  // Two devices can both observe an empty account. Preserve the winning row.
+  const { error } = await supabase.from('app_profiles').upsert({
+    user_id: userId, profile_id: profileId, data: defaults,
+  }, { onConflict: 'user_id,profile_id', ignoreDuplicates: true });
+  assertNoError(error, 'Create default profile');
+  const row = await getProfileRow(userId, profileId);
+  if (!row) throw new Error('Default profile unavailable');
+  await SecureStore.setItemAsync(key, profileId);
+  return { ...unpackDataRow(row, 'profile_id'), profileId };
 }
 
 async function savedDishesStorageKey() {
@@ -683,9 +694,8 @@ export async function isDishSaved(dishId) {
   return (await getSavedDishes()).some(item => String(item.dish_id) === String(dishId));
 }
 
-export async function clearUserLocalCache() {
+export async function clearUserLocalCache(userId = _lastUserId) {
   try {
-    const userId = _lastUserId;
     const allKeys = await AsyncStorage.getAllKeys();
     const keys = allKeys.filter(key =>
       key.startsWith(WEATHER_CACHE_PREFIX)

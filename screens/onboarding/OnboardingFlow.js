@@ -37,6 +37,7 @@ const OnboardingFlow = ({ mode = 'full', onFinish, onCancel, profileMeta }) => {
   const [draft, setDraft] = useState(null);
   const cardsPromise = useRef(null);
   const resumeStep = useRef(0);
+  const newProfileId = useRef(null);
   const routes = ROUTES[mode] || ROUTES.full;
 
   // Khởi tạo nháp:
@@ -109,8 +110,8 @@ const OnboardingFlow = ({ mode = 'full', onFinish, onCancel, profileMeta }) => {
   const finish = useCallback(async (finalDraft) => {
     let profileId;
     if (mode === 'newProfile') {
-      const newId = 'profile_' + Date.now().toString(36);
-      profileId = await completeOnboarding(finalDraft, allergyLabel, { profileId: newId, meta: profileMeta || {} });
+      newProfileId.current ??= 'profile_' + Date.now().toString(36);
+      profileId = await completeOnboarding(finalDraft, allergyLabel, { profileId: newProfileId.current, meta: profileMeta || {} });
       await useAppStore.getState().loadAllProfilesAction();
     } else if (mode === 'full') {
       profileId = await completeOnboarding(finalDraft, allergyLabel);

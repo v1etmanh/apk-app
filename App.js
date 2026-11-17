@@ -6,7 +6,7 @@
 // PHẢI đứng đầu: vá InteractionManager (RN 0.88 đã gỡ) cho @react-navigation/stack 6.x
 import './utils/interactionManagerShim';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StatusBar, View, Text, StyleSheet, Image, AppState } from 'react-native';
+import { StatusBar, View, Text, StyleSheet, Image, AppState, Button } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LottieView from 'lottie-react-native';
 import { useFonts } from 'expo-font';
@@ -25,7 +25,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import { supabase } from './store/supabase';
-import { initDB, setSetting, getSetting, migrateExistingProfile, getDeviceId, getActiveProfileId, setActiveProfileId, saveProfileMember } from './utils/database';
+import { setSetting, getSetting, migrateExistingProfile, getDeviceId } from './utils/database';
 import { useAppStore } from './store/useAppStore';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -117,7 +117,7 @@ const MainTabs = () => {
 };
 
 // ── Splash Screen (Lottie Lazy Cat) ──────────────────────────────────────
-const SplashScreen = () => {
+const SplashScreen = ({ onRetry }) => {
   const { t } = useTranslation();
   return (
   <View style={sp.root}>
@@ -148,14 +148,14 @@ const SplashScreen = () => {
             style={[sp.lottie, { pointerEvents: 'none' }]}
           />
           <Text style={sp.title}>Daily Mate</Text>
-          <Text style={sp.sub}>{t('splash.preparing')}</Text>
+          <Text style={sp.sub}>{t(onRetry ? 'splash.profileError' : 'splash.preparing')}</Text>
 
           {/* Loading dots */}
-          <View style={sp.dotsRow}>
+          {onRetry ? <Button title={t('common.retry')} onPress={onRetry} /> : <View style={sp.dotsRow}>
             {[0, 1, 2].map(i => (
               <View key={i} style={[sp.dot, { opacity: 0.35 + i * 0.2 }]} />
             ))}
-          </View>
+          </View>}
         </View>
       </View>
     </View>
@@ -235,10 +235,7 @@ const sp = StyleSheet.create({
 // ── Root App ──────────────────────────────────────────────────────────────
 const App = () => {
   const {
-    loadProfile, loadLatestMetrics, loadAllergies,
-    initializeLocation, initializeMaxPrepTime,
-    initializeCostPreference, initializeIngredients,
-    initializeSettings, loadAllProfilesAction,
+    initializeIngredients, initializeSettings, loadAllProfilesAction,
   } = useAppStore();
 
   // navigationRef — dùng để navigate từ notification listener (ngoài navigator context)
@@ -247,10 +244,14 @@ const App = () => {
   const appStateRef   = useRef(AppState.currentState);
 
 
-  const [authState,      setAuthState]      = useState('loading');
-  const [appReady,       setAppReady]       = useState(false);
+  // undefined until Supabase emits INITIAL_SESSION, null while signed out.
+  const [account, setAccount] = useState(undefined);
+  const currentAccount = useRef(undefined);
+  const pendingInit = useRef(Promise.resolve());
+  const appReadyRef = useRef(false);
+  const [route, setRoute] = useState('loading');
+  const [attempt, setAttempt] = useState(0);
   const [languageReady,  setLanguageReady] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [showReset,      setShowReset]      = useState(false);
 
   const [fontsLoaded] = useFonts({
@@ -274,19 +275,18 @@ const App = () => {
       .catch(error => console.warn('[i18n] Could not restore language:', error?.message))
       .finally(() => setLanguageReady(true));
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthState(session ? 'authenticated' : 'unauthenticated');
-    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthState(session ? 'authenticated' : 'unauthenticated');
-      if (!session) {
-        setAppReady(false);
-        // [FIX SAVE-001] resetStore() giờ là async — phải await để đảm bảo
-        // clearUserLocalCache() xong TRƯỚC khi authState thay đổi kích hoạt
-        // initializeApp() ở lần login tiếp theo.
-        useAppStore.getState().resetStore().catch(e =>
-          console.warn('[App] resetStore error (non-critical):', e.message)
-        );
+      const previous = currentAccount.current;
+      const userId = session?.user?.id ?? null;
+      if (previous !== undefined && (previous?.id ?? null) === userId) return;
+      const next = userId ? { id: userId } : null;
+      currentAccount.current = next;
+      appReadyRef.current = false;
+      setRoute('loading');
+      setAccount(next);
+      if (previous) {
+        setShowReset(false);
+        pendingInit.current = pendingInit.current.then(() => useAppStore.getState().resetStore(previous.id));
       }
     });
     return () => subscription.unsubscribe();
@@ -355,9 +355,19 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (authState === 'authenticated' && !appReady) initializeApp();
-    if (authState === 'unauthenticated')            setAppReady(true);
-  }, [authState]);
+    if (!account) return;
+    let cancelled = false;
+    const isCurrent = () => !cancelled && currentAccount.current === account;
+    pendingInit.current = pendingInit.current.then(async () => {
+      if (isCurrent()) await initializeApp(isCurrent);
+    }).catch(error => {
+      if (isCurrent()) {
+        console.error('[App] initializeApp:', error);
+        setRoute('error');
+      }
+    });
+    return () => { cancelled = true; };
+  }, [account, attempt]);
 
   const getUserLocation = async () => {
     try {
@@ -389,14 +399,9 @@ const App = () => {
     } catch { return null; }
   };
 
-  const appReadyRef = useRef(false); // [FIX LOC-001] ref để tránh re-create checkLocationOnResume
-
   // ── Fetch location mỗi lần app mở / resume từ background ────────────────
-  // [FIX LOC-001] Dùng ref thay vì deps [authState, appReady] để useCallback không
-  // re-create mỗi khi appReady thay đổi → tránh AppState listener bị remove/add lại
-  // liên tục → tránh setLocation gọi nhiều lần → tránh HomeScreen nhấp nháy.
   const checkLocationOnResume = useCallback(async () => {
-    if (authState !== 'authenticated' || !appReadyRef.current) return;
+    if (!account || !appReadyRef.current) return;
     if (__DEV__) console.log('[Location] App resume — re-fetch location');
     // [FIX LOC-002] dùng getLocationWithoutRequest — không hiển thị permission dialog
     const loc = await getLocationWithoutRequest();
@@ -416,7 +421,7 @@ const App = () => {
       }
       registerDeviceToken(loc);
     }
-  }, [authState]); // ← bỏ appReady khỏi deps
+  }, [account]);
 
   // ── Lắng nghe AppState — chạy checkLocationOnResume khi về foreground ─────
   useEffect(() => {
@@ -474,6 +479,7 @@ const App = () => {
   // [FIX PERM] GPS trước, notification sau (tránh 2 dialog chồng nhau)
   const requestDevicePermissions = async () => {
     const locResult = await getUserLocation();
+    if (currentAccount.current !== account) return;
     if (locResult) {
       useAppStore.getState().setLocation({
         lat: Math.round(locResult.coords.latitude  * 100) / 100,
@@ -487,105 +493,56 @@ const App = () => {
   };
 
   const handleOnboardingFinish = async () => {
-    setShowOnboarding(false);
+    if (currentAccount.current !== account) return;
+    setRoute('main');
+    appReadyRef.current = true;
     await requestDevicePermissions();
   };
 
-  const initializeApp = async () => {
-    try {
-      // authState chỉ chuyển sang authenticated sau khi Supabase khôi phục session.
-      await initDB();
+  const initializeApp = async (isCurrent) => {
+    const profile = await migrateExistingProfile();
+    if (!isCurrent()) return;
+    useAppStore.getState().setActiveProfileId(profile.profileId);
+    useAppStore.getState().setProfile(profile);
 
-      // Keep the persisted device setting and i18n preference in sync.
-      // First login: use the language already selected by i18n (device locale
-      // when supported, otherwise vi) and persist it for future launches.
-      const savedLanguage = await getSetting('language');
-      const language = savedLanguage === 'vi' || savedLanguage === 'en'
-        ? savedLanguage
-        : (i18n.language === 'en' ? 'en' : 'vi');
-      await changeLanguage(language);
-      if (savedLanguage !== language) {
-        await setSetting('language', language);
-      }
-
-      // Migration: profile cũ → multi-profile schema (chỉ chạy 1 lần)
-      await migrateExistingProfile();
-
-      // Guard: luôn đảm bảo tài khoản có một hồ sơ Supabase đang hoạt động.
-      let earlyProfileId = await getActiveProfileId();
-      if (!earlyProfileId) {
-        if (__DEV__) console.warn('[App] activeProfileId null sau migration — tạo profile khẩn cấp');
-        const emergencyId = 'profile_' + Date.now().toString(36);
-        await saveProfileMember({
-          profileId:   emergencyId,
-          displayName: 'Bản thân',
-          relation:    'self',
-          avatar:      '🧑',
-          isDefault:   true,
-          created_at:  new Date().toISOString(),
-          updated_at:  new Date().toISOString(),
-        });
-        await setActiveProfileId(emergencyId);
-        earlyProfileId = emergencyId;
-      }
-
-      // Sync activeProfileId vào Zustand NGAY, trước initializeSettings
-      useAppStore.getState().setActiveProfileId(earlyProfileId);
-
-      // Load settings (bao gồm activeProfileId, location, costPref, v.v.)
-      await initializeSettings();
-
-      // Load dữ liệu người dùng từ Supabase và nguyên liệu từ API song song.
-      await Promise.all([
-        loadProfile(),
-        loadLatestMetrics(),
-        loadAllergies(),
-        loadAllProfilesAction(),
-        initializeIngredients(),
-        useAppStore.getState().loadSavedDishes(),
-      ]);
-
-      // Notification channel (Android 8+ bắt buộc)
-      await setupNotificationChannel();
-
-      // Onboarding: hồ sơ chưa hoàn tất onboarding (user mới hoặc cũ) → chạy 5 màn onboarding.
-      // GPS + notification được xin ở cuối onboarding (Màn 5) thay vì ngay sau splash.
-      const { profile: loadedProfile } = useAppStore.getState();
-      const mustOnboard = needsOnboarding(loadedProfile);
-
-      if (!mustOnboard) {
-        await requestDevicePermissions();
-      }
-
-      setShowOnboarding(mustOnboard);
-      setAppReady(true);
-      appReadyRef.current = true; // [FIX LOC-001] sync ref
-    } catch (e) {
-      console.error('[App] initializeApp error:', e);
-      // Lỗi xác thực/RLS có thể chỉ là session đang refresh; thử lại ngắn sau đó.
-      const isAuthError = e?.code === 'not-authenticated'
-        || e?.code === '42501'
-        || e?.message?.includes('row-level security');
-      if (!isAuthError) {
-        setAppReady(true);
-        appReadyRef.current = true; // [FIX LOC-001]
-      } else {
-        console.warn('[App] Supabase auth/RLS error — chờ session ổn định rồi retry');
-        // Retry sau 2 giây
-        setTimeout(() => {
-          if (!appReady) initializeApp();
-        }, 2000);
-      }
+    // Keep the persisted device setting and i18n preference in sync.
+    // First login: use the language already selected by i18n (device locale
+    // when supported, otherwise vi) and persist it for future launches.
+    const savedLanguage = await getSetting('language');
+    if (!isCurrent()) return;
+    const language = savedLanguage === 'vi' || savedLanguage === 'en'
+      ? savedLanguage
+      : (i18n.language === 'en' ? 'en' : 'vi');
+    await changeLanguage(language);
+    if (isCurrent() && savedLanguage !== language) {
+      await setSetting('language', language);
     }
+
+    if (!isCurrent()) return;
+    await initializeSettings();
+    if (!isCurrent()) return;
+    await Promise.all([
+      loadAllProfilesAction(),
+      initializeIngredients(),
+      useAppStore.getState().loadSavedDishes(),
+    ]);
+
+    if (!isCurrent()) return;
+    await setupNotificationChannel().catch(error => console.warn('[Push] Notification channel:', error.message));
+    if (!isCurrent()) return;
+    const mustOnboard = needsOnboarding(profile);
+    setRoute(mustOnboard ? 'onboarding' : 'main');
+    appReadyRef.current = !mustOnboard;
+    if (!mustOnboard) requestDevicePermissions().catch(error => console.warn('[Permissions]', error.message));
   };
 
   // Fonts chưa load hoặc đang khởi tạo → Splash với Lazy Cat
-  if (!fontsLoaded || !languageReady || authState === 'loading' || (authState === 'authenticated' && !appReady)) {
+  if (!fontsLoaded || !languageReady || account === undefined || (account && route === 'loading')) {
     return <SplashScreen />;
   }
 
   // Chưa đăng nhập → LoginScreen
-  if (authState === 'unauthenticated') {
+  if (!account) {
     return (
       <>
         <StatusBar barStyle="light-content" backgroundColor="#8B5E3C" />
@@ -604,8 +561,11 @@ const App = () => {
     );
   }
 
-  // Đã đăng nhập nhưng chưa onboarding → 5 màn onboarding
-  if (showOnboarding) {
+  if (route === 'error') {
+    return <SplashScreen onRetry={() => { setRoute('loading'); setAttempt(n => n + 1); }} />;
+  }
+
+  if (route === 'onboarding') {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#F5EDDC' }}>
         <StatusBar barStyle="dark-content" backgroundColor="#F5EDDC" />
