@@ -16,6 +16,7 @@ import {
   removeAllergyForProfile,
 } from '../utils/database';
 import { computeTasteWeightLocal, regionTaste } from '../utils/tasteMath';
+import { assertBirthYear } from '../utils/profileIdentity';
 
 export const ONBOARDING_VERSION = 1;
 
@@ -58,6 +59,7 @@ export const DIET_OPTIONS = [
 export const DEFAULT_DRAFT = {
   step: 0,
   gender: null,
+  birth_year: null,
   height: 165,
   weight: 55,
   nation: 'vietnam',
@@ -235,11 +237,13 @@ async function syncAllergies(profileId, draft, labelFor) {
  * @returns {Promise<string>} profileId
  */
 export async function completeOnboarding(draft, allergyLabel = (k) => k, target = {}) {
+  // Validate before creating a profile or writing dependent health data.
+  const identity = assertBirthYear(draft.birth_year);
   // target.profileId + target.meta: tạo hồ sơ thành viên mới (tên, quan hệ, avatar…)
   const profileId = target.profileId || (await migrateExistingProfile()).profileId;
   const now = new Date().toISOString();
   if (target.meta) {
-    await saveProfileMember({ profileId, ...target.meta, created_at: now });
+    await saveProfileMember({ ...target.meta, ...identity, gender: draft.gender || 'male', profileId, created_at: now });
   }
   const nation = draft.nation === 'vietnam' ? 'vietnam' : 'other';
   const homeRegion = effectiveRegion(draft);
@@ -258,6 +262,7 @@ export async function completeOnboarding(draft, allergyLabel = (k) => k, target 
   // Mark onboarding complete only after both dependent writes succeed.
   await saveProfileMember({
     profileId,
+    ...identity,
     gender:                  draft.gender || 'male',
     nation,
     home_region:             homeRegion,

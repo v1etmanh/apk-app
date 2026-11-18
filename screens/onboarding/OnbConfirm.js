@@ -11,6 +11,7 @@ import { regionOnlyTaste, HOME_REGION_OPTIONS, DIET_OPTIONS } from '../../servic
 import { tasteSummary } from '../../utils/tasteMath';
 import { useOnboarding } from './OnboardingFlow';
 import { C, F } from '../../theme';
+import { useAppStore } from '../../store/useAppStore';
 
 const OnbConfirm = ({ navigation }) => {
   const { t } = useTranslation();
@@ -40,8 +41,15 @@ const OnbConfirm = ({ navigation }) => {
       await ctx.finish({ ...draft, taste_weight: taste });
     } catch (e) {
       if (__DEV__) console.warn('[OnbConfirm] save failed:', e?.message);
-      Alert.alert(t('onboarding.confirm.saveErrorTitle'), t('onboarding.confirm.saveErrorBody'));
       setSaving(false);
+      if (e.code === 'INVALID_BIRTH_YEAR') {
+        navigation.navigate('OnbBody');
+      } else if (e.code === 'PROFILE_LIMIT_REACHED') {
+        Alert.alert(t('familyAvatar.limitTitle'), t('familyAvatar.limitBody'));
+        await useAppStore.getState().loadAllProfilesAction();
+      } else {
+        Alert.alert(t('onboarding.confirm.saveErrorTitle'), t('onboarding.confirm.saveErrorBody'));
+      }
     }
   };
 

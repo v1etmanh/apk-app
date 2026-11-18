@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { C } from '../theme';
 import { useTranslation } from 'react-i18next';
+import ProfileAvatar, { useProfileYear } from './ui/ProfileAvatar';
+import { getProfileAge, MAX_FAMILY_MEMBERS } from '../utils/profileIdentity';
 
 const { height: SH } = Dimensions.get('window');
 const ASSETS = { paper: require('../assets/textures/paper_cream.png') };
@@ -23,6 +25,8 @@ const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
   const fadeAnim  = useRef(new Animated.Value(0)).current;
 
   const { profiles, activeProfileId, switchProfile, loadAllProfilesAction } = useAppStore();
+  const year = useProfileYear();
+  const atCapacity = profiles.length >= MAX_FAMILY_MEMBERS;
 
   useEffect(() => {
     if (visible) {
@@ -64,6 +68,7 @@ const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
 
         {/* Title */}
         <Text style={st.title}>{t('profiles.choose')}</Text>
+        <Text style={st.profileRelation}>{t('familyAvatar.capacity', { count: profiles.length, max: MAX_FAMILY_MEMBERS })}</Text>
 
         {/* Profile list */}
         <ScrollView style={st.list} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
@@ -73,6 +78,7 @@ const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
             </View>
           ) : profiles.map((p) => {
             const isActive = p.profileId === activeProfileId;
+            const age = getProfileAge(p, year);
             return (
               <TouchableOpacity
                 key={p.profileId}
@@ -82,7 +88,7 @@ const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
               >
                 {/* Avatar */}
                 <View style={[st.avatarCircle, isActive && st.avatarCircleActive]}>
-                  <Text style={st.avatarEmoji}>{p.avatar || '🧑'}</Text>
+                  <ProfileAvatar profile={p} size={44} animated={isActive} visible={visible} />
                 </View>
 
                 {/* Info */}
@@ -92,7 +98,7 @@ const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
                   </Text>
                   <Text style={st.profileRelation}>
                     {t(`profiles.${p.relation}`, { defaultValue: t('profiles.other') })}
-                    {p.age ? ` · ${t('profiles.years', { count: p.age })}` : p.birth_year ? ` · ${t('profiles.birthYear', { year: p.birth_year })}` : ''}
+                    {age !== null ? ` · ${t('profiles.years', { count: age })}` : ''}
                   </Text>
                 </View>
 
@@ -115,10 +121,11 @@ const ProfileSwitcherSheet = ({ visible, onClose, onAddNew }) => {
         <View style={st.divider} />
 
         {/* Add new button */}
-        <TouchableOpacity style={st.addBtn} activeOpacity={0.8} onPress={() => { onClose(); onAddNew?.(); }}>
+        <TouchableOpacity style={[st.addBtn, atCapacity && { opacity: 0.5 }]} disabled={atCapacity} activeOpacity={0.8} onPress={() => { onClose(); onAddNew?.(); }}>
           <Text style={st.addBtnIcon}>＋</Text>
           <Text style={st.addBtnText}>{t('profiles.add')}</Text>
         </TouchableOpacity>
+        {atCapacity && <Text style={st.profileRelation}>{t('familyAvatar.limitBody')}</Text>}
       </Animated.View>
     </Modal>
   );
@@ -211,7 +218,6 @@ const st = StyleSheet.create({
     marginRight: 12,
   },
   avatarCircleActive: { borderColor: '#C8A96E', borderWidth: 2 },
-  avatarEmoji: { fontSize: 26 },
 
   // Profile info
   profileInfo: { flex: 1 },

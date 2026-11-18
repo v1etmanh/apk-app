@@ -6,6 +6,7 @@ import { api } from '../services/api';
 import { supabase } from '../store/supabase';
 import i18n from '../i18n';
 import { getIngredientsForLanguage } from './ingredientsData';
+import { assertBirthYear, assertProfileCapacity } from './profileIdentity';
 
 const ACTIVE_PROFILE_KEY = 'active_profile_id';
 const WEATHER_CACHE_PREFIX = 'weather_cache_';
@@ -24,7 +25,7 @@ const nowIso = () => new Date().toISOString();
 function assertNoError(error, context) {
   if (!error) return;
   const wrapped = new Error(`${context}: ${error.message}`);
-  wrapped.code = error.code;
+  wrapped.code = error.message?.includes('PROFILE_LIMIT_REACHED') ? 'PROFILE_LIMIT_REACHED' : error.code;
   throw wrapped;
 }
 
@@ -469,6 +470,10 @@ export async function saveProfileMember({ profileId, ...data }) {
   if (!profileId) throw new Error('saveProfileMember: profileId required');
   const userId = await currentUserId();
   const existing = await getProfileRow(userId, profileId);
+  if (!existing) assertProfileCapacity(await loadProfilesForUser(userId), profileId);
+  if (Object.prototype.hasOwnProperty.call(data, 'birth_year')) {
+    Object.assign(data, assertBirthYear(data.birth_year));
+  }
   const merged = { ...(existing?.data || {}), ...data };
   const { error } = await supabase.from('app_profiles').upsert({
     user_id: userId,

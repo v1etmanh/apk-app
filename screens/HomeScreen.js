@@ -29,6 +29,7 @@ import WoodButton from '../components/ui/WoodButton';
 import WeatherAnimationSprite from '../components/ui/WeatherAnimationSprite';
 import SeasonBubble from '../components/ui/SeasonBubble';
 import ProfileSwitcherSheet from '../components/ProfileSwitcherSheet';
+import ProfileAvatar from '../components/ui/ProfileAvatar';
 import MealFilterPanel, { DEFAULT_MEAL_FILTERS, sanitizeMealFilters } from '../components/MealFilterPanel';
 import { buildBaseSearchParams } from '../utils/searchParams';
 import { shouldShowTasteBanner, dismissTasteBanner } from '../services/onboardingService';
@@ -440,7 +441,7 @@ const HomeScreen = ({ navigation }) => {
               const active = profiles.find(p => p.profileId === activeProfileId);
               return (
                 <>
-                  <Text style={s.profileSwitcherAvatar}>{active?.avatar || '🧑'}</Text>
+                  <ProfileAvatar profile={active} size={40} animated visible={!showSwitcher} />
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={s.profileSwitcherName} numberOfLines={1}>
                       {active?.displayName || t('home.profile')}

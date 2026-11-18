@@ -20,6 +20,7 @@ import OnbRegion from './OnbRegion';
 import OnbDiet from './OnbDiet';
 import OnbTaste from './OnbTaste';
 import OnbConfirm from './OnbConfirm';
+import { getProfileAge } from '../../utils/profileIdentity';
 
 const Stack = createStackNavigator();
 
@@ -47,7 +48,7 @@ const OnboardingFlow = ({ mode = 'full', onFinish, onCancel, profileMeta }) => {
   useEffect(() => {
     (async () => {
       if (mode === 'newProfile') {
-        setDraft({ ...DEFAULT_DRAFT });
+        setDraft({ ...DEFAULT_DRAFT, birth_year: profileMeta?.birth_year ?? null });
         return;
       }
       const { profile, latestMetrics } = useAppStore.getState();
@@ -69,6 +70,7 @@ const OnboardingFlow = ({ mode = 'full', onFinish, onCancel, profileMeta }) => {
       const weight = Number(latestMetrics?.weight_kg);
       const base = {
         ...DEFAULT_DRAFT,
+        birth_year: profile?.birth_year ?? null,
         gender:        hasRealData ? (profile?.gender === 'female' ? 'female' : profile?.gender === 'male' ? 'male' : null) : null,
         height:        height >= 120 && height <= 220 ? Math.round(height) : DEFAULT_DRAFT.height,
         weight:        weight >= 30 && weight <= 150 ? Math.round(weight * 2) / 2 : DEFAULT_DRAFT.weight,
@@ -81,7 +83,7 @@ const OnboardingFlow = ({ mode = 'full', onFinish, onCancel, profileMeta }) => {
       if (mode === 'full') {
         const saved = await loadDraft();
         if (saved) {
-          resumeStep.current = Math.min(saved.step || 0, routes.length - 1);
+          resumeStep.current = getProfileAge({ ...base, ...saved }) === null ? 0 : Math.min(saved.step || 0, routes.length - 1);
           setDraft({ ...base, ...saved });
           return;
         }
