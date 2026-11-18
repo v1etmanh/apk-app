@@ -221,6 +221,7 @@ export const useAppStore = create((set, get) => ({
       ]);
       set({
         profile:             profileData ?? null,
+        profiles:            get().profiles.map(p => p.profileId === profileId ? (profileData ?? p) : p),
         allergies:           allergiesRaw.map(r => r.allergy_key),
         latestMetrics:       metrics ?? null,
         tasteProfile:        tasteData?.tasteProfile       ?? null,
@@ -237,7 +238,7 @@ export const useAppStore = create((set, get) => ({
       const profile = activeId
         ? await loadProfileById(activeId)
         : await loadProfile();
-      if (profile) set({ profile });
+      if (profile) set({ profile, profiles: get().profiles.map(p => p.profileId === profile.profileId ? profile : p) });
       return profile;
     } catch (e) { console.error('loadProfile:', e); return null; }
   },

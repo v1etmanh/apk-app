@@ -46,6 +46,9 @@ import { Sparkle } from 'phosphor-react-native/lib/module/icons/Sparkle';
 import { loadProfileById, saveProfileMember } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
 import { useTranslation } from 'react-i18next';
+import ProfileAvatar from '../components/ui/ProfileAvatar';
+import BirthYearField from '../components/BirthYearField';
+import { assertBirthYear, getProfileAge } from '../utils/profileIdentity';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -181,6 +184,8 @@ const EditPersonalScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const [gender, setGender]     = useState(null);
+  const [birthYear, setBirthYear] = useState('');
+  const [showYearError, setShowYearError] = useState(false);
   const [dietType, setDietType] = useState('omnivore');
   const [region, setRegion]     = useState('national');
   const [saving, setSaving]     = useState(false);
@@ -190,6 +195,7 @@ const EditPersonalScreen = ({ navigation }) => {
   const applyProfile = (p) => {
     if (!p) return;
     setGender(p.gender === 'female' || p.gender === 'male' ? p.gender : null);
+    setBirthYear(p.birth_year ? String(p.birth_year) : '');
     setDietType(['omnivore', 'vegetarian', 'vegan'].includes(p.diet_type) ? p.diet_type : 'omnivore');
     setRegion(p.nation === 'other' ? 'other' : (p.home_region || 'national'));
   };
@@ -201,6 +207,11 @@ const EditPersonalScreen = ({ navigation }) => {
   }, [activeProfileId]);
 
   const handleSave = async () => {
+    if (saving) return;
+    if (getProfileAge({ birth_year: birthYear }) === null) {
+      setShowYearError(true);
+      return;
+    }
     let profileId = activeProfileId;
     if (!profileId) {
       const { getActiveProfileId } = await import('../utils/database');
@@ -216,6 +227,7 @@ const EditPersonalScreen = ({ navigation }) => {
     try {
       await saveProfileMember({
         profileId,
+        ...assertBirthYear(birthYear),
         ...(gender ? { gender } : {}),
         diet_type:   dietType,
         nation:      region === 'other' ? 'other' : 'vietnam',
@@ -285,6 +297,9 @@ const EditPersonalScreen = ({ navigation }) => {
         {/* Gender */}
         <NoteCard style={st.cardSpacing}>
           <View style={st.cardPad}>
+            <ProfileAvatar profile={{ ...profile, gender, birth_year: birthYear }} size={112} animated style={{ alignSelf: 'center' }} />
+            <Text style={{ textAlign: 'center', color: C.inkLight }}>{t('familyAvatar.auto')}</Text>
+            <BirthYearField value={birthYear} onChange={setBirthYear} showError={showYearError} />
             <ChipGroup label={t('personal.gender')} Icon={IdentificationBadge} options={GENDER_OPTS} value={gender} onChange={setGender} translationPath="onboarding.body" />
           </View>
         </NoteCard>

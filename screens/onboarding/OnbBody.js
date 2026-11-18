@@ -7,6 +7,9 @@ import RulerPicker from '../../components/onboarding/RulerPicker';
 import { ChoiceCard, SectionLabel } from '../../components/onboarding/ChoiceCard';
 import { useOnboarding, useResumeOnboarding, goNext } from './OnboardingFlow';
 import { C, F, R } from '../../theme';
+import BirthYearField from '../../components/BirthYearField';
+import ProfileAvatar from '../../components/ui/ProfileAvatar';
+import { getProfileAge } from '../../utils/profileIdentity';
 
 const bmiOf = (h, w) => (h > 0 ? w / ((h / 100) ** 2) : 0);
 const bmiKey = (b) => (b < 18.5 ? 'under' : b < 25 ? 'normal' : b < 30 ? 'over' : 'obese');
@@ -28,7 +31,7 @@ const OnbBody = ({ navigation }) => {
       onBack={ctx.onCancel}
       backLabel={t('common.back')}
       ctaLabel={t('onboarding.next')}
-      ctaDisabled={!draft.gender}
+      ctaDisabled={!draft.gender || getProfileAge(draft) === null}
       onCta={() => goNext(ctx, navigation, 'OnbBody')}
     >
       <SectionLabel>{t('onboarding.body.gender')}</SectionLabel>
@@ -38,6 +41,10 @@ const OnbBody = ({ navigation }) => {
         <ChoiceCard compact emoji="👩" label={t('onboarding.body.female')}
           selected={draft.gender === 'female'} onPress={() => update({ gender: 'female' })} />
       </View>
+
+      <ProfileAvatar profile={draft} size={104} animated style={{ alignSelf: 'center' }} />
+      <Text style={{ textAlign: 'center', color: C.textMid }}>{t('familyAvatar.auto')}</Text>
+      <BirthYearField value={draft.birth_year} onChange={birth_year => update({ birth_year })} />
 
       <SectionLabel>{t('onboarding.body.height')}</SectionLabel>
       <RulerPicker min={120} max={220} step={1} majorEvery={10} unit="cm"

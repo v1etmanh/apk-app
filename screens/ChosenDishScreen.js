@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAppStore } from '../store/useAppStore';
+import ProfileAvatar from '../components/ui/ProfileAvatar';
 import { useTranslation } from 'react-i18next';
 import {
   getMealPlan, removeDishFromMealPlan, resetTodayMealPlan,
@@ -46,7 +47,6 @@ const nativeShadow = (color = '#8B5E3C', opacity = 0.12, radius = 12, offset = {
     android: { elevation },
   });
 
-const initialOf = (name) => (name || '?').trim().charAt(0).toUpperCase() || '?';
 
 // ── DishRow — mỗi món trong thẻ thành viên ───────────────────────────────────
 const DishRow = ({ dish, index, profileId, onRemove, onPress }) => {
@@ -98,12 +98,14 @@ const ProfileCard = ({ entry, tone, onRemoveDish, onAddDish, onPressDish }) => {
   const { t } = useTranslation();
   const name = entry.displayName || t('profiles.unnamed');
   const hasDishes = entry.dishes.length > 0;
+  // Hồ sơ mới nhất trong store, để avatar đổi ngay khi sửa năm sinh/giới tính.
+  const member = useAppStore(st => st.profiles.find(p => p.profileId === entry.profileId));
   return (
     <View style={[s.card, nativeShadow()]}>
       {/* Header thành viên */}
       <View style={s.profileHeader}>
         <View style={[s.avatarWrap, { backgroundColor: tone.bg, borderColor: tone.ring }]}>
-          <Text style={[s.avatarText, { color: tone.ink }]}>{initialOf(entry.displayName)}</Text>
+          <ProfileAvatar profile={member || entry} size={38} />
         </View>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={s.profileName} numberOfLines={1}>{name}</Text>
@@ -362,9 +364,8 @@ const s = StyleSheet.create({
   profileHeader: { flexDirection: 'row', alignItems: 'center' },
   avatarWrap: {
     width: 44, height: 44, borderRadius: 22, borderWidth: 2,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  avatarText: { fontFamily: 'Lora-Bold', fontSize: 18 },
   profileName: { fontFamily: 'Lora-Bold', fontSize: 17, color: P.ink },
   profileRelation: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12.5, color: P.muted, marginTop: 1 },
   countBadge: { backgroundColor: '#E7EFD9', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },

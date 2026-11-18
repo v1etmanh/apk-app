@@ -13,15 +13,18 @@ import { useAppStore } from '../store/useAppStore';
 import { useTranslation } from 'react-i18next';
 import {
   saveProfileMember, loadProfileById,
-  deleteProfileMember, getActiveProfileId, setActiveProfileId,
+  deleteProfileMember,
+  loadAllProfiles,
 } from '../utils/database';
 import { C } from '../theme';
 import ScreenBackground from '../components/ui/ScreenBackground';
+import ProfileAvatar from '../components/ui/ProfileAvatar';
+import BirthYearField from '../components/BirthYearField';
+import { assertProfileCapacity, getProfileAge, MAX_FAMILY_MEMBERS } from '../utils/profileIdentity';
 
 const ASSETS = { paper: require('../assets/textures/paper_cream.png') };
 
 // ── Options ───────────────────────────────────────────────────────────────────
-const AVATARS = ['🧑','👦','👧','👴','👵','👨','👩','🧒','👤'];
 const RELATIONS = [
   { key: 'self',    label: 'Bản thân' },
   { key: 'child',   label: 'Con' },
@@ -88,12 +91,15 @@ const AddEditProfileScreen = ({ navigation, route }) => {
   const [loading,     setLoading]     = useState(isEdit);
   const [displayName, setDisplayName] = useState('');
   const [relation,    setRelation]    = useState('self');
-  const [avatar,      setAvatar]      = useState('🧑');
+  const [showYearError, setShowYearError] = useState(false);
   const [gender,      setGender]      = useState('male');
   const [birthYear,   setBirthYear]   = useState('');
   const [goal,        setGoal]        = useState('maintenance');
   const [diet,        setDiet]        = useState('omnivore');
   const [activity,    setActivity]    = useState('moderately_active');
+  const atCapacity = !isEdit && profiles.length >= MAX_FAMILY_MEMBERS;
+
+  useEffect(() => { if (!isEdit) loadAllProfilesAction(); }, [isEdit]);
 
   // Load existing data if edit mode
   useEffect(() => {
@@ -102,7 +108,6 @@ const AddEditProfileScreen = ({ navigation, route }) => {
       if (p) {
         setDisplayName(p.displayName || '');
         setRelation(p.relation || 'self');
-        setAvatar(p.avatar || '🧑');
         setGender(p.gender || 'male');
         setBirthYear(p.birth_year ? String(p.birth_year) : '');
         setGoal(p.dietary_goal || 'maintenance');
@@ -119,22 +124,30 @@ const AddEditProfileScreen = ({ navigation, route }) => {
       Alert.alert(t('profileEdit.required'), t('profileEdit.requiredBody'));
       return;
     }
-    const year = birthYear ? parseInt(birthYear, 10) : null;
+    if (saving) return;
+    if (getProfileAge({ birth_year: birthYear }) === null) {
+      setShowYearError(true);
+      return;
+    }
+    const year = Number(birthYear);
     // Thêm thành viên mới → chuyển sang onboarding (giới tính, chỉ số, vùng miền, chế độ ăn,
     // dị ứng, khẩu vị). Hồ sơ được tạo khi hoàn tất onboarding.
     if (!isEdit) {
-      navigation.replace('ProfileOnboarding', {
-        profileMeta: {
-          displayName:    trimmed,
-          relation,
-          avatar,
-          isDefault:      false,
-          birth_year:     year || null,
-          age:            year ? (new Date().getFullYear() - year) : null,
-          dietary_goal:   goal,
-          activity_level: activity,
-        },
-      });
+      setSaving(true);
+      try {
+        assertProfileCapacity(await loadAllProfiles(), null);
+        navigation.replace('ProfileOnboarding', {
+          profileMeta: {
+            displayName: trimmed, relation, isDefault: false,
+            birth_year: year,
+            dietary_goal: goal, activity_level: activity,
+          },
+        });
+      } catch (e) {
+        Alert.alert(t(e.code === 'PROFILE_LIMIT_REACHED' ? 'familyAvatar.limitTitle' : 'common.error'),
+          t(e.code === 'PROFILE_LIMIT_REACHED' ? 'familyAvatar.limitBody' : 'profileEdit.saveError'));
+        await loadAllProfilesAction();
+      } finally { setSaving(false); }
       return;
     }
     setSaving(true);
@@ -144,18 +157,14 @@ const AddEditProfileScreen = ({ navigation, route }) => {
         profileId,
         displayName:    trimmed,
         relation,
-        avatar,
         gender,
         birth_year:     year || null,
         age:            year ? (new Date().getFullYear() - year) : null,
         dietary_goal:   goal,
         diet_type:      diet,
         activity_level: activity,
-        created_at:     isEdit ? undefined : new Date().toISOString(),
       });
       await loadAllProfilesAction();
-      // Nếu tạo mới → switch sang profile vừa tạo
-      if (!isEdit) await switchProfile(profileId);
       navigation.goBack();
     } catch (e) {
       console.error('handleSave:', e);
@@ -225,21 +234,12 @@ const AddEditProfileScreen = ({ navigation, route }) => {
           <View style={{ width: 72 }} />
         </View>
 
-        {/* ── Avatar picker ── */}
+        {/* ── Automatic avatar ── */}
         <View style={st.card}>
           <Image source={ASSETS.paper} style={[StyleSheet.absoluteFill, { borderRadius: 18, opacity: 0.5 }]} resizeMode="cover" />
-          <SectionLabel text={t('profileEdit.chooseAvatar')} />
+          <SectionLabel text={t('familyAvatar.auto')} />
           <View style={st.avatarGrid}>
-            {AVATARS.map(a => (
-              <TouchableOpacity
-                key={a}
-                style={[st.avatarItem, avatar === a && st.avatarItemActive]}
-                onPress={() => setAvatar(a)}
-                activeOpacity={0.75}
-              >
-                <Text style={st.avatarEmoji}>{a}</Text>
-              </TouchableOpacity>
-            ))}
+            <ProfileAvatar profile={{ displayName, relation, gender: isEdit ? gender : null, birth_year: birthYear }} size={112} animated />
           </View>
         </View>
 
@@ -268,16 +268,7 @@ const AddEditProfileScreen = ({ navigation, route }) => {
             </>
           )}
 
-          <SectionLabel text={t('profileEdit.birthYear')} />
-          <TextInput
-            style={st.input}
-            placeholder={t('profileEdit.yearPlaceholder')}
-            placeholderTextColor={C.textLight}
-            value={birthYear}
-            onChangeText={v => setBirthYear(v.replace(/[^0-9]/g, ''))}
-            keyboardType="number-pad"
-            maxLength={4}
-          />
+          <BirthYearField value={birthYear} onChange={setBirthYear} showError={showYearError} />
         </View>
 
         {/* ── Ăn uống & vận động ── */}
@@ -299,10 +290,11 @@ const AddEditProfileScreen = ({ navigation, route }) => {
         </View>
 
         {/* ── Buttons ── */}
+        {atCapacity && <Text style={st.sectionLabel}>{t('familyAvatar.limitBody')}</Text>}
         <TouchableOpacity
-          style={[st.saveBtn, saving && { opacity: 0.6 }]}
+          style={[st.saveBtn, (saving || atCapacity) && { opacity: 0.6 }]}
           onPress={handleSave}
-          disabled={saving}
+          disabled={saving || atCapacity}
           activeOpacity={0.82}
         >
           {saving
@@ -368,19 +360,7 @@ const st = StyleSheet.create({
   },
 
   // Avatar grid
-  avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 4 },
-  avatarItem: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(200,169,110,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarItemActive: { borderColor: C.primary, borderWidth: 2, backgroundColor: 'rgba(200,169,110,0.15)' },
-  avatarEmoji: { fontSize: 26 },
+  avatarGrid: { alignItems: 'center', marginBottom: 4 },
 
   // Input
   input: {

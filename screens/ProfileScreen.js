@@ -17,6 +17,8 @@ import { useAppStore } from '../store/useAppStore';
 import { deleteProfileMember, loadAllergiesForProfile } from '../utils/database';
 import { tasteSummary } from '../utils/tasteMath';
 import { removeMealPlanByProfileId } from '../services/mealPlanService';
+import ProfileAvatar, { useProfileYear } from '../components/ui/ProfileAvatar';
+import { getProfileAge, MAX_FAMILY_MEMBERS } from '../utils/profileIdentity';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const P = {
@@ -43,8 +45,6 @@ const nativeShadow = (color = '#8B5E3C', opacity = 0.12, radius = 12, offset = {
     ios:     { shadowColor: color, shadowOpacity: opacity, shadowRadius: radius, shadowOffset: offset },
     android: { elevation },
   });
-
-const initialOf = (name) => (name || '?').trim().charAt(0).toUpperCase() || '?';
 
 // ── Chip (hero) ──────────────────────────────────────────────────────────────
 const Chip = ({ icon, label }) => (
@@ -87,6 +87,8 @@ const FoodRow = ({ icon, iconBg, iconColor, label, isLast, children }) => (
 // ── MemberRow ────────────────────────────────────────────────────────────────
 const MemberRow = ({ p, tone, isActive, canDelete, onPress, onEdit, onDelete }) => {
   const { t } = useTranslation();
+  const year = useProfileYear();
+  const age = getProfileAge(p, year);
   const name = p.displayName || t('profiles.unnamed');
   return (
     <TouchableOpacity
@@ -95,12 +97,12 @@ const MemberRow = ({ p, tone, isActive, canDelete, onPress, onEdit, onDelete }) 
       onPress={onPress}
     >
       <View style={[mr.avatar, { backgroundColor: tone.bg, borderColor: tone.ring }]}>
-        <Text style={[mr.avatarText, { color: tone.ink }]}>{initialOf(p.displayName)}</Text>
+        <ProfileAvatar profile={p} size={44} animated={isActive} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={mr.name} numberOfLines={1}>{name}</Text>
         <Text style={mr.sub} numberOfLines={1}>
-          {t('profiles.' + (p.relation || 'other'), { defaultValue: t('profiles.other') })}{p.age ? ' · ' + t('profiles.years', { count: p.age }) : ''}
+          {t('profiles.' + (p.relation || 'other'), { defaultValue: t('profiles.other') })}{age !== null ? ' · ' + t('profiles.years', { count: age }) : ''}
         </Text>
       </View>
 
@@ -152,6 +154,8 @@ const ProfileScreen = ({ navigation }) => {
   const { t } = useTranslation();
   const { profile, latestMetrics, profiles, activeProfileId, switchProfile, loadAllProfilesAction, tasteProfile } = useAppStore();
   const [allergyRows, setAllergyRows] = useState([]);
+  const year = useProfileYear();
+  const atCapacity = profiles.length >= MAX_FAMILY_MEMBERS;
 
   useFocusEffect(useCallback(() => { loadAllProfilesAction(); }, []));
 
@@ -257,7 +261,7 @@ const ProfileScreen = ({ navigation }) => {
 
           <View style={s.avatarOuter}>
             <View style={s.avatarRing}>
-              <Text style={s.avatarText}>{initialOf(heroName)}</Text>
+              <ProfileAvatar profile={profile} size={96} animated />
             </View>
             <View style={s.avatarCheck}>
               <Ionicons name="checkmark" size={14} color={P.cream} />
@@ -267,6 +271,11 @@ const ProfileScreen = ({ navigation }) => {
           <View style={{ alignItems: 'center', gap: 2 }}>
             <Text style={s.heroName} numberOfLines={1}>{heroName}</Text>
             <Text style={s.heroSub}>{t('profileScreen.heroSub')}</Text>
+            {getProfileAge(profile, year) === null && (
+              <TouchableOpacity onPress={() => goStack('EditPersonal')}>
+                <Text style={s.heroSub}>{t('familyAvatar.missingYear')}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={s.chipsRow}>
@@ -331,7 +340,7 @@ const ProfileScreen = ({ navigation }) => {
 
           {/* ══ GIA ĐÌNH ═══════════════════════════════════════════════════ */}
           <View style={s.section}>
-            <SectionTitle title={t('profileScreen.family')} hint={t('profileScreen.familyHint')} />
+            <SectionTitle title={t('profileScreen.family')} hint={t('familyAvatar.capacity', { count: profiles.length, max: MAX_FAMILY_MEMBERS })} />
             <View style={[s.card, nativeShadow(), { padding: 6, gap: 2 }]}>
               {profiles.map((p, i) => (
                 <MemberRow
@@ -347,13 +356,15 @@ const ProfileScreen = ({ navigation }) => {
               ))}
 
               <TouchableOpacity
-                style={s.addMember}
+                style={[s.addMember, atCapacity && { opacity: 0.5 }]}
+                disabled={atCapacity}
                 activeOpacity={0.75}
                 onPress={() => navigation.getParent()?.navigate('AddEditProfile')}
               >
                 <Ionicons name="add" size={18} color={P.accent} />
                 <Text style={s.addMemberText}>{t('profileScreen.addMember')}</Text>
               </TouchableOpacity>
+              {atCapacity && <Text style={s.heroSub}>{t('familyAvatar.limitBody')}</Text>}
             </View>
           </View>
 

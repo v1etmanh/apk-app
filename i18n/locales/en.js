@@ -1,4 +1,11 @@
 export default {
+  familyAvatar: {
+    label: 'Avatar for {{name}}', auto: 'Avatar based on birth year and gender',
+    birthYear: 'Birth year *', invalidYear: 'Enter a four-digit birth year between {{min}} and {{max}}.',
+    missingYear: 'Add your birth year to find your cat',
+    capacity: '{{count}}/{{max}} members', limitTitle: 'Member limit reached',
+    limitBody: 'Each account supports up to 5 profiles, including yourself. Remove a profile before adding another member.',
+  },
   common: {
     ok: 'OK', save: 'Save', cancel: 'Cancel', close: 'Close', done: 'Done',
     back: 'Back', error: 'Error', loading: 'Loading...', retry: 'Retry',

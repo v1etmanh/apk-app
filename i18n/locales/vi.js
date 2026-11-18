@@ -1,4 +1,11 @@
 export default {
+  familyAvatar: {
+    label: 'Avatar của {{name}}', auto: 'Avatar theo năm sinh và giới tính',
+    birthYear: 'Năm sinh *', invalidYear: 'Nhập năm sinh gồm 4 chữ số, từ {{min}} đến {{max}}.',
+    missingYear: 'Bổ sung năm sinh để chọn mèo phù hợp',
+    capacity: '{{count}}/{{max}} thành viên', limitTitle: 'Đã đủ thành viên',
+    limitBody: 'Mỗi tài khoản có tối đa 5 hồ sơ, tính cả Bản thân. Hãy xóa một hồ sơ trước khi thêm người mới.',
+  },
   common: {
     ok: 'OK',
     save: 'Lưu',
