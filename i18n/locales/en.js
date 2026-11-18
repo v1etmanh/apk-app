@@ -54,6 +54,8 @@ export default {
     nextStep: 'Next step →',
     finishCooking: '🎉 Finish cooking',
     resetProgress: 'Reset',
+    stepsLeft: '{{count}} more steps to go', allStepsDone: 'All steps done', stepOf: 'Step {{num}} / {{total}}',
+    prevStepShort: 'Back', nextStepDone: 'Done, next step', finishCookingShort: 'Finish dish',
     loadingSteps: 'Opening the recipe notebook... 📖',
     emptyCookingSteps: 'This dish has no step-by-step instructions yet',
     emptyCookingStepsSub: 'Detailed cooking steps for this dish are being updated.',
@@ -93,6 +95,7 @@ export default {
     stepPersonal: 'Personal information (age, gender...)', stepBody: 'Body metrics (weight, height)', stepAllergy: 'Food allergies (if any)',
     weight: 'Weight', height: 'Height', family: 'Family', addMember: 'Add a member', setup: 'Setup', yourProfile: 'Your profile',
     inUse: 'In use', heroSub: 'Profile used for dish suggestions', familyHint: 'Tap to switch profile', foodHint: 'From your initial setup', editProfile: 'Edit profile', editMember: 'Edit {{name}}', deleteMember: 'Delete {{name}}',
+    tabFood: 'Food', tabFamily: 'Family', tabSetup: 'Setup',
   },
   history: {
     loadingTitle: 'Looking through your history', loadingBody: 'of meals...', loadingCaption: '🍜 Cat is remembering your delicious meals...',

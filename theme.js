@@ -64,3 +64,14 @@ export const shadow = (level = 1) => ({
   shadowOpacity: 1,
   shadowRadius: level * 3,
 });
+
+// ── Nền "sổ tay": giấy kem toàn màn + dải trời màu nước cắt theo sóng ────────
+// Mọi màn dùng chung 2 ảnh; mỗi màn chỉ khác đoạn cắt trời, chiều lật,
+// màu nhấn nhẹ và hình sóng (sinh từ seed cố định → mở lại vẫn y hệt).
+export const BG = {
+  home:     { tint: '#F2B34C', tintOpacity: 0.14, offset: 0.00, flip: false, seed: 1 },
+  meal:     { tint: '#E7855E', tintOpacity: 0.14, offset: 0.35, flip: true,  seed: 2 },
+  history:  { tint: null,      tintOpacity: 0,    offset: 0.10, flip: false, seed: 3 },
+  profile:  { tint: '#8DB36F', tintOpacity: 0.14, offset: 0.22, flip: true,  seed: 4 },
+  settings: { tint: null,      tintOpacity: 0,    offset: 0.50, flip: false, seed: 5 },
+};

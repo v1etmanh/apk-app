@@ -6,7 +6,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, Alert, StatusBar,
+  Platform, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -19,6 +19,9 @@ import { tasteSummary } from '../utils/tasteMath';
 import { removeMealPlanByProfileId } from '../services/mealPlanService';
 import ProfileAvatar, { useProfileYear } from '../components/ui/ProfileAvatar';
 import { getProfileAge, MAX_FAMILY_MEMBERS } from '../utils/profileIdentity';
+import ScreenBackground from '../components/ui/ScreenBackground';
+import SkyHeader from '../components/ui/SkyHeader';
+import SegmentTabs, { TabPanel } from '../components/ui/SegmentTabs';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const P = {
@@ -51,14 +54,6 @@ const Chip = ({ icon, label }) => (
   <View style={ch.wrap}>
     <Ionicons name={icon} size={14} color={P.brown} />
     <Text style={ch.text}>{label}</Text>
-  </View>
-);
-
-// ── Section title ────────────────────────────────────────────────────────────
-const SectionTitle = ({ title, hint }) => (
-  <View style={st.row}>
-    <Text style={st.title}>{title}</Text>
-    {hint ? <Text style={st.hint} numberOfLines={1}>{hint}</Text> : null}
   </View>
 );
 
@@ -154,6 +149,7 @@ const ProfileScreen = ({ navigation }) => {
   const { t } = useTranslation();
   const { profile, latestMetrics, profiles, activeProfileId, switchProfile, loadAllProfilesAction, tasteProfile } = useAppStore();
   const [allergyRows, setAllergyRows] = useState([]);
+  const [tab, setTab] = useState(0); // 0 ăn uống · 1 gia đình · 2 thiết lập
   const year = useProfileYear();
   const atCapacity = profiles.length >= MAX_FAMILY_MEMBERS;
 
@@ -241,15 +237,14 @@ const ProfileScreen = ({ navigation }) => {
   const heroName = profile?.displayName || profiles[0]?.displayName || t('profileScreen.yourProfile');
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="dark-content" />
+    <ScreenBackground texture="paper" edges={[]}>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ paddingBottom: 32 }}
       >
         {/* ══ HERO ═══════════════════════════════════════════════════════════ */}
-        <View style={[s.hero, { paddingTop: insets.top + 16 }]}>
+        <SkyHeader variant="profile" style={[s.hero, { paddingTop: insets.top + 16 }]}>
           <TouchableOpacity
             style={[s.heroEdit, { top: insets.top + 8 }]}
             onPress={() => goStack('EditPersonal')}
@@ -283,7 +278,7 @@ const ProfileScreen = ({ navigation }) => {
             {profile?.diet_type && <Chip icon="restaurant-outline" label={dietText} />}
             {(profile?.home_region || profile?.nation === 'other') && <Chip icon="location-outline" label={regionText} />}
           </View>
-        </View>
+        </SkyHeader>
 
         <View style={s.body}>
           {/* ══ CHỈ SỐ CƠ THỂ ═══════════════════════════════════════════════ */}
@@ -295,9 +290,22 @@ const ProfileScreen = ({ navigation }) => {
             <Metric label={bmiLabel} value={bmi ?? '–'} unit={bmiNote} />
           </View>
 
-          {/* ══ HỒ SƠ ĂN UỐNG ═══════════════════════════════════════════════ */}
+          {/* ══ 3 TAB: Ăn uống · Gia đình · Thiết lập ═══════════════════════ */}
+          <View style={{ gap: 12 }}>
+          <SegmentTabs
+            value={tab}
+            onChange={setTab}
+            items={[
+              { key: 'food',   label: t('profileScreen.tabFood'),   icon: (c) => <Ionicons name="restaurant-outline" size={15} color={c} /> },
+              { key: 'family', label: t('profileScreen.tabFamily'), icon: (c) => <Ionicons name="people-outline" size={15} color={c} /> },
+              { key: 'setup',  label: t('profileScreen.tabSetup'),  icon: (c) => <Ionicons name="options-outline" size={15} color={c} /> },
+            ]}
+          />
+
+          <TabPanel id={tab}>
+          {tab === 0 && (
           <View style={s.section}>
-            <SectionTitle title={t('profileScreen.foodProfile')} hint={t('profileScreen.foodHint')} />
+            <Text style={st.hint}>{t('profileScreen.foodHint')}</Text>
             <View style={[s.card, nativeShadow(), { paddingHorizontal: 16, paddingVertical: 4 }]}>
               <FoodRow icon="location-outline" iconBg="#F0D9B8" iconColor="#7A4E24" label={t('profileScreen.regionLabel')}>
                 <Text style={fr.value}>{regionText}</Text>
@@ -338,9 +346,13 @@ const ProfileScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* ══ GIA ĐÌNH ═══════════════════════════════════════════════════ */}
+          )}
+
+          {tab === 1 && (
           <View style={s.section}>
-            <SectionTitle title={t('profileScreen.family')} hint={t('familyAvatar.capacity', { count: profiles.length, max: MAX_FAMILY_MEMBERS })} />
+            <Text style={st.hint}>
+              {t('profileScreen.familyHint')} · {t('familyAvatar.capacity', { count: profiles.length, max: MAX_FAMILY_MEMBERS })}
+            </Text>
             <View style={[s.card, nativeShadow(), { padding: 6, gap: 2 }]}>
               {profiles.map((p, i) => (
                 <MemberRow
@@ -368,32 +380,34 @@ const ProfileScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* ══ THIẾT LẬP ══════════════════════════════════════════════════ */}
+          )}
+
+          {tab === 2 && (
           <View style={s.section}>
-            <SectionTitle title={t('profileScreen.setup')} />
             <View style={[s.card, nativeShadow(), { paddingHorizontal: 16 }]}>
               {menuItems.map((item, i) => (
                 <MenuItem key={item.label} {...item} isLast={i === menuItems.length - 1} />
               ))}
             </View>
           </View>
+          )}
+          </TabPanel>
+          </View>
         </View>
       </ScrollView>
-    </View>
+    </ScreenBackground>
   );
 };
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: P.bg },
-  body: { paddingHorizontal: 20, gap: 28 },
+  body: { paddingHorizontal: 20, gap: 22 },
 
   // Hero
   hero: {
-    backgroundColor: P.header, alignItems: 'center', gap: 14,
-    paddingHorizontal: 20, paddingBottom: 40,
-    borderBottomWidth: 1, borderBottomColor: P.border,
-    marginBottom: -16,
+    alignItems: 'center', gap: 14,
+    paddingHorizontal: 20, paddingBottom: 44,
+    marginBottom: -20,
   },
   heroEdit: {
     position: 'absolute', right: 20, width: 44, height: 44, borderRadius: 14,
@@ -424,9 +438,9 @@ const s = StyleSheet.create({
   metricDivider: { width: 1, backgroundColor: 'rgba(255,248,234,0.22)', marginVertical: 6 },
 
   // Section + card
-  section: { gap: 12 },
+  section: { gap: 10 },
   card: {
-    backgroundColor: P.card, borderRadius: 22,
+    backgroundColor: 'rgba(255,250,240,0.95)', borderRadius: 22,
     borderWidth: 1, borderColor: P.border,
   },
 

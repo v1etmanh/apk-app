@@ -188,6 +188,8 @@ export default {
     nextStep: 'Bước tiếp →',
     finishCooking: '🎉 Hoàn tất món ăn',
     resetProgress: 'Làm lại',
+    stepsLeft: 'Còn {{count}} bước nữa là xong', allStepsDone: 'Đã xong hết các bước', stepOf: 'Bước {{num}} / {{total}}',
+    prevStepShort: 'Quay lại', nextStepDone: 'Xong, bước tiếp', finishCookingShort: 'Hoàn tất món',
     loadingSteps: 'Đang mở sổ tay công thức... 📖',
     emptyCookingSteps: 'Món này chưa có hướng dẫn từng bước',
     emptyCookingStepsSub: 'Hệ thống đang cập nhật thêm công thức chi tiết cho món ăn này.',
@@ -251,6 +253,7 @@ export default {
     stepPersonal: 'Thông tin cá nhân (tuổi, giới tính...)', stepBody: 'Chỉ số cơ thể (cân nặng, chiều cao)', stepAllergy: 'Dị ứng thực phẩm (nếu có)',
     weight: 'Cân nặng', height: 'Chiều cao', family: 'Gia đình', addMember: 'Thêm thành viên', setup: 'Thiết lập', yourProfile: 'Hồ sơ của bạn',
     inUse: 'Đang dùng', heroSub: 'Hồ sơ đang dùng để gợi ý món', familyHint: 'Chạm để đổi hồ sơ', foodHint: 'Từ phần làm quen ban đầu', editProfile: 'Chỉnh sửa hồ sơ', editMember: 'Sửa hồ sơ {{name}}', deleteMember: 'Xoá hồ sơ {{name}}',
+    tabFood: 'Ăn uống', tabFamily: 'Gia đình', tabSetup: 'Thiết lập',
   },
   history: {
     loadingTitle: 'Đang lục lịch sử', loadingBody: 'ăn uống của bạn...', loadingCaption: '🍜 Mèo đang nhớ lại những bữa ngon...',

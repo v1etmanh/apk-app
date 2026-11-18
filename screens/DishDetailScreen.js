@@ -7,6 +7,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../services/api';
 import { loadSessions } from '../utils/database';
+import SegmentTabs, { TabPanel } from '../components/ui/SegmentTabs';
 import { C, shadow } from '../theme';
 import PaperCard from '../components/ui/PaperCard';
 import SectionHeader from '../components/ui/SectionHeader';
@@ -211,25 +212,18 @@ const DishDetailScreen = ({ route, navigation }) => {
           </View>
 
           {/* ── 3 tab: Nguyên liệu · Vì sao hợp · Thưởng thức ── */}
-          <View style={s.tabs} accessibilityRole="tablist">
-            {TABS.map((tb, i) => {
-              const on = tab === i;
-              return (
-                <TouchableOpacity
-                  key={tb.key}
-                  style={[s.tabItem, on && s.tabItemOn]}
-                  activeOpacity={0.8}
-                  onPress={() => setTab(i)}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: on }}
-                >
-                  <Ionicons name={tb.icon} size={14} color={on ? C.primary : C.textSoft} />
-                  <Text style={[s.tabText, on && s.tabTextOn]} numberOfLines={1}>{t(tb.label)}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <SegmentTabs
+            value={tab}
+            onChange={setTab}
+            style={{ marginBottom: 18 }}
+            items={TABS.map((tb) => ({
+              key: tb.key,
+              label: t(tb.label),
+              icon: (c) => <Ionicons name={tb.icon} size={14} color={c} />,
+            }))}
+          />
 
+          <TabPanel id={tab}>
           {tab === 0 && (
               <View style={s.section}>
             
@@ -324,6 +318,7 @@ const DishDetailScreen = ({ route, navigation }) => {
 
             </View>
           )}
+          </TabPanel>
         </View>
       </Animated.ScrollView>
 
@@ -644,17 +639,7 @@ const s = StyleSheet.create({
   infoLabel: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: C.textSoft },
   infoValue: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 16, color: C.text },
 
-  // Tabs
-  tabs: {
-    flexDirection: 'row', backgroundColor: C.chipBg, borderRadius: 14, padding: 3, marginBottom: 18,
-  },
-  tabItem: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: 'transparent',
-  },
-  tabItemOn: { backgroundColor: C.surface, borderColor: C.paperStroke, ...shadow(1) },
-  tabText: { fontFamily: 'BeVietnamPro-Regular', fontSize: 13, color: C.textSoft },
-  tabTextOn: { fontFamily: 'BeVietnamPro-SemiBold', color: C.text },
+  // Tabs (SegmentTabs dùng chung)
   tabEmpty: {
     fontFamily: 'BeVietnamPro-Regular', fontSize: 14, color: C.textSoft, textAlign: 'center',
     marginVertical: 24, lineHeight: 20,
