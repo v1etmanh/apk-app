@@ -4,11 +4,14 @@
  * Design: giấy kem + nâu gỗ (Lora + BeVietnamPro), gọn & dễ đọc.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Image, Alert, Platform, StatusBar,
+  ImageBackground, Dimensions, Animated,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import LottieView from 'lottie-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +33,62 @@ const P = {
   border: '#E4D3B0', rowBorder: '#EADDBE',
   ink: '#3D2B1F', muted: '#7A6448', brown: '#5C3A1E', accent: '#7A4E24',
   cream: '#FFF8EA', dashed: '#C8A96E',
+  // Giống HistoryScreen: hero trời + nền giấy
+  sky: '#A8CEDF', paper: '#F5EDD6',
 };
+
+// 2 ảnh như History: 1 hero (trời màu nước) + 1 nền (giấy kem)
+const TEX = {
+  sky:   require('../assets/textures/sky_watercolor.png'),
+  paper: require('../assets/textures/paper_cream.png'),
+};
+const CAT = require('../assets/animations/Dance cat.json');
+const { width: SW } = Dimensions.get('window');
+// Sóng tuần hoàn (chu kỳ = SW/waves) vẽ dài gấp đôi màn hình → trượt ngang -SW là lặp liền mạch
+const WAVE_H = 22;
+const wavePath = (waves, amp) => {
+  const half = SW / (waves * 2);
+  const mid = WAVE_H / 2;
+  let d = `M0,${mid}`;
+  for (let i = 0; i < waves * 4; i++) {
+    const x = i * half;
+    const cy = i % 2 === 0 ? mid + amp : mid - amp;
+    d += ` Q${x + half / 2},${cy} ${x + half},${mid}`;
+  }
+  return `${d} L${SW * 2},${WAVE_H} L0,${WAVE_H} Z`;
+};
+const WAVE_BACK  = wavePath(2, 9);
+const WAVE_FRONT = wavePath(3, 6); // số sóng phải là số nguyên để vòng lặp không bị giật
+
+// ── Mép gợn sóng chuyển động — 2 lớp trượt ngược chiều, khác tốc độ ─────────
+const WaveLayer = ({ d, opacity, duration, reverse }) => {
+  const x = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.timing(x, { toValue: 1, duration, easing: t => t, useNativeDriver: true })
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [x, duration]);
+  const translateX = x.interpolate({
+    inputRange: [0, 1],
+    outputRange: reverse ? [-SW, 0] : [0, -SW],
+  });
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, { width: SW * 2, transform: [{ translateX }] }]}>
+      <Svg width={SW * 2} height={WAVE_H}>
+        <Path d={d} fill={P.paper} fillOpacity={opacity} />
+      </Svg>
+    </Animated.View>
+  );
+};
+
+const MovingWave = () => (
+  <View pointerEvents="none" style={s.wave}>
+    <WaveLayer d={WAVE_BACK}  opacity={0.55} duration={9000} reverse />
+    <WaveLayer d={WAVE_FRONT} opacity={1}    duration={6000} />
+  </View>
+);
 
 // Tông avatar xoay vòng theo thứ tự thành viên
 const TONES = [
@@ -47,6 +105,41 @@ const nativeShadow = (color = '#8B5E3C', opacity = 0.12, radius = 12, offset = {
     android: { elevation },
   });
 
+
+// ── Mèo trên hero — nhấp nhô + lắc nhẹ giống HistoryScreen ─────────────────
+const HeroCat = () => {
+  const bob    = useRef(new Animated.Value(0)).current;
+  const wiggle = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.parallel([
+      Animated.loop(Animated.sequence([
+        Animated.timing(bob, { toValue: -7, duration: 1000, useNativeDriver: true }),
+        Animated.timing(bob, { toValue: 0,  duration: 1000, useNativeDriver: true }),
+      ])),
+      Animated.loop(Animated.sequence([
+        Animated.timing(wiggle, { toValue: 1,  duration: 1800, useNativeDriver: true }),
+        Animated.timing(wiggle, { toValue: -1, duration: 1800, useNativeDriver: true }),
+      ])),
+    ]);
+    anim.start();
+    return () => anim.stop();
+  }, [bob, wiggle]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[s.catWrap, {
+        transform: [
+          { translateY: bob },
+          { rotate: wiggle.interpolate({ inputRange: [-1, 1], outputRange: ['-3deg', '3deg'] }) },
+        ],
+      }]}
+    >
+      <LottieView source={CAT} autoPlay loop style={s.cat} />
+    </Animated.View>
+  );
+};
 
 // ── DishRow — mỗi món trong thẻ thành viên ───────────────────────────────────
 const DishRow = ({ dish, index, profileId, onRemove, onPress }) => {
@@ -253,19 +346,26 @@ const ChosenDishScreen = ({ navigation }) => {
   const pricedDishes = plan.items.flatMap(i => i.dishes).filter(d => hasPrice(d.est_cost_vnd));
   const estTotal = pricedDishes.reduce((sum, d) => sum + d.est_cost_vnd, 0);
   const estTotalLabel = pricedDishes.length ? `~${formatVnd(estTotal, langOf(i18n))}` : null;
-  const displayDate = formatDisplayDate(plan.date);
+  const displayDate = formatDisplayDate(plan.date, langOf(i18n));
 
   return (
-    <View style={s.root}>
+    <ImageBackground source={TEX.paper} style={s.root} resizeMode="cover">
       <StatusBar barStyle="dark-content" />
 
-      {/* ── Header ── */}
+      {/* ── Header (hero trời + mép gợn sóng) ── */}
+      <ImageBackground
+        source={TEX.sky}
+        style={s.hero}
+        resizeMode="cover"
+        imageStyle={{ opacity: 0.55 }}
+      >
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         <View style={s.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={s.headerDate}>{displayDate}</Text>
             <Text style={s.headerTitle}>{t('today.title')}</Text>
           </View>
+          <HeroCat />
           {plan.items.length > 0 && (
             <TouchableOpacity
               onPress={handleReset}
@@ -289,6 +389,8 @@ const ChosenDishScreen = ({ navigation }) => {
           </View>
         )}
       </View>
+        <MovingWave />
+      </ImageBackground>
 
       {/* ── Body ── */}
       {loading ? (
@@ -325,20 +427,22 @@ const ChosenDishScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </ImageBackground>
   );
 };
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: P.bg },
+  root: { flex: 1, backgroundColor: P.paper },
 
   // Header
+  hero: { backgroundColor: P.sky },
   header: {
-    backgroundColor: P.header,
-    borderBottomWidth: 1, borderBottomColor: P.border,
     paddingHorizontal: 20, paddingBottom: 16, gap: 14,
   },
+  wave: { marginTop: -1, width: SW, height: WAVE_H, overflow: 'hidden' },
+  catWrap: { width: 84, height: 84, marginTop: -14, marginBottom: -12 },
+  cat: { width: 84, height: 84 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   headerDate: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 13, color: P.muted, letterSpacing: 0.2 },
   headerTitle: { fontFamily: 'Lora-Bold', fontSize: 28, lineHeight: 34, color: P.ink },

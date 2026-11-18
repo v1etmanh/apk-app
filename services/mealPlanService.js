@@ -38,13 +38,18 @@ export function getTodayDateStr() {
   return `${y}-${m}-${day}`;
 }
 
-/** Trả về label hiển thị kiểu "Thứ Ba, 03/05/2026" */
-export function formatDisplayDate(dateStr) {
+/** Trả về label hiển thị kiểu "Thứ Ba, 03/05/2026" / "Tuesday, 05/03/2026" */
+export function formatDisplayDate(dateStr, language = 'vi') {
   try {
     const [y, m, dd] = dateStr.split('-').map(Number);
     const d = new Date(y, m - 1, dd);
+    const pad = (n) => String(n).padStart(2, '0');
+    if (language === 'en') {
+      const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      return `${days[d.getDay()]}, ${pad(m)}/${pad(dd)}/${y}`;
+    }
     const days = ['Chủ Nhật','Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy'];
-    return `${days[d.getDay()]}, ${String(dd).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
+    return `${days[d.getDay()]}, ${pad(dd)}/${pad(m)}/${y}`;
   } catch {
     return dateStr;
   }

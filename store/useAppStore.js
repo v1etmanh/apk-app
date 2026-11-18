@@ -15,6 +15,7 @@ import {
   getSavedDishes, saveDish, removeSavedDish,
 } from '../utils/database';
 import { loadReminderSettings, DEFAULT_REMINDER_TIMES } from '../services/mealReminderService';
+import i18n from '../i18n';
 
 export const useAppStore = create((set, get) => ({
   profile:          null,
@@ -231,6 +232,32 @@ export const useAppStore = create((set, get) => ({
     } catch (e) { console.error('switchProfile:', e); }
   },
 
+  // Khởi động: profile + danh sách đã có từ loadStartupProfiles → không gọi lại
+  // loadAllProfiles/loadProfileById. Taste nằm sẵn trong profile, chỉ còn tải
+  // allergies + metrics (song song).
+  hydrateStartupProfile: async ({ profile, profiles }) => {
+    const profileId = profile.profileId;
+    set({
+      profiles,
+      activeProfileId:    profileId,
+      profile,
+      tasteProfile:       profile.taste_profile ?? null,
+      hometownProvinceId: profile.hometown_province_id ?? null,
+      tasteMode:          profile.taste_mode ?? 'hometown',
+    });
+    try {
+      const [allergiesRaw, metrics] = await Promise.all([
+        loadAllergiesForProfile(profileId),
+        loadLatestMetricsForProfile(profileId),
+      ]);
+      if (get().activeProfileId !== profileId) return;
+      set({
+        allergies:     allergiesRaw.map(r => r.allergy_key),
+        latestMetrics: metrics ?? null,
+      });
+    } catch (e) { console.error('hydrateStartupProfile:', e); }
+  },
+
   // ── Core data loaders ──────────────────────────────────────────────────────
   loadProfile: async () => {
     try {
@@ -317,9 +344,15 @@ export const useAppStore = create((set, get) => ({
   initializeCostPreference: async () => get().initializeSettings(),
 
   // Load nguyên liệu từ API; database layer tự cache và fallback local khi offline.
+  // Có bản lưu → set ngay, API làm mới chạy ngầm rồi cập nhật lại store.
   initializeIngredients: async (language) => {
+    const lang = (language ?? i18n.language) === 'en' ? 'en' : 'vi';
+    const isCurrentLang = () => (i18n.language === 'en' ? 'en' : 'vi') === lang;
     try {
-      const list = await loadAllIngredients(language);
+      const list = await loadAllIngredients(lang, {
+        onUpdate: fresh => { if (isCurrentLang()) set({ allIngredients: fresh }); },
+      });
+      if (!isCurrentLang()) return;
       set({ allIngredients: list });
       if (__DEV__) console.log('[Store] allIngredients loaded:', list.length);
     } catch (e) { console.error('initializeIngredients:', e); }

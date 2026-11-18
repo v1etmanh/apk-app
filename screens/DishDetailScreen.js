@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Modal, Image, ActivityIndicator, StatusBar, Animated, ImageBackground, Dimensions
+  Image, ActivityIndicator, StatusBar, Animated, ImageBackground, Dimensions
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,7 +22,6 @@ const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 320;
 
 const ASSETS = {
-  wood: require('../assets/textures/wood_light.png'),
   paper: require('../assets/textures/paper_cream.png'),
 };
 
@@ -49,7 +48,7 @@ const BarAction = ({ icon, color, label, state, disabled, onPress }) => (
   </TouchableOpacity>
 );
 
-/** Ô thông số trong tab Thưởng thức: icon + nhãn nhỏ + giá trị. */
+/** Ô thông số trong tab Thông tin cơ bản: icon + nhãn nhỏ + giá trị. */
 const InfoTile = ({ icon, color, label, value, accent }) => (
   <View style={[s.infoTile, accent && s.infoTileAccent]}>
     <View style={s.infoHead}>
@@ -69,8 +68,6 @@ const DishDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const [ratingModalVisible, setRatingModalVisible] = useState(false);
-  const [selectedRating, setSelectedRating]         = useState(0);
   const [ingredients, setIngredients]               = useState([]);
   const [loadingDetail, setLoadingDetail]           = useState(true);
   const [feedbackState, setFeedbackState]           = useState({}); // { eaten: 'loading'|'done'|'error' }
@@ -93,7 +90,7 @@ const DishDetailScreen = ({ route, navigation }) => {
     finally { setLoadingDetail(false); }
   };
 
-  const handleFeedback = async (action, rating = null) => {
+  const handleFeedback = async (action) => {
     const dishId = dish.dish_id || dish.id;
     setFeedbackState(prev => ({ ...prev, [action]: 'loading' }));
     try {
@@ -108,12 +105,10 @@ const DishDetailScreen = ({ route, navigation }) => {
         session_uuid: sessionUuid,
         dish_id:      String(dishId),
         action,
-        rating:       rating ?? undefined,
         feedback_at:  new Date().toISOString(),
       });
 
       setFeedbackState(prev => ({ ...prev, [action]: 'done' }));
-      if (action === 'rated') setRatingModalVisible(false);
     } catch (e) {
       console.error('handleFeedback:', e);
       setFeedbackState(prev => ({ ...prev, [action]: 'error' }));
@@ -211,7 +206,7 @@ const DishDetailScreen = ({ route, navigation }) => {
             </ImageBackground>
           </View>
 
-          {/* ── 3 tab: Nguyên liệu · Vì sao hợp · Thưởng thức ── */}
+          {/* ── 3 tab: Nguyên liệu · Vì sao hợp · Thông tin cơ bản ── */}
           <SegmentTabs
             value={tab}
             onChange={setTab}
@@ -322,7 +317,7 @@ const DishDetailScreen = ({ route, navigation }) => {
         </View>
       </Animated.ScrollView>
 
-      {/* ── Thanh đáy: Đã ăn · Đánh giá · [Nấu ngay] · Bỏ qua ── */}
+      {/* ── Thanh đáy: Đã ăn · [Nấu ngay] · Bỏ qua ── */}
       <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
         <BarAction
           icon={feedbackState.eaten === 'error' ? 'alert-circle-outline' : 'checkmark-done'}
@@ -332,15 +327,6 @@ const DishDetailScreen = ({ route, navigation }) => {
           disabled={feedbackState.eaten === 'loading' || feedbackState.eaten === 'done'}
           onPress={() => handleFeedback('eaten')}
         />
-        <BarAction
-          icon={feedbackState.rated === 'done' ? 'star' : 'star-outline'}
-          color={C.seasonText}
-          state={feedbackState.rated}
-          label={feedbackState.rated === 'done' ? t('dish.saved') : t('dish.rating')}
-          disabled={feedbackState.rated === 'loading'}
-          onPress={() => setRatingModalVisible(true)}
-        />
-
         <View style={s.cookSlot}>
           <TouchableOpacity
             style={s.cookBtn}
@@ -364,50 +350,6 @@ const DishDetailScreen = ({ route, navigation }) => {
         />
       </View>
 
-      {/* ── Rating Modal ─────────────────────────────── */}
-      <Modal visible={ratingModalVisible} transparent animationType="fade" onRequestClose={() => setRatingModalVisible(false)}>
-        <View style={s.modalOverlay}>
-          <ImageBackground source={ASSETS.paper} style={s.modalCard} imageStyle={{ borderRadius: 24, opacity: 0.98 }} resizeMode="cover">
-            <View style={s.modalInner}>
-              <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>{t('dish.rate')}</Text>
-                <TouchableOpacity onPress={() => setRatingModalVisible(false)} style={s.closeModalBtn}>
-                  <Ionicons name="close" size={24} color={C.textLight} />
-                </TouchableOpacity>
-              </View>
-              
-              <Text style={s.modalSub}>{t('dish.rateBody', { name: dish.title })}</Text>
-              
-              <View style={s.starsRow}>
-                {[1, 2, 3, 4, 5].map(star => (
-                  <TouchableOpacity 
-                    key={star} 
-                    onPress={() => setSelectedRating(star)}
-                    activeOpacity={0.7} 
-                    style={[s.starBtn, selectedRating === star && s.starBtnActive]}
-                  >
-                    <Ionicons 
-                      name={star <= selectedRating ? "star" : "star-outline"} 
-                      size={32} 
-                      color={star <= selectedRating ? (C.accentGold || '#F59E0B') : C.border} 
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-              
-              <TouchableOpacity
-                style={[s.modalConfirmBtn, selectedRating === 0 && { opacity: 0.5 }]}
-                disabled={selectedRating === 0}
-                onPress={() => handleFeedback('rated', selectedRating)}
-                activeOpacity={0.8}
-              >
-                <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 18, opacity: 0.9 }} />
-                <Text style={s.modalConfirmText}>{t('dish.submitRating')}</Text>
-              </TouchableOpacity>
-            </View>
-          </ImageBackground>
-        </View>
-      </Modal>
     </ImageBackground>
   );
 };
@@ -628,7 +570,7 @@ const s = StyleSheet.create({
   },
 
   // Recipe Button
-  // Info tiles (tab Thưởng thức)
+  // Info tiles (tab Thông tin cơ bản)
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
   infoTile: {
     width: '48%', flexGrow: 1, padding: 12, borderRadius: 14,
@@ -662,73 +604,6 @@ const s = StyleSheet.create({
   },
   cookLabel: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 11, color: C.primary },
 
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: 24,
-    ...shadow(8),
-  },
-  modalInner: {
-    padding: 24,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 24,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 20,
-    color: C.text,
-  },
-  closeModalBtn: {
-    padding: 4,
-  },
-  modalSub: {
-    fontFamily: 'Nunito_400Regular',
-    fontSize: 15,
-    color: C.textMid,
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  starsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    marginBottom: 32,
-  },
-  starBtn: {
-    padding: 4,
-    transform: [{ scale: 1 }],
-  },
-  starBtnActive: {
-    transform: [{ scale: 1.1 }],
-  },
-  modalConfirmBtn: {
-    height: 52,
-    borderRadius: 18,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalConfirmText: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 16,
-    color: '#FFF',
-    position: 'absolute',
-    zIndex: 2,
-  },
 });
 
 

@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Platform } from 'react-native';
 import LottieView from 'lottie-react-native';
+import { useTranslation } from 'react-i18next';
 import { C } from '../../theme';
+import { translateWeatherCondition } from '../../utils/weatherText';
 
 const LAZY_CAT = require('../../assets/animations/Lazy cat.json');
 
@@ -336,6 +338,7 @@ const WeatherAnimationSprite = ({
   feelsLike = null,
   accessory = null, // phần tử hiển thị cùng hàng với tình trạng / cảm giác như (vd: bong bóng mùa)
 }) => {
+  const { t } = useTranslation();
   const type = getWeatherType(condition, icon);
   const { floatY, scale, rotateDeg, opacity, rayDeg } = useIconAnim(type);
 
@@ -411,8 +414,8 @@ const WeatherAnimationSprite = ({
         </View>
         <View style={s.condRow}>
           <View style={s.condInfo}>
-            <Text style={s.condText}>{condition}</Text>
-            {feelsLike && <Text style={s.feelsLike}>Cảm giác như {feelsLike}°C</Text>}
+            <Text style={s.condText}>{translateWeatherCondition(condition, t)}</Text>
+            {feelsLike && <Text style={s.feelsLike}>{t('weatherCond.feelsLike', { temp: feelsLike })}</Text>}
           </View>
           {accessory}
         </View>

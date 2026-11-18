@@ -1,81 +1,81 @@
+// Nút tông Ghibli: gỗ (chính) · mây (phụ) · trời (nhấn nhẹ).
+// Gradient dọc + gờ đáy đậm như tấm gỗ vẽ tay; khi bấm nút "lún" xuống 2px.
 import React from 'react';
-import { TouchableOpacity, View, Text, StyleSheet, ImageBackground } from 'react-native';
-import { C, shadow } from '../../theme';
+import { Pressable, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BTN, shadow } from '../../theme';
 
-const ASSETS = {
-  wood: require('../../assets/textures/wood_light.png'),
-};
+const LIP = 4;
 
-export default function WoodButton({ 
-  onPress, 
-  title, 
+export default function WoodButton({
+  onPress,
+  title,
   icon,
-  style, 
-  textStyle, 
+  style,
+  textStyle,
   disabled = false,
-  accessibilityLabel 
+  loading = false,
+  isLoading,
+  accessibilityLabel,
+  variant = 'wood', // 'wood' | 'cloud' | 'sky'  ('ocean' = 'sky', giữ tương thích)
+  size = 'md',      // 'md' | 'sm'
 }) {
+  const busy = loading || isLoading;
+  const off = disabled || busy;
+  const key = variant === 'ocean' ? 'sky' : variant;
+  const p = disabled ? BTN.off : (BTN[key] || BTN.wood);
+  const sm = size === 'sm';
+
   return (
-    <TouchableOpacity
-      style={[
-        styles.buttonWrapper, 
-        disabled && styles.disabled,
-        style
-      ]}
+    <Pressable
       onPress={onPress}
-      disabled={disabled}
-      activeOpacity={0.84}
+      disabled={off}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || title}
+      accessibilityState={{ disabled: off, busy: !!busy }}
+      style={[{ minHeight: sm ? 40 : 52 }, style]}
     >
-      <ImageBackground
-        source={ASSETS.wood}
-        style={styles.buttonInner}
-        imageStyle={{ borderRadius: 22, opacity: disabled ? 0.35 : 0.8 }}
-        resizeMode="cover"
-      >
-        <View style={[styles.content, disabled && { backgroundColor: 'rgba(92,58,30,0.3)' }]}>
-          {icon && <View style={styles.iconWrapper}>{icon}</View>}
-          <Text style={[styles.text, textStyle]}>{title}</Text>
+      {({ pressed }) => (
+        <View
+          style={[
+            st.lip,
+            { backgroundColor: p.lip, borderRadius: sm ? 18 : 22, paddingBottom: pressed ? LIP - 2 : LIP, marginTop: pressed ? 2 : 0 },
+            !disabled && key === 'wood' && shadow(2),
+          ]}
+        >
+          <LinearGradient
+            colors={[p.top, p.bottom]}
+            style={[st.face, { borderColor: p.border, borderRadius: sm ? 18 : 22 }, sm && st.faceSm]}
+          >
+            {/* vệt sáng mảnh phía trên — cảm giác mặt gỗ/mây được nắng chiếu */}
+            <View pointerEvents="none" style={[st.shine, { borderRadius: sm ? 16 : 20 }]} />
+            {busy ? (
+              <ActivityIndicator color={p.text} />
+            ) : (
+              <>
+                {icon && <View style={st.icon}>{icon}</View>}
+                <Text style={[st.text, sm && st.textSm, { color: p.text }, textStyle]} numberOfLines={1}>{title}</Text>
+              </>
+            )}
+          </LinearGradient>
         </View>
-      </ImageBackground>
-    </TouchableOpacity>
+      )}
+    </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  buttonWrapper: {
-    borderRadius: 22,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(160,120,74,0.5)',
-    ...shadow(3),
-    minHeight: 44, // 44px min touch target compliant
+const st = StyleSheet.create({
+  lip: { overflow: 'hidden' },
+  face: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    minHeight: 48, paddingVertical: 12, paddingHorizontal: 20, borderWidth: 1.5,
   },
-  disabled: {
-    opacity: 0.8,
-    ...shadow(1),
+  faceSm: { minHeight: 36, paddingVertical: 7, paddingHorizontal: 14 },
+  shine: {
+    position: 'absolute', top: 2, left: 10, right: 10, height: '40%',
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
-  buttonInner: {
-    borderRadius: 22,
-    overflow: 'hidden',
-  },
-  content: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(92,58,30,0.72)', // Tinting to match the theme's brown overlay
-    gap: 8,
-  },
-  iconWrapper: {
-    marginRight: 4,
-  },
-  text: {
-    fontSize: 16,
-    color: '#FFF',
-    fontFamily: 'Nunito-Bold',
-    letterSpacing: 0.3,
-  },
+  icon: { marginRight: 2 },
+  text: { fontSize: 16, fontFamily: 'BeVietnamPro-Bold', letterSpacing: 0.2, flexShrink: 1, textAlign: 'center' },
+  textSm: { fontSize: 13.5 },
 });

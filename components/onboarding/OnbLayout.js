@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { C, F, shadow } from '../../theme';
 import { MascotSays } from '../ui/Mascot';
 import { CircleButton } from '../ui/Notebook';
+import WoodButton from '../ui/WoodButton';
 
 const WOOD = require('../../assets/textures/wood_light.png');
 
@@ -21,20 +22,7 @@ export const ProgressBar = ({ step, total }) => (
 
 /** Nút gỗ (cùng kiểu WoodButton) có trạng thái loading. */
 export const PrimaryButton = ({ label, onPress, disabled, loading, style }) => (
-  <TouchableOpacity
-    style={[s.cta, (disabled || loading) && s.ctaDisabled, style]}
-    onPress={onPress}
-    disabled={disabled || loading}
-    activeOpacity={0.85}
-    accessibilityRole="button"
-    accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
-  >
-    <ImageBackground source={WOOD} imageStyle={s.ctaImg} resizeMode="cover">
-      <View style={s.ctaInner}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.ctaText}>{label}</Text>}
-      </View>
-    </ImageBackground>
-  </TouchableOpacity>
+  <WoodButton title={label} onPress={onPress} disabled={disabled} loading={loading} style={style} />
 );
 
 /**
