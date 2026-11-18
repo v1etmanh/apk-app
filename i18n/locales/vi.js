@@ -381,6 +381,14 @@ export default {
   why: {
     title: 'Vì sao chọn món này',
     sourceTitle: 'Điểm phù hợp đến từ đâu',
+    formulaTitle: 'Vì sao món này đứng trên món khác',
+    formulaHead: 'Món này {{score}} điểm · món trung bình {{base}} điểm',
+    formulaHeadNoBase: 'Món này {{score}} điểm',
+    formulaNote: 'Mỗi dòng: món này hơn (+) hay kém (−) món trung bình của lần gợi ý bao nhiêu điểm.',
+    mult: {
+      soft_down: 'Nấu lâu / giá / trái mùa', liked_up: 'Bạn đã thích', liked_down: 'Bạn không thích',
+      region_up: 'Món vùng quê bạn', region_down: 'Đặc trưng vùng khác', recent_down: 'Vừa ăn gần đây',
+    },
     fitTitle: 'Độ hợp của món theo từng mặt',
     tradeoffTitle: 'Cần cân nhắc',
     rank: 'Hạng #{{pos}} · hợp {{pct}}%',
@@ -433,6 +441,8 @@ export default {
       other_region: 'Đặc trưng {{region}}, có thể lạ vị với bạn',
       taste_off: 'Hơi {{taste}} so với gu của bạn', taste_off_noTaste: 'Không thật đúng gu bạn',
       need_buy: 'Cần mua thêm: {{list}}',
+      weather_below: 'Kém món trung bình {{pts}} điểm ở phần thời tiết hôm nay',
+      loss: '−{{n}} điểm',
     },
   },
 };

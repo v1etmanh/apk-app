@@ -11,7 +11,7 @@ import PaperCard from './ui/PaperCard';
 import SectionHeader from './ui/SectionHeader';
 import { MascotCat } from './ui/Mascot';
 import {
-  hasWhy, whyHeadline, reasonView, tradeoffView, WHY_GROUPS, WHY_GROUP_STYLE,
+  hasWhy, whyHeadline, reasonView, tradeoffView, formulaView, WHY_GROUPS, WHY_GROUP_STYLE,
 } from '../utils/whyText';
 
 const pct = (v) => Math.round(Math.max(0, Math.min(1, v || 0)) * 100);
@@ -49,6 +49,62 @@ const ShareBar = ({ share, t }) => {
           </View>
         ))}
       </View>
+    </View>
+  );
+};
+
+// ── Công thức điểm (why v2): món này hơn / kém món trung bình ở từng phần ─────
+const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '±0');
+
+const EdgeRow = ({ row, maxAbs, delay }) => {
+  const width = useGrow(delay);
+  const frac = maxAbs > 0 ? Math.min(1, Math.abs(row.edge) / maxAbs) : 0;
+  const pos = row.edge > 0;
+  const tint = row.edge === 0 ? C.textSoft : pos ? row.color : '#B5543C';
+  return (
+    <View style={s.fitRow}>
+      <Ionicons name={row.icon} size={14} color={row.color} style={{ width: 18 }} />
+      <Text style={s.fitLabel} numberOfLines={1}>
+        {row.label}{row.mult ? <Text style={s.multText}> {row.mult}</Text> : null}
+      </Text>
+      {/* thanh hai chiều: trái = kém, phải = hơn món trung bình */}
+      <View style={s.edgeTrack}>
+        <View style={[s.edgeHalf, { alignItems: 'flex-end' }]}>
+          {!pos && row.edge !== 0 && (
+            <Animated.View style={{ width, height: '100%', alignItems: 'flex-end' }}>
+              <View style={[s.fitFill, { width: `${frac * 100}%`, backgroundColor: tint }]} />
+            </Animated.View>
+          )}
+        </View>
+        <View style={s.edgeAxis} />
+        <View style={s.edgeHalf}>
+          {pos && (
+            <Animated.View style={{ width, height: '100%' }}>
+              <View style={[s.fitFill, { width: `${frac * 100}%`, backgroundColor: tint }]} />
+            </Animated.View>
+          )}
+        </View>
+      </View>
+      <Text style={[s.fitVal, { color: tint }]}>{signed(row.edge)}</Text>
+    </View>
+  );
+};
+
+const FormulaBlock = ({ view, t }) => {
+  const maxAbs = Math.max(1, ...view.rows.map(r => Math.abs(r.edge)));
+  return (
+    <View style={s.block}>
+      <Text style={s.blockTitle}>{t('why.formulaTitle')}</Text>
+      <Text style={s.formulaHead}>
+        {view.base != null
+          ? t('why.formulaHead', { score: view.score, base: view.base })
+          : t('why.formulaHeadNoBase', { score: view.score })}
+        {view.diff != null && <Text style={s.formulaDiff}>{`  (${signed(view.diff)})`}</Text>}
+      </Text>
+      {view.rows.map((r, i) => (
+        <EdgeRow key={r.key} row={r} maxAbs={maxAbs} delay={200 + i * 80} />
+      ))}
+      {view.base != null && <Text style={s.formulaNote}>{t('why.formulaNote')}</Text>}
     </View>
   );
 };
@@ -114,6 +170,7 @@ export default function WhyThisDish({ why, explanation, showHeader = true }) {
   const tradeoffs = (why.tradeoffs || []).map(tr => tradeoffView(tr, t, i18n)).filter(x => x.text);
   const fitGroups = WHY_GROUPS.filter(g => why.fit?.[g] != null);
   const rank = why.rank || {};
+  const formula = formulaView(why, t);
 
   return (
     <View style={s.section}>
@@ -140,7 +197,8 @@ export default function WhyThisDish({ why, explanation, showHeader = true }) {
             </View>
           )}
 
-          <ShareBar share={why.share} t={t} />
+          {/* Server v2: công thức so với món trung bình; bản cũ: tỉ lệ điểm tuyệt đối */}
+          {formula ? <FormulaBlock view={formula} t={t} /> : <ShareBar share={why.share} t={t} />}
 
           {reasons.length > 0 && (
             <View style={s.block}>
@@ -223,4 +281,12 @@ const s = StyleSheet.create({
   fitTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: C.parchmentDark, overflow: 'hidden' },
   fitFill: { height: '100%', borderRadius: 4 },
   fitVal: { width: 38, textAlign: 'right', fontFamily: 'BeVietnamPro-Bold', fontSize: 12.5 },
+
+  formulaHead: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 13.5, color: C.text, marginBottom: 10 },
+  formulaDiff: { fontFamily: 'BeVietnamPro-Bold', color: C.woodDark },
+  formulaNote: { fontFamily: 'BeVietnamPro-Regular', fontSize: 11.5, lineHeight: 16, color: C.textSoft, marginTop: 2 },
+  multText: { fontFamily: 'BeVietnamPro-Bold', color: C.textSoft },
+  edgeTrack: { flex: 1, height: 8, flexDirection: 'row', alignItems: 'center' },
+  edgeHalf: { flex: 1, height: '100%', borderRadius: 4, backgroundColor: C.parchmentDark, overflow: 'hidden' },
+  edgeAxis: { width: 2, height: 12, backgroundColor: C.textSoft, marginHorizontal: 1, borderRadius: 1 },
 });

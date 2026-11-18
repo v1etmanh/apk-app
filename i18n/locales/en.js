@@ -223,6 +223,14 @@ export default {
   why: {
     title: 'Why this dish',
     sourceTitle: 'Where the match comes from',
+    formulaTitle: 'Why it ranks above other dishes',
+    formulaHead: 'This dish {{score}} pts · average dish {{base}} pts',
+    formulaHeadNoBase: 'This dish {{score}} pts',
+    formulaNote: 'Each row: how many points this dish gains (+) or loses (−) versus the average suggestion.',
+    mult: {
+      soft_down: 'Cook time / price / season', liked_up: 'You liked it', liked_down: 'You disliked it',
+      region_up: 'From your home region', region_down: 'Typical of another region', recent_down: 'Eaten recently',
+    },
     fitTitle: 'How well it fits, aspect by aspect',
     tradeoffTitle: 'Worth knowing',
     rank: 'Rank #{{pos}} · {{pct}}% match',
@@ -275,6 +283,8 @@ export default {
       other_region: 'Typical of {{region}}, may taste unfamiliar',
       taste_off: 'A bit {{taste}} for your taste', taste_off_noTaste: 'Not quite your taste',
       need_buy: 'Still need: {{list}}',
+      weather_below: '{{pts}} pts below the average dish for today’s weather',
+      loss: '−{{n}} pts',
     },
   },
 };
