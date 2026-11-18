@@ -15,6 +15,7 @@ import { C, R, F, shadow } from '../theme';
 import WoodButton from '../components/ui/WoodButton';
 import { MascotSays } from '../components/ui/Mascot';
 import { CircleButton, Pill, CheckDot, DashedNote } from '../components/ui/Notebook';
+import IngredientThumb from '../components/ui/IngredientThumb';
 
 const SECTION_META = { protein: '🍗', vegetable: '🥬' };
 const SEARCH_CATEGORIES = new Set(['Thịt', 'Hải sản', 'Đậu & Hạt', 'Rau củ', 'Đã chế biến', 'Sữa & Trứng']);
@@ -31,7 +32,8 @@ const IngredientCard = ({ item, selected, onPress, dishesLabel }) => (
     accessibilityState={{ checked: selected }}
   >
     <View style={st.cardHead}>
-      <Text style={st.cardName} numberOfLines={1}>{item.name}</Text>
+      <IngredientThumb id={item.id} category={item.category} size={44} />
+      <Text style={st.cardName} numberOfLines={2}>{item.name}</Text>
       <CheckDot on={selected} />
     </View>
     <View style={st.reasonRow}>
@@ -255,6 +257,7 @@ const IngredientSuggestScreen = ({ navigation, route }) => {
           return (
             <TouchableOpacity key={i.id} style={st.searchRow} onPress={() => toggle(i)} activeOpacity={0.75}>
               <CheckDot on={on} square />
+              <IngredientThumb id={i.id} category={i.category} size={28} round />
               <Text style={st.searchName}>{i.name}</Text>
               <Text style={st.searchCat}>{i.category}</Text>
             </TouchableOpacity>
@@ -317,7 +320,7 @@ const st = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.55)', borderWidth: 1.5, borderColor: C.border, gap: 6,
   },
   cardOn: { borderWidth: 2, borderColor: C.primary, backgroundColor: C.parchmentLight, ...shadow(2) },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   cardName: { flex: 1, fontSize: F.base, color: C.text, fontFamily: 'BeVietnamPro-Bold' },
   reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   dishCount: { fontSize: 11.5, color: C.textSoft, fontFamily: 'BeVietnamPro-Regular' },

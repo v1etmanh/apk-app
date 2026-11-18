@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { formatVnd } from '../utils/price';
 import WhyThisDish from '../components/WhyThisDish';
 import { hasWhy } from '../utils/whyText';
+import IngredientThumb from '../components/ui/IngredientThumb';
 
 const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 320;
@@ -253,7 +254,8 @@ const DishDetailScreen = ({ route, navigation }) => {
                         <View style={s.ingGrid}>
                           {mainIngredients.map(ing => (
                             <View key={ing.id} style={[s.ingChipMain, pickedSet.has(Number(ing.id)) && s.ingChipHave]}>
-                              <Text style={[s.ingTextMain, pickedSet.has(Number(ing.id)) && s.ingTextHave]}>
+                              <IngredientThumb id={ing.id} category={ing.category} size={64} />
+                              <Text style={[s.ingTextMain, pickedSet.has(Number(ing.id)) && s.ingTextHave]} numberOfLines={2}>
                                 {pickedSet.has(Number(ing.id)) ? '✓ ' : ''}{ing.name}
                               </Text>
                               {ing.quantity_g > 0 && (
@@ -563,12 +565,14 @@ const s = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  // Nguyên liệu chính: tile ảnh 3 cột (phụ liệu vẫn là chip chữ để không rối)
   ingChipMain: {
-    flexDirection: 'row',
+    width: '31%',
     alignItems: 'center',
+    gap: 6,
     backgroundColor: C.surface,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(160,120,74,0.3)',
@@ -576,15 +580,15 @@ const s = StyleSheet.create({
   },
   ingTextMain: {
     fontFamily: 'Nunito_600SemiBold',
-    fontSize: 14,
+    fontSize: 13,
     color: C.text,
+    textAlign: 'center',
   },
   ingQtyBadge: {
     backgroundColor: 'rgba(160,120,74,0.1)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    marginLeft: 8,
   },
   ingQtyText: {
     fontFamily: 'Nunito_700Bold',

@@ -15,6 +15,7 @@ import { withIngredients } from '../utils/searchParams';
 import { useAppStore } from '../store/useAppStore';
 import i18n from '../i18n';
 import { CATEGORY_EN, buildMemberToParentMap } from '../utils/ingredientsData';
+import IngredientThumb from '../components/ui/IngredientThumb';
 import { useTranslation } from 'react-i18next';
 
 const { width: SW } = Dimensions.get('window');
@@ -134,6 +135,7 @@ const IngredientSearchModal = ({ visible, category, ingredients, selectedIds, on
         style={[ms.item, sel && ms.itemActive]}
         onPress={() => onToggle(item.id)}
         activeOpacity={0.7}>
+        <IngredientThumb id={item.id} category={item.category} size={36} round style={{ marginRight: 12 }} />
         <View style={{ flex: 1 }}>
           <Text style={[ms.itemName, sel && ms.itemNameActive]}>{item.name}</Text>
           {item.name_en ? <Text style={ms.itemSub}>{item.name_en}</Text> : null}
