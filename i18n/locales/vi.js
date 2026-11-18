@@ -170,6 +170,9 @@ export default {
     rateBody: 'Món "{{name}}" hôm nay thế nào?',
     submitRating: 'Gửi đánh giá',
     viewCookingSteps: 'Xem hướng dẫn từng bước',
+    tabPantry: 'Nguyên liệu', tabWhy: 'Vì sao hợp', tabServe: 'Thưởng thức', cookNow: 'Nấu ngay',
+    infoTime: 'Thời gian nấu', infoNation: 'Ẩm thực', infoMatch: 'Độ hợp', infoPrice: 'Giá ước tính',
+    noWhy: 'Món này chưa có phần giải thích vì sao hợp với bạn.', noServing: 'Chưa có gợi ý thưởng thức cho món này.',
     sourceRecipeLink: 'Xem nguồn công thức gốc',
     cookingStepsTitle: 'Hướng dẫn cách nấu',
     cookingStepsSubtitle: 'Chạm vào từng bước để đánh dấu đã hoàn thành',
@@ -365,6 +368,8 @@ export default {
     note: 'Ước tính từ giá nguyên liệu cho 1 phần ăn, có thể chênh tuỳ nơi mua.',
   },
   resultFilters: {
+    priceTitle: 'Giá mỗi phần', timeTitle: 'Thời gian nấu', countShort: '{{count}} món',
+    timeShort: { 15: '15 phút', 30: '30 phút', 45: '45 phút', 60: '60+' },
     any: 'Bất kỳ', tolerance: 'Gồm mức lân cận',
     priceUnder: 'Dưới {{max}}', priceBetween: '{{min}}–{{max}}', priceOver: 'Trên {{min}}',
     cost: { 1: 'Tiết kiệm', 2: 'Vừa phải', 3: 'Thoải mái' },

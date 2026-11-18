@@ -20,8 +20,8 @@ import { assertBirthYear } from '../utils/profileIdentity';
 
 export const ONBOARDING_VERSION = 1;
 
-// true = luôn hiện onboarding mỗi lần mở app (để test). Đã có tab "Khẩu vị" để làm lại
-// onboarding bất cứ lúc nào, nên mặc định chỉ hiện với hồ sơ chưa hoàn tất onboarding.
+// true = luôn hiện onboarding mỗi lần mở app (để test). Làm lại onboarding qua Hồ sơ →
+// "Làm lại hồ sơ ăn uống"; mặc định chỉ hiện với hồ sơ chưa hoàn tất onboarding.
 export const FORCE_ONBOARDING = false;
 const DRAFT_KEY = 'onb_draft_v1';
 

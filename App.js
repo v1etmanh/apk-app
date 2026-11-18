@@ -46,7 +46,6 @@ import AllergyScreen           from './screens/AllergyScreen';
 import TasteProfileScreen      from './screens/TasteProfileScreen';
 import OnboardingFlow          from './screens/onboarding/OnboardingFlow';
 import TasteOnboardingScreen  from './screens/onboarding/TasteOnboardingScreen';
-import OnboardingTabScreen    from './screens/onboarding/OnboardingTabScreen';
 import ProfileOnboardingScreen from './screens/onboarding/ProfileOnboardingScreen';
 import { needsOnboarding }    from './services/onboardingService';
 import RecommendScreen         from './screens/RecommendScreen';
@@ -107,17 +106,12 @@ const MainTabs = () => {
       options={{ tabBarLabel: t('tabs.profile'),     tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused}/> }}/>
     <Tab.Screen name="Settings"  component={SettingsScreen}
       options={{ tabBarLabel: t('tabs.settings'),   tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused}/> }}/>
-    <Tab.Screen name="Onboarding" component={OnboardingTabScreen}
-      options={{
-        tabBarLabel: t('tabs.onboarding'),
-        tabBarIcon: ({ focused }) => <TabIcon emoji="🍜" focused={focused}/>,
-      }}/>
   </Tab.Navigator>
   );
 };
 
 // ── Splash Screen (Lottie Lazy Cat) ──────────────────────────────────────
-const SplashScreen = ({ onRetry }) => {
+const SplashScreen = ({ onRetry, fontsReady = true }) => {
   const { t } = useTranslation();
   return (
   <View style={sp.root}>
@@ -147,8 +141,18 @@ const SplashScreen = ({ onRetry }) => {
             loop
             style={[sp.lottie, { pointerEvents: 'none' }]}
           />
-          <Text style={sp.title}>Daily Mate</Text>
-          <Text style={sp.sub}>{t(onRetry ? 'splash.profileError' : 'splash.preparing')}</Text>
+          {/* key đổi khi font load xong → remount Text để Android đo lại width,
+              tránh bị cắt chữ ("Daily Ma") do đo bằng font hệ thống trước đó */}
+          <Text
+            key={fontsReady ? 'title-font' : 'title-fallback'}
+            style={[sp.title, !fontsReady && { fontFamily: undefined, fontWeight: '700' }]}
+          >
+            Daily Mate
+          </Text>
+          <Text
+            key={fontsReady ? 'sub-font' : 'sub-fallback'}
+            style={[sp.sub, !fontsReady && { fontFamily: undefined }]}
+          >{t(onRetry ? 'splash.profileError' : 'splash.preparing')}</Text>
 
           {/* Loading dots */}
           {onRetry ? <Button title={t('common.retry')} onPress={onRetry} /> : <View style={sp.dotsRow}>
@@ -161,7 +165,12 @@ const SplashScreen = ({ onRetry }) => {
     </View>
 
     {/* Footer */}
-    <Text style={sp.footer}>{t('splash.companion')}</Text>
+    <Text
+      key={fontsReady ? 'footer-font' : 'footer-fallback'}
+      style={[sp.footer, !fontsReady && { fontFamily: undefined }]}
+    >
+      {t('splash.companion')}
+    </Text>
   </View>
   );
 };
@@ -203,6 +212,8 @@ const sp = StyleSheet.create({
     color: '#3D2B1F',             // Ink Brown
     marginTop: 4,
     marginBottom: 6,
+    paddingHorizontal: 4,         // chừa chỗ cho glyph Lora-Bold, tránh cắt mép chữ
+    textAlign: 'center',
   },
   sub: {
     fontFamily: 'BeVietnamPro-Regular',
@@ -538,7 +549,7 @@ const App = () => {
 
   // Fonts chưa load hoặc đang khởi tạo → Splash với Lazy Cat
   if (!fontsLoaded || !languageReady || account === undefined || (account && route === 'loading')) {
-    return <SplashScreen />;
+    return <SplashScreen fontsReady={fontsLoaded} />;
   }
 
   // Chưa đăng nhập → LoginScreen

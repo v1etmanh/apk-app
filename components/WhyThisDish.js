@@ -92,7 +92,7 @@ const FitBar = ({ group, value, t, delay }) => {
   );
 };
 
-export default function WhyThisDish({ why, explanation }) {
+export default function WhyThisDish({ why, explanation, showHeader = true }) {
   const { t, i18n } = useTranslation();
 
   // Món lưu từ trước khi có `why` (Bữa hôm nay / Lịch sử cũ): chỉ còn câu ngắn
@@ -101,7 +101,7 @@ export default function WhyThisDish({ why, explanation }) {
     if (!legacy) return null;
     return (
       <View style={s.section}>
-        <SectionHeader title={t('why.title')} icon="sparkles-outline" />
+        {showHeader && <SectionHeader title={t('why.title')} icon="sparkles-outline" />}
         <PaperCard innerStyle={{ padding: 16, gap: 8 }}>
           <Text style={s.headline}>{legacy}</Text>
           <Text style={s.muted}>{t('why.oldData')}</Text>
@@ -117,7 +117,7 @@ export default function WhyThisDish({ why, explanation }) {
 
   return (
     <View style={s.section}>
-      <SectionHeader title={t('why.title')} icon="sparkles-outline" />
+      {showHeader && <SectionHeader title={t('why.title')} icon="sparkles-outline" />}
       <View style={s.wrap}>
         <MascotCat slot="detail" size={72} style={s.cat} />
         <PaperCard priority="primary" innerStyle={{ padding: 18, paddingTop: 22 }}>

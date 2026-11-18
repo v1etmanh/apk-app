@@ -36,6 +36,9 @@ export default {
   today: { title: 'Today\'s meals', hint: 'Tap to view the recipe →', emptyTitle: 'Your day feels a little empty!', emptyBody: 'Choose a dish to get started.', emptyDish: 'No dishes selected 🍽️', seeRecommendations: '💡 See dish recommendations', reset: 'Reset', loading: 'Loading your menu... 🍳', summarize: '🛒 Combine selected dishes ({{count}} dishes)', noDishTitle: 'No dishes yet', noDishBody: 'Add at least one dish before combining your meal!', members: 'members', chosenDishes: 'dishes chosen', noDishYet: 'no dishes yet', addFor: 'Add a dish for {{name}}', suggestFor: 'Suggest dishes for {{name}}', noDishChip: 'No dishes', removeDish: 'Remove {{name}}', minutes: '{{count}} min', combine: 'Combine ingredients · {{count}} dishes', estTotal: 'estimated today' },
   dish: {
     viewCookingSteps: 'View step-by-step instructions',
+    tabPantry: 'Ingredients', tabWhy: 'Why it fits', tabServe: 'Serving', cookNow: 'Cook now',
+    infoTime: 'Cook time', infoNation: 'Cuisine', infoMatch: 'Match', infoPrice: 'Est. cost',
+    noWhy: 'No explanation yet for why this dish fits you.', noServing: 'No serving suggestion for this dish yet.',
     sourceRecipeLink: 'View original recipe source',
     cookingStepsTitle: 'Cooking Instructions',
     cookingStepsSubtitle: 'Tap any step to mark it as completed',
@@ -207,6 +210,8 @@ export default {
     note: 'Estimated from ingredient prices for one serving; actual cost varies by store.',
   },
   resultFilters: {
+    priceTitle: 'Price per serving', timeTitle: 'Cook time', countShort: '{{count}}',
+    timeShort: { 15: '15 min', 30: '30 min', 45: '45 min', 60: '60+' },
     any: 'Any', tolerance: 'Include nearby range',
     priceUnder: 'Under {{max}}', priceBetween: '{{min}}–{{max}}', priceOver: 'Over {{min}}',
     cost: { 1: 'Budget', 2: 'Moderate', 3: 'Generous' },

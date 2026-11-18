@@ -5,8 +5,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { C, R, F } from '../theme';
-import { priceBandLabel, sanitizePriceBands } from '../utils/price';
+import { Ionicons } from '@expo/vector-icons';
+import { C, R, F, shadow } from '../theme';
+import { priceBandLabel, sanitizePriceBands, formatVnd } from '../utils/price';
 
 export const DEFAULT_RESULT_FILTERS = { cost_level: null, cost_tolerance: 0, max_cook_time: null };
 const COSTS = [1, 2, 3];
@@ -30,18 +31,42 @@ export const applyResultFilters = (mealFilters = {}, f = DEFAULT_RESULT_FILTERS)
   return out;
 };
 
-const Chip = ({ label, count, active, onPress, accent }) => (
-  <TouchableOpacity
-    onPress={onPress}
-    activeOpacity={0.8}
-    accessibilityRole="button"
-    accessibilityState={{ selected: !!active }}
-    style={[s.chip, active && s.chipOn, accent && s.chipAccent]}
-  >
-    <Text style={[s.chipText, active && s.chipTextOn]} numberOfLines={1}>
-      {label}{count != null ? <Text style={[s.count, active && s.chipTextOn]}>  {count}</Text> : null}
-    </Text>
-  </TouchableOpacity>
+const shortBandLabel = (band, lang) => {
+  if (!band) return '';
+  const min = formatVnd(band.min, lang);
+  const max = formatVnd(band.max, lang);
+  if (!min && max) return `< ${max}`;
+  if (min && !max) return `> ${min}`;
+  return `${min.replace(/k$/, '')}–${max}`;
+};
+
+/** Thanh chia đều: mỗi ô một lựa chọn, ô đang chọn nổi lên nền giấy trắng. */
+const Segmented = ({ options, selected, onSelect, t }) => (
+  <View style={s.seg} accessibilityRole="radiogroup">
+    {options.map(o => {
+      const on = o.key === selected;
+      return (
+        <TouchableOpacity
+          key={String(o.key)}
+          onPress={() => onSelect(o.key)}
+          activeOpacity={0.8}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: on }}
+          accessibilityLabel={o.a11y || o.label}
+          style={[s.segItem, on && s.segItemOn]}
+        >
+          <Text style={[s.segText, on && s.segTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            {o.label}
+          </Text>
+          {o.count != null && (
+            <Text style={[s.segCount, on && s.segCountOn]} numberOfLines={1}>
+              {t('resultFilters.countShort', { count: o.count })}
+            </Text>
+          )}
+        </TouchableOpacity>
+      );
+    })}
+  </View>
 );
 
 const ResultFilterBar = ({ value, onChange, counts, priceBands, picked = [], onEditPicked }) => {
@@ -54,52 +79,92 @@ const ResultFilterBar = ({ value, onChange, counts, priceBands, picked = [], onE
     ? picked.slice(0, 3).map(p => p.name).join(', ') + (picked.length > 3 ? ` +${picked.length - 3}` : '')
     : null;
 
+  const costOptions = [
+    { key: null, label: t('resultFilters.any') },
+    ...COSTS.map(c => ({
+      key: c,
+      label: shortBandLabel(bands[c - 1], lang),
+      a11y: priceBandLabel(bands[c - 1], t, lang),
+      count: counts?.cost?.[String(c)],
+    })),
+  ];
+  const timeOptions = [
+    { key: null, label: t('resultFilters.any') },
+    ...TIMES.map(m => ({
+      key: m,
+      label: t(`resultFilters.timeShort.${m}`),
+      a11y: t(`resultFilters.time.${m}`),
+      count: m === 60 ? null : counts?.time?.[String(m)],
+    })),
+  ];
+  const tolOn = f.cost_tolerance === 1;
+
   return (
     <View style={s.wrap}>
       {pickedLabel && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.row}>
-          <Chip accent label={`🥬 ${pickedLabel}  ✎`} onPress={onEditPicked} />
-        </ScrollView>
+        <TouchableOpacity onPress={onEditPicked} activeOpacity={0.8} accessibilityRole="button" style={s.picked}>
+          <Ionicons name="leaf-outline" size={14} color={C.primary} />
+          <Text style={s.pickedText} numberOfLines={1}>{pickedLabel}</Text>
+          <Ionicons name="create-outline" size={15} color={C.primary} />
+        </TouchableOpacity>
       )}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.row}>
-        <Text style={s.rowLabel}>💰</Text>
-        <Chip label={t('resultFilters.any')} active={!f.cost_level} onPress={() => set({ cost_level: null })} />
-        {COSTS.map(c => (
-          <Chip key={c} label={priceBandLabel(bands[c - 1], t, lang)} count={counts?.cost?.[String(c)]}
-            active={f.cost_level === c} onPress={() => set({ cost_level: c })} />
-        ))}
+      <View style={s.labelRow}>
+        <View style={s.label}>
+          <Ionicons name="cash-outline" size={14} color={C.primary} />
+          <Text style={s.labelText}>{t('resultFilters.priceTitle')}</Text>
+        </View>
         {!!f.cost_level && (
-          <Chip label={t('resultFilters.tolerance')} active={f.cost_tolerance === 1}
-            onPress={() => set({ cost_tolerance: f.cost_tolerance === 1 ? 0 : 1 })} />
+          <TouchableOpacity
+            onPress={() => set({ cost_tolerance: tolOn ? 0 : 1 })}
+            hitSlop={8}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: tolOn }}
+            style={s.tol}
+          >
+            <Ionicons name={tolOn ? 'checkbox' : 'square-outline'} size={15} color={C.primary} />
+            <Text style={s.tolText}>{t('resultFilters.tolerance')}</Text>
+          </TouchableOpacity>
         )}
-      </ScrollView>
+      </View>
+      <Segmented t={t} options={costOptions} selected={f.cost_level} onSelect={k => set({ cost_level: k })} />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.row}>
-        <Text style={s.rowLabel}>⏱</Text>
-        <Chip label={t('resultFilters.any')} active={!f.max_cook_time} onPress={() => set({ max_cook_time: null })} />
-        {TIMES.map(m => (
-          <Chip key={m} label={t(`resultFilters.time.${m}`)} count={m === 60 ? null : counts?.time?.[String(m)]}
-            active={f.max_cook_time === m} onPress={() => set({ max_cook_time: m })} />
-        ))}
-      </ScrollView>
+      <View style={s.labelRow}>
+        <View style={s.label}>
+          <Ionicons name="time-outline" size={14} color={C.primary} />
+          <Text style={s.labelText}>{t('resultFilters.timeTitle')}</Text>
+        </View>
+      </View>
+      <Segmented t={t} options={timeOptions} selected={f.max_cook_time} onSelect={k => set({ max_cook_time: k })} />
     </View>
   );
 };
 
 const s = StyleSheet.create({
-  wrap: { paddingTop: 6, paddingBottom: 4, gap: 6 },
-  row: { paddingHorizontal: 16, gap: 8, alignItems: 'center' },
-  rowLabel: { fontSize: 15, marginRight: 2 },
-  chip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: R.pill,
-    backgroundColor: 'rgba(255,255,255,0.75)', borderWidth: 1, borderColor: C.border,
+  wrap: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 6 },
+  picked: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', maxWidth: '100%',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: R.pill, marginBottom: 8,
+    backgroundColor: C.parchmentLight, borderWidth: 1.5, borderColor: C.primary,
   },
-  chipOn: { backgroundColor: C.primary, borderColor: C.woodDark },
-  chipAccent: { backgroundColor: '#FFF8EA', borderColor: C.primary, borderWidth: 1.5 },
-  chipText: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: F.sm, color: C.textMid, maxWidth: 260 },
-  chipTextOn: { color: '#fff' },
-  count: { fontFamily: 'BeVietnamPro-Regular', fontSize: 11, color: C.textLight },
+  pickedText: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: F.sm, color: C.textMid, flexShrink: 1 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, minHeight: 20 },
+  label: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  labelText: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 12, color: C.textSoft },
+  tol: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  tolText: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: C.textSoft },
+  seg: {
+    flexDirection: 'row', backgroundColor: C.chipBg, borderRadius: R.md, padding: 3, marginBottom: 8,
+  },
+  segItem: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 38,
+    paddingHorizontal: 2, paddingVertical: 4, borderRadius: 9, borderWidth: 1, borderColor: 'transparent',
+  },
+  segItemOn: { backgroundColor: C.surface, borderColor: C.paperStroke, ...shadow(1) },
+  segText: { fontFamily: 'BeVietnamPro-Regular', fontSize: F.sm, color: C.textMid },
+  segTextOn: { fontFamily: 'BeVietnamPro-SemiBold', color: C.text },
+  segCount: { fontFamily: 'BeVietnamPro-Regular', fontSize: F.xs, color: C.textSoft, marginTop: 1 },
+  segCountOn: { color: C.primary },
 });
 
 export default ResultFilterBar;
