@@ -5,13 +5,13 @@
 // khi có animation, chỉ cần điền file Lottie vào MASCOT_SOURCES — không phải sửa màn nào.
 //
 //   slot            kích thước   vị trí                                       Lottie gợi ý
-//   suggest         72×72        IngredientSuggest — trái bóng thoại          cat_orange.json
-//   basket          88×88        MarketBasket — ngồi trên mép thẻ "Đã chọn"   Lazy cat.json
-//   loading         180×180      Màn chờ đề xuất — giữa màn                   Cute cat works.json
-//   result          64×64        Recommend — hàng bóng thoại trên thẻ đầu     Cattr.json
-//   oops            88×88        Recommend — thẻ cảnh báo giỏ ít món          cat_gosh.json
-//   end             96×96        Recommend — cuối danh sách                   Lazy cat.json
-//   detail          72×72        DishDetail — góc khối "Vì sao hợp"           cat.json
+//   suggest         72×72        IngredientSuggest — trái bóng thoại          cat_orange.json ✔
+//   basket          88×88        MarketBasket — ngồi trên mép thẻ "Đã chọn"   Cat_in_Box.json ✔
+//   loading         180×180      Màn chờ đề xuất — giữa màn                   rainbow cat remix.json ✔
+//   result          64×64        Recommend — hàng bóng thoại trên thẻ đầu     Cat laughing loudly…json ✔
+//   oops            88×88        Recommend — thẻ cảnh báo giỏ ít món          cat_gosh.json ✔
+//   end             96×96        Recommend — cuối danh sách                   Lazy cat.json ✔
+//   detail          72×72        DishDetail — góc khối "Vì sao hợp"           cat.json ✔
 //   onboarding      88×88        Onboarding bước 1–3 — trái bóng thoại        Dance cat.json ✔
 //   sheet           64×64        Sheet phạm vi dị ứng — trên mép sheet        cat_gosh.json ✔
 //   deck            80×80        Thẻ khẩu vị — trên đỉnh bộ thẻ               cat_orange.json ✔
@@ -23,13 +23,13 @@ import { C } from '../../theme';
 
 // Điền require('../../assets/animations/<file>.json') để bật Lottie cho slot đó.
 export const MASCOT_SOURCES = {
-  suggest:    null,
-  basket:     null,
-  loading:    null,
-  result:     null,
-  oops:       null,
-  end:        null,
-  detail:     null,
+  suggest:    require('../../assets/animations/cat_orange.json'),
+  basket:     require('../../assets/animations/Cat_in_Box.json'),
+  loading:    require('../../assets/animations/rainbow cat remix.json'),
+  result:     require('../../assets/animations/Cat laughing loudly. HahahahLOL emojisticker animation.json'),
+  oops:       require('../../assets/animations/cat_gosh.json'),
+  end:        require('../../assets/animations/Lazy cat.json'),
+  detail:     require('../../assets/animations/cat.json'),
   onboarding: require('../../assets/animations/Dance cat.json'),
   sheet:      require('../../assets/animations/cat_gosh.json'),
   deck:       require('../../assets/animations/cat_orange.json'),
