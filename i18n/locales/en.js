@@ -123,7 +123,7 @@ export default {
   onboarding: {
     stepOf: 'Step {{step}}/{{total}}',
     next: 'Continue →',
-    allergies: { seafood: 'Seafood', fish: 'Fish', beef: 'Beef', pork: 'Pork', legume_nut: 'Legumes & nuts', dairy_egg: 'Dairy & eggs', vegetable: 'Vegetables', gluten: 'Gluten (wheat)' },
+    allergies: { seafood: 'Seafood', fish: 'Fish', beef: 'Beef', pork: 'Pork', poultry: 'Chicken & duck', legume_nut: 'Legumes & nuts', dairy_egg: 'Dairy & eggs', vegetable: 'Vegetables', gluten: 'Gluten (wheat)' },
     tastes: { sweet: 'Sweet', sour: 'Sour', salty: 'Savory', bitter: 'Bitter', umami: 'Umami', spicy: 'Spicy', astringent: 'Astringent' },
     body: {
       title: "Hi! Let's get to know you 👋", subtitle: 'A few basics help Daily Mate balance energy for each meal.',
