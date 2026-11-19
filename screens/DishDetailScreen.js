@@ -1,28 +1,63 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Modal, Linking, Image, ActivityIndicator, StatusBar, Animated, ImageBackground, Dimensions
+  Image, ActivityIndicator, StatusBar, Animated, ImageBackground, Dimensions
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../services/api';
 import { loadSessions } from '../utils/database';
+import SegmentTabs, { TabPanel } from '../components/ui/SegmentTabs';
 import { C, shadow } from '../theme';
-import MetaChip from '../components/ui/MetaChip';
 import PaperCard from '../components/ui/PaperCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import { useTranslation } from 'react-i18next';
 import { formatVnd } from '../utils/price';
 import WhyThisDish from '../components/WhyThisDish';
+import { hasWhy } from '../utils/whyText';
+import IngredientThumb from '../components/ui/IngredientThumb';
 
 const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 320;
 
 const ASSETS = {
-  wood: require('../assets/textures/wood_light.png'),
   paper: require('../assets/textures/paper_cream.png'),
 };
+
+const TABS = [
+  { key: 'pantry', icon: 'basket-outline',     label: 'dish.tabPantry' },
+  { key: 'why',    icon: 'sparkles-outline',   label: 'dish.tabWhy' },
+  { key: 'serve',  icon: 'restaurant-outline', label: 'dish.tabServe' },
+];
+
+/** Nút nhỏ trên thanh đáy: icon + nhãn, hiện spinner khi đang gửi. */
+const BarAction = ({ icon, color, label, state, disabled, onPress }) => (
+  <TouchableOpacity
+    style={[s.barAction, state === 'done' && { opacity: 0.75 }]}
+    activeOpacity={0.7}
+    disabled={disabled}
+    onPress={onPress}
+    accessibilityRole="button"
+    accessibilityLabel={label}
+  >
+    {state === 'loading'
+      ? <ActivityIndicator size="small" color={color} />
+      : <Ionicons name={icon} size={21} color={state === 'error' ? C.accentRed : color} />}
+    <Text style={[s.barLabel, { color }]} numberOfLines={1}>{label}</Text>
+  </TouchableOpacity>
+);
+
+/** Ô thông số trong tab Thông tin cơ bản: icon + nhãn nhỏ + giá trị. */
+const InfoTile = ({ icon, color, label, value, accent }) => (
+  <View style={[s.infoTile, accent && s.infoTileAccent]}>
+    <View style={s.infoHead}>
+      <Ionicons name={icon} size={14} color={color} />
+      <Text style={s.infoLabel} numberOfLines={1}>{label}</Text>
+    </View>
+    <Text style={[s.infoValue, accent && { color: C.freshText }]} numberOfLines={1}>{value}</Text>
+  </View>
+);
 
 const DishDetailScreen = ({ route, navigation }) => {
   const { t, i18n } = useTranslation();
@@ -33,12 +68,11 @@ const DishDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const [ratingModalVisible, setRatingModalVisible] = useState(false);
-  const [selectedRating, setSelectedRating]         = useState(0);
   const [ingredients, setIngredients]               = useState([]);
   const [loadingDetail, setLoadingDetail]           = useState(true);
   const [feedbackState, setFeedbackState]           = useState({}); // { eaten: 'loading'|'done'|'error' }
   const [dishUrl, setDishUrl]                       = useState(dish.url || ''); // fallback cho url từ API
+  const [tab, setTab]                               = useState(0);
   useEffect(() => { loadDetail(); }, []);
 
   const loadDetail = async () => {
@@ -56,7 +90,7 @@ const DishDetailScreen = ({ route, navigation }) => {
     finally { setLoadingDetail(false); }
   };
 
-  const handleFeedback = async (action, rating = null) => {
+  const handleFeedback = async (action) => {
     const dishId = dish.dish_id || dish.id;
     setFeedbackState(prev => ({ ...prev, [action]: 'loading' }));
     try {
@@ -71,12 +105,10 @@ const DishDetailScreen = ({ route, navigation }) => {
         session_uuid: sessionUuid,
         dish_id:      String(dishId),
         action,
-        rating:       rating ?? undefined,
         feedback_at:  new Date().toISOString(),
       });
 
       setFeedbackState(prev => ({ ...prev, [action]: 'done' }));
-      if (action === 'rated') setRatingModalVisible(false);
     } catch (e) {
       console.error('handleFeedback:', e);
       setFeedbackState(prev => ({ ...prev, [action]: 'error' }));
@@ -90,6 +122,14 @@ const DishDetailScreen = ({ route, navigation }) => {
   const missingIngredients = Array.isArray(dish.missing_ingredients) ? dish.missing_ingredients : [];
   const mainIngredients = ingredients.filter(i => i.is_main);
   const sideIngredients = ingredients.filter(i => !i.is_main);
+  const hasWhyContent = hasWhy(dish.why)
+    || (Array.isArray(dish.explanation) ? !!dish.explanation[0] : !!dish.explanation?.headline);
+
+  const openCooking = () => navigation.navigate('CookingSteps', {
+    dishId: dish.dish_id || dish.id,
+    dish,
+    dishUrl,
+  });
 
   // Header Animations
   const headerOpacity = scrollY.interpolate({
@@ -137,7 +177,7 @@ const DishDetailScreen = ({ route, navigation }) => {
         scrollEventThrottle={16}
         contentContainerStyle={[
           s.scrollContent,
-          { paddingBottom: 60 + insets.bottom }
+          { paddingBottom: 110 + insets.bottom }
         ]}
         style={s.scrollView}
       >
@@ -161,255 +201,155 @@ const DishDetailScreen = ({ route, navigation }) => {
           <View style={s.titleCard}>
             <ImageBackground source={ASSETS.paper} style={s.titleCardBg} imageStyle={{ borderRadius: 24, opacity: 0.95 }} resizeMode="cover">
               <View style={s.titleCardInner}>
-                <Text style={s.mainTitle}>{dish.title}</Text>
-                <View style={s.metaChipsRow}>
-                  <MetaChip icon={<Ionicons name="time-outline" size={13} color={C.textMid}/>} label={`${dish.cook_time_min}p`} style={s.chipSpacing} />
-                  <MetaChip icon={<Ionicons name="earth" size={13} color={C.accentBlue}/>} label={dish.nation || 'Việt Nam'} style={s.chipSpacing} />
-                  <MetaChip variant="accent" icon={<Ionicons name="star" size={13} color={C.accentGreen}/>} label={`${matchPct}%`} style={s.chipSpacing} />
-                  {!!formatVnd(dish.est_cost_vnd, priceLang) && (
-                    <MetaChip
-                      icon={<Ionicons name="wallet-outline" size={13} color={C.textMid}/>}
-                      label={t('price.perServing', { price: formatVnd(dish.est_cost_vnd, priceLang) })}
-                      style={s.chipSpacing}
-                    />
-                  )}
-                </View>
-                {!!formatVnd(dish.est_cost_vnd, priceLang) && (
-                  <Text style={s.priceNote}>{t('price.note')}</Text>
-                )}
+                <Text style={[s.mainTitle, { marginBottom: 0 }]}>{dish.title}</Text>
               </View>
             </ImageBackground>
           </View>
 
-          {/* ── Vì sao chọn món này — sinh từ sổ cái điểm của lần gợi ý ── */}
-          <WhyThisDish why={dish.why} explanation={dish.explanation} />
+          {/* ── 3 tab: Nguyên liệu · Vì sao hợp · Thông tin cơ bản ── */}
+          <SegmentTabs
+            value={tab}
+            onChange={setTab}
+            style={{ marginBottom: 18 }}
+            items={TABS.map((tb) => ({
+              key: tb.key,
+              label: t(tb.label),
+              icon: (c) => <Ionicons name={tb.icon} size={14} color={c} />,
+            }))}
+          />
 
-          {/* ── Ingredients Pantry ── */}
-          <View style={s.section}>
-            <SectionHeader title={t('dish.pantry')} icon="cart-outline" />
+          <TabPanel id={tab}>
+          {tab === 0 && (
+              <View style={s.section}>
             
-            {loadingDetail ? (
-              <ActivityIndicator color={C.primary} style={{ marginVertical: 20 }} />
-            ) : ingredients.length === 0 ? (
-              <View style={s.emptyState}>
-                <Ionicons name="fast-food-outline" size={32} color={C.border} />
-                <Text style={s.emptyText}>{t('dish.noIngredients')}</Text>
-              </View>
-            ) : (
-              <View style={s.pantryContainer}>
-                {missingIngredients.length > 0 && (
-                  <View style={s.needBuy}>
-                    <Ionicons name="cart-outline" size={16} color={C.seasonText} />
-                    <Text style={s.needBuyText}>{t('dish.needToBuy', { list: missingIngredients.join(', ') })}</Text>
+                {loadingDetail ? (
+                  <ActivityIndicator color={C.primary} style={{ marginVertical: 20 }} />
+                ) : ingredients.length === 0 ? (
+                  <View style={s.emptyState}>
+                    <Ionicons name="fast-food-outline" size={32} color={C.border} />
+                    <Text style={s.emptyText}>{t('dish.noIngredients')}</Text>
                   </View>
-                )}
-                {mainIngredients.length > 0 && (
-                  <View style={s.pantryGroup}>
-                    <Text style={s.pantryTitle}>{t('dish.mainIngredients')}</Text>
-                    <View style={s.ingGrid}>
-                      {mainIngredients.map(ing => (
-                        <View key={ing.id} style={[s.ingChipMain, pickedSet.has(Number(ing.id)) && s.ingChipHave]}>
-                          <Text style={[s.ingTextMain, pickedSet.has(Number(ing.id)) && s.ingTextHave]}>
-                            {pickedSet.has(Number(ing.id)) ? '✓ ' : ''}{ing.name}
-                          </Text>
-                          {ing.quantity_g > 0 && (
-                            <View style={s.ingQtyBadge}>
-                              <Text style={s.ingQtyText}>{ing.quantity_g}g</Text>
+                ) : (
+                  <View style={s.pantryContainer}>
+                    {missingIngredients.length > 0 && (
+                      <View style={s.needBuy}>
+                        <Ionicons name="cart-outline" size={16} color={C.seasonText} />
+                        <Text style={s.needBuyText}>{t('dish.needToBuy', { list: missingIngredients.join(', ') })}</Text>
+                      </View>
+                    )}
+                    {mainIngredients.length > 0 && (
+                      <View style={s.pantryGroup}>
+                        <Text style={s.pantryTitle}>{t('dish.mainIngredients')}</Text>
+                        <View style={s.ingGrid}>
+                          {mainIngredients.map(ing => (
+                            <View key={ing.id} style={[s.ingChipMain, pickedSet.has(Number(ing.id)) && s.ingChipHave]}>
+                              <IngredientThumb id={ing.id} category={ing.category} size={64} />
+                              <Text style={[s.ingTextMain, pickedSet.has(Number(ing.id)) && s.ingTextHave]} numberOfLines={2}>
+                                {pickedSet.has(Number(ing.id)) ? '✓ ' : ''}{ing.name}
+                              </Text>
+                              {ing.quantity_g > 0 && (
+                                <View style={s.ingQtyBadge}>
+                                  <Text style={s.ingQtyText}>{ing.quantity_g}g</Text>
+                                </View>
+                              )}
                             </View>
-                          )}
+                          ))}
                         </View>
-                      ))}
-                    </View>
-                  </View>
-                )}
+                      </View>
+                    )}
                 
-                {sideIngredients.length > 0 && (
-                  <View style={[s.pantryGroup, { marginTop: 16 }]}>
-                    <Text style={s.pantryTitle}>{t('dish.sides')}</Text>
-                    <View style={s.ingGrid}>
-                      {sideIngredients.map(ing => (
-                        <View key={ing.id} style={[s.ingChipSide, pickedSet.has(Number(ing.id)) && s.ingChipHave]}>
-                          <Text style={[s.ingTextSide, pickedSet.has(Number(ing.id)) && s.ingTextHave]}>
-                            {pickedSet.has(Number(ing.id)) ? '✓ ' : ''}{ing.name}
-                          </Text>
+                    {sideIngredients.length > 0 && (
+                      <View style={[s.pantryGroup, { marginTop: 16 }]}>
+                        <Text style={s.pantryTitle}>{t('dish.sides')}</Text>
+                        <View style={s.ingGrid}>
+                          {sideIngredients.map(ing => (
+                            <View key={ing.id} style={[s.ingChipSide, pickedSet.has(Number(ing.id)) && s.ingChipHave]}>
+                              <Text style={[s.ingTextSide, pickedSet.has(Number(ing.id)) && s.ingTextHave]}>
+                                {pickedSet.has(Number(ing.id)) ? '✓ ' : ''}{ing.name}
+                              </Text>
+                            </View>
+                          ))}
                         </View>
-                      ))}
-                    </View>
+                      </View>
+                    )}
                   </View>
                 )}
               </View>
-            )}
-          </View>
 
-          {/* ── Serving suggestion ── */}
-          {dish.serving_suggestion ? (
-            <View style={s.section}>
-              <SectionHeader title={t('dish.servingSuggestion')} icon="restaurant-outline" />
-              <PaperCard innerStyle={{ padding: 16 }}>
-                <Text style={s.servingText}>{dish.serving_suggestion}</Text>
-              </PaperCard>
-            </View>
-          ) : null}
+          )}
 
-          {/* ── Cooking Steps CTA ── */}
-          <TouchableOpacity
-            style={[s.recipeBtn, dishUrl ? { marginBottom: 12 } : null]}
-            activeOpacity={0.85}
-            onPress={() =>
-              navigation.navigate('CookingSteps', {
-                dishId: dish.dish_id || dish.id,
-                dish,
-                dishUrl,
-              })
-            }
-          >
-            <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 16, opacity: 0.9 }} resizeMode="cover" />
-            <View style={s.recipeBtnInner}>
-              <Ionicons name="restaurant-outline" size={20} color="#FFFFFF" />
-              <Text style={s.recipeBtnText}>{t('dish.viewCookingSteps')}</Text>
-              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
-            </View>
-          </TouchableOpacity>
+          {tab === 1 && (
+            hasWhyContent
+              ? <WhyThisDish why={dish.why} explanation={dish.explanation} showHeader={false} />
+              : <Text style={s.tabEmpty}>{t('dish.noWhy')}</Text>
+          )}
 
-          {/* ── Recipe Link ── */}
-          {dishUrl ? (
-            <TouchableOpacity 
-              style={s.sourceLinkBtn} 
-              activeOpacity={0.8}
-              onPress={() => Linking.openURL(dishUrl)}
-            >
-              <View style={s.sourceLinkBtnInner}>
-              <Ionicons name="book-outline" size={17} color={C.primary} />
-              <Text style={s.sourceLinkBtnText}>{t('dish.sourceRecipeLink')}</Text>
-              <Ionicons name="open-outline" size={15} color={C.primary} style={{ marginLeft: 6 }} />
+          {tab === 2 && (
+            <View>
+              <View style={s.infoGrid}>
+                <InfoTile icon="time-outline" color={C.textMid} label={t('dish.infoTime')}
+                  value={dish.cook_time_min ? t('recommend.minutes', { count: dish.cook_time_min }) : '—'} />
+                <InfoTile icon="earth" color={C.accentBlue} label={t('dish.infoNation')}
+                  value={dish.nation || 'Việt Nam'} />
+                <InfoTile icon="star" color={C.accentGreen} label={t('dish.infoMatch')}
+                  value={`${matchPct}%`} accent />
+                <InfoTile icon="wallet-outline" color={C.textMid} label={t('dish.infoPrice')}
+                  value={formatVnd(dish.est_cost_vnd, priceLang)
+                    ? t('price.perServing', { price: formatVnd(dish.est_cost_vnd, priceLang) })
+                    : '—'} />
               </View>
-            </TouchableOpacity>
-          ) : null}
+              {!!formatVnd(dish.est_cost_vnd, priceLang) && (
+                <Text style={[s.priceNote, { marginBottom: 16 }]}>{t('price.note')}</Text>
+              )}
 
-          {/* ── Feedback Actions ── */}
-          <View style={s.feedbackSection}>
-            <Text style={s.feedbackQuestion}>{t('dish.decision')}</Text>
-            <View style={s.feedbackRow}>
-
-              {/* Đã Ăn */}
-              <TouchableOpacity
-                style={[s.actionStamp, { borderColor: C.accentGreen, backgroundColor: C.accentGreen + '10' },
-                  feedbackState.eaten === 'done'  && { backgroundColor: C.accentGreen + '25', borderStyle: 'solid' },
-                  feedbackState.eaten === 'error' && { borderColor: '#E74C3C' },
-                ]}
-                activeOpacity={0.7}
-                disabled={feedbackState.eaten === 'loading' || feedbackState.eaten === 'done'}
-                onPress={() => handleFeedback('eaten')}
-              >
-                <View style={[s.actionIconBox, { backgroundColor: C.accentGreen }]}>
-                  {feedbackState.eaten === 'loading'
-                    ? <ActivityIndicator size="small" color="#FFF" />
-                    : feedbackState.eaten === 'done'
-                      ? <Ionicons name="checkmark-done" size={18} color="#FFF" />
-                      : feedbackState.eaten === 'error'
-                        ? <Ionicons name="alert-circle-outline" size={18} color="#FFF" />
-                        : <Ionicons name="checkmark-done" size={18} color="#FFF" />}
+              {dish.serving_suggestion ? (
+                <View style={s.section}>
+                  <SectionHeader title={t('dish.servingSuggestion')} icon="restaurant-outline" />
+                  <PaperCard innerStyle={{ padding: 16 }}>
+                    <Text style={s.servingText}>{dish.serving_suggestion}</Text>
+                  </PaperCard>
                 </View>
-                <Text style={[s.actionStampText, { color: C.accentGreen }]}>
-                  {feedbackState.eaten === 'done' ? t('dish.saved') : feedbackState.eaten === 'error' ? t('common.error') : t('dish.eaten')}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Đánh Giá */}
-              <TouchableOpacity
-                style={[s.actionStamp, { borderColor: C.accentGold || '#F59E0B', backgroundColor: (C.accentGold || '#F59E0B') + '10' },
-                  feedbackState.rated === 'done'  && { backgroundColor: (C.accentGold || '#F59E0B') + '25', borderStyle: 'solid' },
-                  feedbackState.rated === 'error' && { borderColor: '#E74C3C' },
-                ]}
-                activeOpacity={0.7}
-                disabled={feedbackState.rated === 'loading'}
-                onPress={() => setRatingModalVisible(true)}
-              >
-                <View style={[s.actionIconBox, { backgroundColor: C.accentGold || '#F59E0B' }]}>
-                  {feedbackState.rated === 'loading'
-                    ? <ActivityIndicator size="small" color="#FFF" />
-                    : feedbackState.rated === 'done'
-                      ? <Ionicons name="star" size={18} color="#FFF" />
-                      : <Ionicons name="star" size={18} color="#FFF" />}
-                </View>
-                <Text style={[s.actionStampText, { color: C.accentGold || '#F59E0B' }]}>
-                  {feedbackState.rated === 'done' ? t('dish.saved') : t('dish.rating')}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Bỏ Qua */}
-              <TouchableOpacity
-                style={[s.actionStamp, { borderColor: C.accentRed || '#E74C3C', backgroundColor: (C.accentRed || '#E74C3C') + '10' },
-                  feedbackState.skipped === 'done'  && { backgroundColor: (C.accentRed || '#E74C3C') + '25', borderStyle: 'solid' },
-                  feedbackState.skipped === 'error' && { borderColor: '#E74C3C' },
-                ]}
-                activeOpacity={0.7}
-                disabled={feedbackState.skipped === 'loading' || feedbackState.skipped === 'done'}
-                onPress={() => handleFeedback('skipped')}
-              >
-                <View style={[s.actionIconBox, { backgroundColor: C.accentRed || '#E74C3C' }]}>
-                  {feedbackState.skipped === 'loading'
-                    ? <ActivityIndicator size="small" color="#FFF" />
-                    : feedbackState.skipped === 'done'
-                      ? <Ionicons name="checkmark" size={18} color="#FFF" />
-                      : feedbackState.skipped === 'error'
-                        ? <Ionicons name="alert-circle-outline" size={18} color="#FFF" />
-                        : <Ionicons name="close" size={18} color="#FFF" />}
-                </View>
-                <Text style={[s.actionStampText, { color: C.accentRed || '#E74C3C' }]}>
-                  {feedbackState.skipped === 'done' ? t('dish.saved') : feedbackState.skipped === 'error' ? t('common.error') : t('dish.skipped')}
-                </Text>
-              </TouchableOpacity>
+              ) : null}
 
             </View>
-          </View>
+          )}
+          </TabPanel>
         </View>
       </Animated.ScrollView>
 
-      {/* ── Rating Modal ─────────────────────────────── */}
-      <Modal visible={ratingModalVisible} transparent animationType="fade" onRequestClose={() => setRatingModalVisible(false)}>
-        <View style={s.modalOverlay}>
-          <ImageBackground source={ASSETS.paper} style={s.modalCard} imageStyle={{ borderRadius: 24, opacity: 0.98 }} resizeMode="cover">
-            <View style={s.modalInner}>
-              <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>{t('dish.rate')}</Text>
-                <TouchableOpacity onPress={() => setRatingModalVisible(false)} style={s.closeModalBtn}>
-                  <Ionicons name="close" size={24} color={C.textLight} />
-                </TouchableOpacity>
-              </View>
-              
-              <Text style={s.modalSub}>{t('dish.rateBody', { name: dish.title })}</Text>
-              
-              <View style={s.starsRow}>
-                {[1, 2, 3, 4, 5].map(star => (
-                  <TouchableOpacity 
-                    key={star} 
-                    onPress={() => setSelectedRating(star)}
-                    activeOpacity={0.7} 
-                    style={[s.starBtn, selectedRating === star && s.starBtnActive]}
-                  >
-                    <Ionicons 
-                      name={star <= selectedRating ? "star" : "star-outline"} 
-                      size={32} 
-                      color={star <= selectedRating ? (C.accentGold || '#F59E0B') : C.border} 
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-              
-              <TouchableOpacity
-                style={[s.modalConfirmBtn, selectedRating === 0 && { opacity: 0.5 }]}
-                disabled={selectedRating === 0}
-                onPress={() => handleFeedback('rated', selectedRating)}
-                activeOpacity={0.8}
-              >
-                <ImageBackground source={ASSETS.wood} style={StyleSheet.absoluteFill} imageStyle={{ borderRadius: 18, opacity: 0.9 }} />
-                <Text style={s.modalConfirmText}>{t('dish.submitRating')}</Text>
-              </TouchableOpacity>
-            </View>
-          </ImageBackground>
+      {/* ── Thanh đáy: Đã ăn · [Nấu ngay] · Bỏ qua ── */}
+      <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        <BarAction
+          icon={feedbackState.eaten === 'error' ? 'alert-circle-outline' : 'checkmark-done'}
+          color={C.inkGreen}
+          state={feedbackState.eaten}
+          label={feedbackState.eaten === 'done' ? t('dish.saved') : feedbackState.eaten === 'error' ? t('common.error') : t('dish.eaten')}
+          disabled={feedbackState.eaten === 'loading' || feedbackState.eaten === 'done'}
+          onPress={() => handleFeedback('eaten')}
+        />
+        <View style={s.cookSlot}>
+          <TouchableOpacity
+            style={s.cookBtn}
+            activeOpacity={0.85}
+            onPress={openCooking}
+            accessibilityRole="button"
+            accessibilityLabel={t('dish.cookNow')}
+          >
+            <MaterialCommunityIcons name="chef-hat" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={s.cookLabel}>{t('dish.cookNow')}</Text>
         </View>
-      </Modal>
+
+        <BarAction
+          icon={feedbackState.skipped === 'error' ? 'alert-circle-outline' : feedbackState.skipped === 'done' ? 'checkmark' : 'close'}
+          color={C.accentRed}
+          state={feedbackState.skipped}
+          label={feedbackState.skipped === 'done' ? t('dish.saved') : feedbackState.skipped === 'error' ? t('common.error') : t('dish.skipped')}
+          disabled={feedbackState.skipped === 'loading' || feedbackState.skipped === 'done'}
+          onPress={() => handleFeedback('skipped')}
+        />
+      </View>
+
     </ImageBackground>
   );
 };
@@ -501,7 +441,7 @@ const s = StyleSheet.create({
   titleCard: {
     borderRadius: 24,
     ...shadow(6),
-    marginBottom: 24,
+    marginBottom: 16,
   },
   titleCardBg: {
     borderRadius: 24,
@@ -518,20 +458,12 @@ const s = StyleSheet.create({
     lineHeight: 34,
     marginBottom: 16,
   },
-  metaChipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
   priceNote: {
     fontFamily: 'BeVietnamPro-Regular',
     fontSize: 11.5,
     lineHeight: 16,
     color: C.textMid,
     marginTop: 2,
-  },
-  chipSpacing: {
-    marginRight: 8,
-    marginBottom: 8,
   },
 
   // Sections
@@ -570,12 +502,14 @@ const s = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  // Nguyên liệu chính: tile ảnh 3 cột (phụ liệu vẫn là chip chữ để không rối)
   ingChipMain: {
-    flexDirection: 'row',
+    width: '31%',
     alignItems: 'center',
+    gap: 6,
     backgroundColor: C.surface,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(160,120,74,0.3)',
@@ -583,15 +517,15 @@ const s = StyleSheet.create({
   },
   ingTextMain: {
     fontFamily: 'Nunito_600SemiBold',
-    fontSize: 14,
+    fontSize: 13,
     color: C.text,
+    textAlign: 'center',
   },
   ingQtyBadge: {
     backgroundColor: 'rgba(160,120,74,0.1)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    marginLeft: 8,
   },
   ingQtyText: {
     fontFamily: 'Nunito_700Bold',
@@ -636,159 +570,40 @@ const s = StyleSheet.create({
   },
 
   // Recipe Button
-  recipeBtn: {
-    height: 56,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginTop: 8,
-    marginBottom: 32,
+  // Info tiles (tab Thông tin cơ bản)
+  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
+  infoTile: {
+    width: '48%', flexGrow: 1, padding: 12, borderRadius: 14,
+    backgroundColor: C.parchmentLight, borderWidth: 1, borderColor: C.parchmentDark,
+  },
+  infoTileAccent: { backgroundColor: C.freshBg, borderColor: '#9FD3B6' },
+  infoHead: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
+  infoLabel: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: C.textSoft },
+  infoValue: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 16, color: C.text },
+
+  // Tabs (SegmentTabs dùng chung)
+  tabEmpty: {
+    fontFamily: 'BeVietnamPro-Regular', fontSize: 14, color: C.textSoft, textAlign: 'center',
+    marginVertical: 24, lineHeight: 20,
+  },
+
+  // Bottom bar
+  bottomBar: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', alignItems: 'flex-end', paddingTop: 8, paddingHorizontal: 8,
+    backgroundColor: C.parchmentLight, borderTopWidth: 1, borderTopColor: C.parchmentDark,
     ...shadow(4),
   },
-  recipeBtnInner: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(92,58,30,0.6)',
+  barAction: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 3, minHeight: 46, paddingBottom: 2 },
+  barLabel: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 11 },
+  cookSlot: { flex: 1.2, alignItems: 'center', gap: 3, paddingBottom: 2 },
+  cookBtn: {
+    width: 62, height: 62, borderRadius: 31, marginTop: -30,
+    backgroundColor: C.primary, borderWidth: 4, borderColor: C.bg,
+    alignItems: 'center', justifyContent: 'center', ...shadow(4),
   },
-  recipeBtnText: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 16,
-    color: '#FFF',
-    marginLeft: 10,
-  },
+  cookLabel: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 11, color: C.primary },
 
-  // Feedback Stamps
-  sourceLinkBtn: {
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.65)',
-    borderWidth: 1.2,
-    borderColor: C.paperStroke,
-    marginBottom: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sourceLinkBtnInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sourceLinkBtnText: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 14,
-    color: C.primary,
-    marginLeft: 8,
-  },
-  feedbackSection: {
-    marginTop: 10,
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
-    alignItems: 'center',
-  },
-  feedbackQuestion: {
-    fontFamily: 'Patrick Hand',
-    fontSize: 18,
-    color: C.text,
-    marginBottom: 20,
-  },
-  feedbackRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 10,
-  },
-  actionStamp: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 90,
-    height: 100,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-  },
-  actionIconBox: {
-    width: 44, height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-    ...shadow(2),
-  },
-  actionStampText: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 13,
-    textTransform: 'uppercase',
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: 24,
-    ...shadow(8),
-  },
-  modalInner: {
-    padding: 24,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 24,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 20,
-    color: C.text,
-  },
-  closeModalBtn: {
-    padding: 4,
-  },
-  modalSub: {
-    fontFamily: 'Nunito_400Regular',
-    fontSize: 15,
-    color: C.textMid,
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  starsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    marginBottom: 32,
-  },
-  starBtn: {
-    padding: 4,
-    transform: [{ scale: 1 }],
-  },
-  starBtnActive: {
-    transform: [{ scale: 1.1 }],
-  },
-  modalConfirmBtn: {
-    height: 52,
-    borderRadius: 18,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalConfirmText: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 16,
-    color: '#FFF',
-    position: 'absolute',
-    zIndex: 2,
-  },
 });
 
 

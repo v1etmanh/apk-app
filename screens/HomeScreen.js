@@ -25,7 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { C } from '../theme';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard from '../components/ui/PaperCard';
-import WoodButton from '../components/ui/WoodButton';
+import WoodButton from '../components/ui/ClassicWoodButton';
 import WeatherAnimationSprite from '../components/ui/WeatherAnimationSprite';
 import SeasonBubble from '../components/ui/SeasonBubble';
 import ProfileSwitcherSheet from '../components/ProfileSwitcherSheet';
@@ -203,7 +203,7 @@ const LOC_BANNER_KEY = 'location_banner_dismissed_date';
 
 // ─────────────────────────────────────────────────────────────────────────────
 const HomeScreen = ({ navigation }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isLoadingRef       = React.useRef(false);
   const prevBasketCountRef = React.useRef(-1);
 
@@ -427,7 +427,7 @@ const HomeScreen = ({ navigation }) => {
               </Text>
             </View>
             <Text style={s.dateLabel}>
-              {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })}
+              {new Date().toLocaleDateString(i18n.language === 'en' ? 'en-US' : 'vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })}
             </Text>
           </View>
 

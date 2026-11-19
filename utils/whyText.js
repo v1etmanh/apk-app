@@ -32,6 +32,7 @@ const TRADEOFF_ICON = {
   off_season: 'calendar-outline',
   eaten_recently: 'repeat-outline',
   disliked: 'thumbs-down-outline',
+  weather_below: 'thermometer-outline',
   other_region: 'map-outline',
   taste_off: 'alert-circle-outline',
   need_buy: 'cart-outline',
@@ -157,6 +158,52 @@ export function reasonView(r, t) {
   return { key: r.code, icon: style.icon, color, title, chips };
 }
 
+const MULT_ICON = { soft: 'time-outline', liked: 'heart-outline', region: 'home-outline', recent: 'repeat-outline' };
+const pts100 = (v) => Math.round((v || 0) * 100);
+
+/** Có khối công thức điểm (server why v2) hay không. */
+export const hasFormula = (why) => !!why?.formula && Array.isArray(why.formula.terms);
+
+/**
+ * Công thức điểm, thang 100 — mỗi dòng là món này HƠN / KÉM món trung bình bao nhiêu điểm.
+ * { score, base, diff, rows: [{ key, icon, color, label, mult, edge }] }  (tổng edge = diff)
+ */
+export function formulaView(why, t) {
+  if (!hasFormula(why)) return null;
+  const f = why.formula;
+  const rows = f.terms.map(x => ({
+    key: x.k,
+    icon: WHY_GROUP_STYLE[x.k]?.icon || 'ellipse-outline',
+    color: WHY_GROUP_STYLE[x.k]?.color || '#888',
+    label: t(`why.group.${x.k}`),
+    mult: null,
+    edge: pts100(x.edge),
+  }));
+  f.mults.forEach(m => {
+    const up = m.x > 1;
+    rows.push({
+      key: `m_${m.k}`,
+      icon: MULT_ICON[m.k] || 'close-outline',
+      color: up ? '#4E9A68' : '#B5543C',
+      label: t(`why.mult.${m.k}_${up ? 'up' : 'down'}`, { defaultValue: m.k }),
+      mult: `×${Number(m.x).toFixed(2)}`,
+      edge: pts100(m.edge),
+    });
+  });
+  const score = pts100(f.score);
+  const base = f.base != null ? pts100(f.base) : null;
+  const diff = base != null ? score - base : null;
+  // Làm tròn từng dòng có thể lệch 1–2 điểm so với tổng: dồn phần lệch vào dòng lớn nhất
+  if (diff != null && rows.length) {
+    const drift = diff - rows.reduce((a, r) => a + r.edge, 0);
+    if (drift) {
+      const top = rows.reduce((a, r) => (Math.abs(r.edge) > Math.abs(a.edge) ? r : a), rows[0]);
+      top.edge += drift;
+    }
+  }
+  return { score, base, diff, rows };
+}
+
 /** Điều chưa hợp: { key, icon, text }. */
 export function tradeoffView(tr, t, i18n) {
   const f = tr.facts || {};
@@ -182,8 +229,12 @@ export function tradeoffView(tr, t, i18n) {
     case 'need_buy':
       text = t('why.tradeoff.need_buy', { list: joinList(f.missing) });
       break;
+    case 'weather_below':
+      text = t('why.tradeoff.weather_below', { pts: f.pts });
+      break;
     default:
       text = t(`why.tradeoff.${tr.code}`, { defaultValue: '' });
   }
+  if (text && tr.loss > 0) text = `${text} (${t('why.tradeoff.loss', { n: tr.loss })})`;
   return { key: tr.code, icon: TRADEOFF_ICON[tr.code] || 'alert-circle-outline', text };
 }

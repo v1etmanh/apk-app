@@ -19,7 +19,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import LottieView from 'lottie-react-native';
-import { C } from '../../theme';
+import { C, OCEAN } from '../../theme';
 
 // Điền require('../../assets/animations/<file>.json') để bật Lottie cho slot đó.
 export const MASCOT_SOURCES = {
@@ -62,12 +62,12 @@ export const MascotCat = ({ slot, size = 72, style }) => {
 };
 
 /** Hàng "mèo + bóng thoại" — câu phụ đề của màn được mèo nói ra. */
-export const MascotSays = ({ slot, size = 72, text, children, style, align = 'flex-end' }) => (
+export const MascotSays = ({ slot, size = 72, text, children, style, align = 'flex-end', tone }) => (
   <View style={[s.row, { alignItems: align }, style]}>
     <MascotCat slot={slot} size={size} />
     <View style={s.bubbleCol}>
-      <View style={s.bubble}>
-        <Text style={s.bubbleText}>{text}</Text>
+      <View style={[s.bubble, tone === 'ocean' && { backgroundColor: OCEAN.tint, borderColor: OCEAN.border }]}>
+        <Text style={[s.bubbleText, tone === 'ocean' && { color: OCEAN.ink }]}>{text}</Text>
       </View>
       {children}
     </View>

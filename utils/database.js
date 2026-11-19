@@ -341,10 +341,14 @@ function uniqueIngredients(items) {
   return [...byId.values()];
 }
 
-export async function loadAllIngredients(language = i18n.language) {
-  const lang = language === 'en' ? 'en' : 'vi';
-  if (_ingredientCache.has(lang)) return _ingredientCache.get(lang);
-  try {
+// lang → Promise đang fetch từ API (gộp các lần gọi trùng nhau)
+const _ingredientFetches = new Map();
+// lang đã được làm mới từ API trong phiên này → không fetch ngầm lại
+const _ingredientRefreshed = new Set();
+
+function fetchIngredientsFromApi(lang) {
+  if (_ingredientFetches.has(lang)) return _ingredientFetches.get(lang);
+  const request = (async () => {
     let page = 1;
     let hasMore = true;
     const items = [];
@@ -361,20 +365,59 @@ export async function loadAllIngredients(language = i18n.language) {
     const normalized = uniqueIngredients(items);
     if (!normalized.length) throw new Error('Ingredients response is empty');
     _ingredientCache.set(lang, normalized);
+    _ingredientRefreshed.add(lang);
     await AsyncStorage.setItem(`${INGREDIENTS_CACHE_KEY}:${lang}`, JSON.stringify(normalized));
     return normalized;
-  } catch (error) {
-    console.warn('[Ingredients] API unavailable, using cache:', error.message);
+  })().finally(() => _ingredientFetches.delete(lang));
+  _ingredientFetches.set(lang, request);
+  return request;
+}
+
+async function readCachedIngredients(lang) {
+  try {
     const cached = await AsyncStorage.getItem(`${INGREDIENTS_CACHE_KEY}:${lang}`);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      _ingredientCache.set(lang, parsed);
-      return parsed;
-    }
+    const parsed = cached ? JSON.parse(cached) : null;
+    return Array.isArray(parsed) && parsed.length ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Stale-while-revalidate: có bản lưu trong AsyncStorage → trả về ngay và làm mới
+ * từ API ở chế độ chạy ngầm (gọi onUpdate khi có dữ liệu mới). Chưa có bản lưu
+ * → chờ API; API lỗi → danh sách đóng gói sẵn trong app.
+ */
+export async function loadAllIngredients(language = i18n.language, { onUpdate } = {}) {
+  const lang = language === 'en' ? 'en' : 'vi';
+  if (_ingredientCache.has(lang)) {
+    if (!_ingredientRefreshed.has(lang)) refreshIngredientsInBackground(lang, onUpdate);
+    return _ingredientCache.get(lang);
+  }
+
+  const cached = await readCachedIngredients(lang);
+  if (cached) {
+    _ingredientCache.set(lang, cached);
+    refreshIngredientsInBackground(lang, onUpdate);
+    return cached;
+  }
+
+  try {
+    return await fetchIngredientsFromApi(lang);
+  } catch (error) {
+    console.warn('[Ingredients] API unavailable, using bundled list:', error.message);
     const fallback = getIngredientsForLanguage(lang);
     _ingredientCache.set(lang, fallback);
     return fallback;
   }
+}
+
+function refreshIngredientsInBackground(lang, onUpdate) {
+  fetchIngredientsFromApi(lang)
+    .then(list => onUpdate?.(list, lang))
+    .catch(error => {
+      if (__DEV__) console.warn('[Ingredients] Background refresh failed:', error.message);
+    });
 }
 
 export async function loadIngredientCategories(language = i18n.language) {
@@ -391,6 +434,7 @@ export async function loadIngredientsByCategories(categoryKeys, language = i18n.
 
 export function invalidateIngredientCache() {
   _ingredientCache = new Map();
+  _ingredientRefreshed.clear();
 }
 
 export async function pruneOldSessions(maxCount = 20) {
@@ -592,15 +636,30 @@ export async function loadTasteProfileForProfile(profileId) {
 }
 
 export async function migrateExistingProfile() {
+  return (await loadStartupProfiles()).profile;
+}
+
+/**
+ * Dùng lúc khởi động: trả về profile đang active + toàn bộ danh sách profile
+ * trong 1 lần truy vấn (tạo profile mặc định nếu tài khoản chưa có).
+ */
+export async function loadStartupProfiles() {
   const userId = await currentUserId();
   const key = `${ACTIVE_PROFILE_KEY}.${userId}`;
-  const profiles = await loadProfilesForUser(userId);
+  const [profiles, activeId] = await Promise.all([
+    loadProfilesForUser(userId),
+    SecureStore.getItemAsync(key),
+  ]);
   if (profiles.length) {
-    const activeId = await SecureStore.getItemAsync(key);
     const profile = profiles.find(p => p.profileId === activeId) ?? profiles[0];
     if (profile.profileId !== activeId) await SecureStore.setItemAsync(key, profile.profileId);
-    return profile;
+    return { profile, profiles };
   }
+  const profile = await createDefaultProfile(userId, key);
+  return { profile, profiles: [profile] };
+}
+
+async function createDefaultProfile(userId, key) {
   const profileId = 'profile_default';
   const defaults = {
     displayName: 'Bản thân',
@@ -709,7 +768,7 @@ export async function clearUserLocalCache(userId = _lastUserId) {
       || key === 'recent_dishes_cache_v1'
     );
     if (keys.length) await AsyncStorage.multiRemove(keys);
-    _ingredientCache = new Map();
+    invalidateIngredientCache();
     _lastUserId = null;
   } catch (error) {
     console.warn('[DB] clearUserLocalCache:', error.message);

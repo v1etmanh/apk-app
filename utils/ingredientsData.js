@@ -114,6 +114,30 @@ export function buildMemberToParentMap(ingredients) {
   return map;
 }
 
+// ─── Ảnh nguyên liệu (repo concop19/daily-mate-assets, qua CDN jsDelivr) ──────
+// thumb = 256px (card/tile), icon = 96px (list). Ảnh gốc 1024px không dùng trong app.
+const INGREDIENT_IMG_BASE = 'https://cdn.jsdelivr.net/gh/concop19/daily-mate-assets@main/ingredients';
+
+export function getIngredientImageUrl(id, variant = 'thumb') {
+  if (id == null || id === '') return null;
+  return `${INGREDIENT_IMG_BASE}/${variant === 'icon' ? 'icon' : 'thumb'}/ingredient_${id}.webp`;
+}
+
+/** Emoji fallback theo category (key tiếng Việt trong ingredients.json). */
+export const CATEGORY_EMOJI = {
+  'Dầu & Mỡ': '🫙',
+  'Gia vị': '🧄',
+  'Hải sản': '🦐',
+  'Ngũ cốc & Tinh bột': '🌾',
+  'Rau củ': '🥦',
+  'Sữa & Trứng': '🥚',
+  'Thịt': '🥩',
+  'Trái cây': '🍎',
+  'Đã chế biến': '🥫',
+  'Đậu & Hạt': '🥜',
+  'Đồ uống': '🥤',
+};
+
 export { CATEGORY_EN };
 
 export default ALL_INGREDIENTS;

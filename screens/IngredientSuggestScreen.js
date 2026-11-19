@@ -3,18 +3,20 @@
 // → user chọn (tick sẵn 1 đạm + 2 rau) → Recommend với các nguyên liệu đó.
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, ImageBackground,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
 import { withIngredients } from '../utils/searchParams';
-import { C, R, F, shadow } from '../theme';
+import { C, OCEAN, R, F, shadow } from '../theme';
 import WoodButton from '../components/ui/WoodButton';
 import { MascotSays } from '../components/ui/Mascot';
 import { CircleButton, Pill, CheckDot, DashedNote } from '../components/ui/Notebook';
+import IngredientThumb from '../components/ui/IngredientThumb';
 
 const SECTION_META = { protein: '🍗', vegetable: '🥬' };
 const SEARCH_CATEGORIES = new Set(['Thịt', 'Hải sản', 'Đậu & Hạt', 'Rau củ', 'Đã chế biến', 'Sữa & Trứng']);
@@ -22,7 +24,9 @@ const normalize = (s = '') => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/
 // Màu chip lý do theo key server trả về (ingredient_suggest.REASON_LABELS)
 const REASON_TONE = { cooling: 'fresh', hydration: 'fresh', season: 'season' };
 
-const IngredientCard = ({ item, selected, onPress, dishesLabel }) => (
+const CARD_IMG_H = 118;
+
+const IngredientCard =({ item, selected, onPress, dishesLabel }) => (
   <TouchableOpacity
     style={[st.card, selected && st.cardOn]}
     onPress={onPress}
@@ -30,16 +34,28 @@ const IngredientCard = ({ item, selected, onPress, dishesLabel }) => (
     accessibilityRole="checkbox"
     accessibilityState={{ checked: selected }}
   >
-    <View style={st.cardHead}>
+    {/* Ảnh là nhân vật chính: phủ kín nửa trên thẻ */}
+    <View>
+      <IngredientThumb
+        id={item.id}
+        category={item.category}
+        size={CARD_IMG_H}
+        variant="thumb"
+        style={st.cardImg}
+      />
+      <View style={st.checkWrap}><CheckDot tone="ocean" on={selected} /></View>
+      {!!item.reasons?.[0] && (
+        <Pill
+          label={item.reasons[0].label}
+          tone={REASON_TONE[item.reasons[0].key] || 'neutral'}
+          style={st.reasonChip}
+        />
+      )}
+    </View>
+    <View style={st.cardBody}>
       <Text style={st.cardName} numberOfLines={1}>{item.name}</Text>
-      <CheckDot on={selected} />
+      <Text style={st.dishCount}>{dishesLabel}</Text>
     </View>
-    <View style={st.reasonRow}>
-      {(item.reasons || []).map(r => (
-        <Pill key={r.key} label={r.label} tone={REASON_TONE[r.key] || 'neutral'} />
-      ))}
-    </View>
-    <Text style={st.dishCount}>{dishesLabel}</Text>
   </TouchableOpacity>
 );
 
@@ -90,6 +106,12 @@ const IngredientSuggestScreen = ({ navigation, route }) => {
   }, []);
 
   useEffect(() => { load([], true); }, [load]);
+
+  // Nguyên liệu tải lười: lúc khởi động không còn chờ, nên tự tải nếu chưa có.
+  useEffect(() => {
+    if (allIngredients.length === 0) useAppStore.getState().initializeIngredients();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggle = (item) => setSelected(prev => {
     const next = new Map(prev);
@@ -145,20 +167,34 @@ const IngredientSuggestScreen = ({ navigation, route }) => {
   const weatherChip = weather?.temperature != null
     ? `☀️ ${Math.round(weather.temperature)}°C${weather.condition ? ` · ${weather.condition}` : ''}`
     : null;
-  const bubbleText = intro ? `${intro}\n${t('ingredientSuggest.mascotHint')}` : t('ingredientSuggest.hint');
+  const bubbleText = intro || t('ingredientSuggest.hint');
   const pickedNames = [...selected.values()];
   const pickedLabel = pickedNames.slice(0, 3).join(' · ') + (pickedNames.length > 3 ? ` +${pickedNames.length - 3}` : '');
 
   return (
-    <View style={[st.root, { paddingTop: insets.top }]}>
-      <View style={st.header}>
-        <CircleButton onPress={() => navigation.goBack()} label={t('common.back')} />
-        <View style={st.headerCenter}>
-          <Text style={st.headerTitle}>{t('ingredientSuggest.title')}</Text>
-          <StepRibbon t={t} />
+    <View style={st.root}>
+      {/* Cùng dải trời + mép sóng như màn Gợi ý món (bước 2) */}
+      <ImageBackground
+        source={require('../assets/textures/sky_watercolor.png')}
+        style={[st.skyHeader, { paddingTop: insets.top + 12 }]}
+        resizeMode="cover"
+        imageStyle={{ opacity: 0.55 }}
+      >
+        <View style={st.header}>
+          <CircleButton onPress={() => navigation.goBack()} label={t('common.back')} />
+          <View style={st.headerCenter}>
+            <Text style={st.headerTitle}>{t('ingredientSuggest.title')}</Text>
+            <StepRibbon t={t} />
+          </View>
+          <View style={{ width: 44 }} />
         </View>
-        <View style={{ width: 44 }} />
-      </View>
+        <Svg width="100%" height={20} viewBox="0 0 400 20" preserveAspectRatio="none" pointerEvents="none">
+          <Path
+            d="M0,6 Q48,18 100,8 Q152,0 200,10 Q248,18 304,7 Q352,0 400,8 L400,20 L0,20 Z"
+            fill={C.bg}
+          />
+        </Svg>
+      </ImageBackground>
 
       <ScrollView contentContainerStyle={st.scroll} keyboardShouldPersistTaps="handled">
         <MascotSays slot="suggest" size={72} text={bubbleText}>
@@ -167,7 +203,7 @@ const IngredientSuggestScreen = ({ navigation, route }) => {
 
         {loading ? (
           <View style={st.center}>
-            <ActivityIndicator size="large" color={C.primary} />
+            <ActivityIndicator size="large" color={OCEAN.primary} />
             <Text style={st.muted}>{t('ingredientSuggest.loading')}</Text>
           </View>
         ) : error ? (
@@ -231,7 +267,7 @@ const IngredientSuggestScreen = ({ navigation, route }) => {
             })}
 
             <TouchableOpacity onPress={refresh} style={st.ghostBtn} activeOpacity={0.8}>
-              <Ionicons name="refresh" size={16} color={C.woodDark} />
+              <Ionicons name="refresh" size={16} color={OCEAN.dark} />
               <Text style={st.ghostText}>{t('ingredientSuggest.refresh')}</Text>
             </TouchableOpacity>
           </>
@@ -254,7 +290,8 @@ const IngredientSuggestScreen = ({ navigation, route }) => {
           const on = selected.has(i.id);
           return (
             <TouchableOpacity key={i.id} style={st.searchRow} onPress={() => toggle(i)} activeOpacity={0.75}>
-              <CheckDot on={on} square />
+              <CheckDot tone="ocean" on={on} square />
+              <IngredientThumb style={st.thumb} id={i.id} category={i.category} size={28} round />
               <Text style={st.searchName}>{i.name}</Text>
               <Text style={st.searchCat}>{i.category}</Text>
             </TouchableOpacity>
@@ -294,49 +331,60 @@ const IngredientSuggestScreen = ({ navigation, route }) => {
   );
 };
 
+// Hệ màu khớp màn Gợi ý món: nền giấy + chữ nâu mực; xanh OCEAN chỉ cho trạng thái chọn & hành động.
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
+  skyHeader: { backgroundColor: '#A8CEDF' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6,
+    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14,
   },
-  headerCenter: { alignItems: 'center', gap: 4 },
-  headerTitle: { fontSize: F.lg + 2, color: C.text, fontFamily: 'Lora-Bold' },
+  headerCenter: { alignItems: 'center', gap: 6 },
+  headerTitle: { fontSize: 22, lineHeight: 30, color: C.text, fontFamily: 'Lora-Bold' },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  stepBar: { width: 22, height: 5, borderRadius: 3, backgroundColor: C.parchmentDark },
-  stepBarOn: { backgroundColor: C.primary },
-  stepText: { fontSize: 11, color: C.textSoft, fontFamily: 'BeVietnamPro-SemiBold' },
-  scroll: { paddingHorizontal: 16, paddingTop: 8, gap: 0 },
-  section: { marginTop: 18 },
-  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 },
+  stepBar: { width: 22, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.7)' },
+  stepBarOn: { backgroundColor: OCEAN.primary },
+  stepText: { fontSize: 11, color: C.textMid, fontFamily: 'BeVietnamPro-SemiBold' },
+  scroll: { paddingHorizontal: 16, paddingTop: 4, gap: 0 },
+  section: { marginTop: 20 },
+  thumb: { backgroundColor: C.chipBg, borderColor: C.border },
+  sectionHead: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    marginBottom: 10, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: C.paperStroke,
+  },
   sectionTitle: { fontSize: F.lg, color: C.text, fontFamily: 'Lora-SemiBold' },
-  sectionCount: { fontSize: 12, color: C.textSoft, fontFamily: 'BeVietnamPro-SemiBold' },
+  sectionCount: { fontSize: 12, color: OCEAN.dark, fontFamily: 'BeVietnamPro-SemiBold' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
   card: {
-    width: '48.5%', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.55)', borderWidth: 1.5, borderColor: C.border, gap: 6,
+    width: '48.5%', borderRadius: 18, overflow: 'hidden',
+    backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, ...shadow(1),
   },
-  cardOn: { borderWidth: 2, borderColor: C.primary, backgroundColor: C.parchmentLight, ...shadow(2) },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
-  cardName: { flex: 1, fontSize: F.base, color: C.text, fontFamily: 'BeVietnamPro-Bold' },
-  reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  dishCount: { fontSize: 11.5, color: C.textSoft, fontFamily: 'BeVietnamPro-Regular' },
+  cardOn: { borderWidth: 2.5, borderColor: OCEAN.primary, ...shadow(2), shadowColor: OCEAN.shadow },
+  cardImg: { width: '100%', height: CARD_IMG_H, borderRadius: 0, borderWidth: 0, backgroundColor: C.chipBg },
+  checkWrap: {
+    position: 'absolute', top: 8, right: 8, padding: 3, borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  reasonChip: { position: 'absolute', left: 8, bottom: 8 },
+  cardBody: { paddingHorizontal: 11, paddingTop: 8, paddingBottom: 10, gap: 1 },
+  cardName: { fontSize: F.base, color: C.text, fontFamily: 'Lora-Bold' },
+  dishCount: { fontSize: 12, color: C.textSoft, fontFamily: 'BeVietnamPro-Regular' },
   reasonText: { fontSize: F.sm, color: C.textMid, fontFamily: 'BeVietnamPro-Regular', lineHeight: 19 },
-  reasonLink: { fontSize: F.sm, color: C.primary, fontFamily: 'BeVietnamPro-Bold', marginTop: 6 },
+  reasonLink: { fontSize: F.sm, color: OCEAN.dark, fontFamily: 'BeVietnamPro-Bold', marginTop: 6 },
   center: { alignItems: 'center', paddingVertical: 40 },
-  muted: { color: C.textMid, fontSize: F.sm, fontFamily: 'BeVietnamPro-Regular', marginTop: 10, textAlign: 'center' },
-  retry: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: R.pill, backgroundColor: C.primary },
+  muted: { color: C.textSoft, fontSize: F.sm, fontFamily: 'BeVietnamPro-Regular', marginTop: 10, textAlign: 'center' },
+  retry: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: R.pill, backgroundColor: OCEAN.primary },
   retryText: { color: '#fff', fontFamily: 'BeVietnamPro-Bold' },
   ghostBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     minHeight: 44, marginTop: 16, marginBottom: 20, borderRadius: 16,
-    borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.woodLight,
-    backgroundColor: 'rgba(255,248,234,0.6)',
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: OCEAN.border,
+    backgroundColor: OCEAN.soft,
   },
-  ghostText: { color: C.woodDark, fontSize: F.sm + 1, fontFamily: 'BeVietnamPro-Bold' },
+  ghostText: { color: OCEAN.dark, fontSize: F.sm + 1, fontFamily: 'BeVietnamPro-Bold' },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 46,
-    backgroundColor: C.surface, borderRadius: 16, borderWidth: 1.5, borderColor: C.border,
+    backgroundColor: C.parchmentLight, borderRadius: 16, borderWidth: 1.5, borderColor: C.border,
     paddingHorizontal: 14, marginBottom: 6,
   },
   searchInput: { flex: 1, fontSize: F.base, color: C.text, fontFamily: 'BeVietnamPro-Regular', paddingVertical: 10 },
@@ -344,15 +392,15 @@ const st = StyleSheet.create({
   searchName: { flex: 1, fontSize: F.base, color: C.text, fontFamily: 'BeVietnamPro-Regular' },
   searchCat: { fontSize: 11.5, color: C.textSoft, fontFamily: 'BeVietnamPro-Regular' },
   extraRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  extraChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: R.pill, backgroundColor: C.primary },
-  extraText: { color: '#fff', fontSize: F.sm, fontFamily: 'BeVietnamPro-SemiBold' },
+  extraChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: R.pill, backgroundColor: OCEAN.soft, borderWidth: 1, borderColor: OCEAN.border },
+  extraText: { color: OCEAN.dark, fontSize: F.sm, fontFamily: 'BeVietnamPro-SemiBold' },
   footer: {
     position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, gap: 8,
-    backgroundColor: C.bg, borderTopWidth: 1, borderTopColor: C.parchmentDark,
+    backgroundColor: C.bg, borderTopWidth: 1, borderTopColor: C.border,
   },
   pickedLine: { fontSize: 12.5, color: C.textMid, fontFamily: 'BeVietnamPro-Regular' },
   skip: { alignItems: 'center', paddingVertical: 6 },
-  skipText: { color: C.textMid, fontSize: F.sm, fontFamily: 'BeVietnamPro-SemiBold', textDecorationLine: 'underline' },
+  skipText: { color: C.textSoft, fontSize: F.sm, fontFamily: 'BeVietnamPro-SemiBold', textDecorationLine: 'underline' },
 });
 
 export default IngredientSuggestScreen;

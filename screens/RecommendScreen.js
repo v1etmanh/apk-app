@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, ActivityIndicator, StatusBar, Animated,
+  Image, ImageBackground, ActivityIndicator, StatusBar, Animated, LayoutAnimation,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
@@ -15,7 +16,7 @@ import {
 } from '../utils/database';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { C, shadow } from '../theme';
+import { C, OCEAN, shadow } from '../theme';
 import WoodButton from '../components/ui/WoodButton';
 import { MascotCat, MascotSays } from '../components/ui/Mascot';
 import { CircleButton, Pill, DashedNote } from '../components/ui/Notebook';
@@ -23,6 +24,7 @@ import { withIngredients } from '../utils/searchParams';
 import { hasWhy, whyHeadline, whyTags, reasonView } from '../utils/whyText';
 import ResultFilterBar, { DEFAULT_RESULT_FILTERS, sanitizeResultFilters, applyResultFilters } from '../components/ResultFilterBar';
 import { formatVnd } from '../utils/price';
+import { translateWeatherCondition } from '../utils/weatherText';
 
 // "~56k/phần" — null khi món chưa có giá (cache cũ / server cũ)
 const usePriceLabel = (v) => {
@@ -68,7 +70,7 @@ const LoadingView = ({ weather, picked, allergyCount, onCancel }) => {
   const { t } = useTranslation();
   const steps = [
     weather?.temperature != null
-      ? t('recommend.wait.weather', { temp: Math.round(weather.temperature), condition: weather.condition || '' })
+      ? t('recommend.wait.weather', { temp: Math.round(weather.temperature), condition: translateWeatherCondition(weather.condition, t) })
       : t('recommend.wait.weatherNone'),
     allergyCount > 0 ? t('recommend.wait.allergy', { count: allergyCount }) : t('recommend.wait.allergyNone'),
     picked.length ? t('recommend.wait.picked') : t('recommend.wait.noPicked'),
@@ -95,15 +97,15 @@ const LoadingView = ({ weather, picked, allergyCount, onCancel }) => {
                 {state === 'done' ? (
                   <View style={s.waitDone}><Ionicons name="checkmark" size={14} color="#fff" /></View>
                 ) : state === 'doing' ? (
-                  <ActivityIndicator size="small" color={C.primary} style={{ width: 24 }} />
+                  <ActivityIndicator size="small" color={OCEAN.primary} style={{ width: 24 }} />
                 ) : (
                   <View style={s.waitTodo} />
                 )}
-                <Text style={[s.waitText, state === 'doing' && s.waitTextDoing, state === 'todo' && { color: C.textSoft }]}>{label}</Text>
+                <Text style={[s.waitText, state === 'doing' && s.waitTextDoing, state === 'todo' && { color: OCEAN.muted }]}>{label}</Text>
               </View>
               {i === 2 && picked.length > 0 && (
                 <View style={s.waitPicked}>
-                  {picked.slice(0, 6).map(p => <Pill key={p.id} label={p.name} />)}
+                  {picked.slice(0, 6).map(p => <Pill tone="ocean" key={p.id} label={p.name} />)}
                 </View>
               )}
             </View>
@@ -160,8 +162,8 @@ const HeroCard = ({ item, onPress, isAdded, onAddToMeal, isSaved, onToggleSave }
         </View>
         <WoodButton
           title={isAdded ? `✓ ${t('recommend.addedToMeal')}` : t('recommend.addToMeal')}
-          onPress={() => onAddToMeal(item)}
-          disabled={isAdded}
+          onPress={isAdded ? undefined : () => onAddToMeal(item)}
+          variant={isAdded ? 'sky' : 'wood'}
           style={{ marginTop: 4 }}
         />
       </View>
@@ -221,7 +223,6 @@ const RecommendScreen = ({ navigation, route }) => {
   const [totalPages, setTotalPages]       = useState(1);
   const [hasNextPage, setHasNextPage]     = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [totalDishes, setTotalDishes]     = useState(0);
   const [error, setError]                 = useState(null);
   const [basketWarning, setBasketWarning] = useState(null); // object khi pool < 10, null bình thường
   const [relaxedFilters, setRelaxedFilters] = useState([]); // bộ lọc theo bữa bị server nới khi pool rỗng
@@ -299,6 +300,19 @@ const RecommendScreen = ({ navigation, route }) => {
     return () => { if (abortRef.current) abortRef.current.abort(); };
   }, []);
 
+  // Thanh lọc: tự thu gọn khi cuộn xuống; chỉ mở lại khi người dùng bấm vào dòng tóm tắt
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+  const lastScrollY = useRef(0);
+  const setFiltersCollapsedAnimated = (v) => {
+    LayoutAnimation.configureNext(LayoutAnimation.create(180, 'easeInEaseOut', 'opacity'));
+    setFiltersCollapsed(v);
+  };
+  const onListScroll = (e) => {
+    const y = e.nativeEvent.contentOffset.y;
+    if (!filtersCollapsed && y > 60 && y - lastScrollY.current > 8) setFiltersCollapsedAnimated(true);
+    lastScrollY.current = y;
+  };
+
   const changeResultFilters = (next) => {
     const f = sanitizeResultFilters(next);
     resultFiltersRef.current = f;
@@ -324,7 +338,6 @@ const RecommendScreen = ({ navigation, route }) => {
     setError(null);
     setDishes([]);
     setCurrentPage(1);
-    setTotalDishes(0);
     setHasNextPage(false);
     setBasketWarning(null);
     await _fetchPage(1, abortRef.current.signal);
@@ -383,7 +396,6 @@ const RecommendScreen = ({ navigation, route }) => {
       setCurrentPage(res.data.page ?? page);
       setTotalPages(res.data.total_pages ?? 1);
       setHasNextPage(res.data.has_next_page ?? false);
-      setTotalDishes(res.data.total_dishes ?? incoming.length);
 
       // ── Basket small-pool warning từ server ──────────────────────────────
       if (page === 1 && res.data.basket_warning) {
@@ -453,10 +465,6 @@ const RecommendScreen = ({ navigation, route }) => {
   const allergies = useAppStore(st => st.allergies);
   const weather = searchParams?.weather;
   const temp = weather?.temperature;
-  const weatherPill = temp != null ? `☀️ ${Math.round(temp)}°C${weather.condition ? ` · ${weather.condition}` : ''}` : null;
-  const cuisineLabel = searchParams?.cuisine_scope === 'global' ? t('recommend.global') : t('recommend.vietnam');
-  const typeLabel = searchParams?.dish_type_filter === 'soup'      ? t('recommend.soup') :
-                    searchParams?.dish_type_filter === 'main_dish' ? t('recommend.mainDish') : t('recommend.all');
   const mascotLine = pickMode === 'fridge' && pickedIngredients.length
     ? t('recommend.mascot.fridge')
     : temp != null && temp >= 30 ? t('recommend.mascot.hot')
@@ -495,23 +503,28 @@ const RecommendScreen = ({ navigation, route }) => {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" />
+    <View style={s.root}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <CircleButton onPress={() => navigation.goBack()} label={t('recommend.back')} />
-        <Text style={s.headerTitle}>{t('recommend.titleToday')}</Text>
-        <CircleButton icon="refresh" onPress={fetchFirstPage} label={t('recommend.refresh')} />
-      </View>
-
-      {/* Context pills */}
-      <View style={s.pillRow}>
-        {!!weatherPill && <Pill tone="outline" label={weatherPill} />}
-        <Pill tone="outline" label={cuisineLabel} />
-        <Pill tone="outline" label={typeLabel} />
-        <Pill tone="outline" label={t('recommend.suggestions', { count: totalDishes > 0 ? totalDishes : dishes.length })} />
-      </View>
+      {/* Cùng ảnh trời và mép sóng như màn Lịch sử. */}
+      <ImageBackground
+        source={require('../assets/textures/sky_watercolor.png')}
+        style={[s.skyHeader, { paddingTop: insets.top + 12 }]}
+        resizeMode="cover"
+        imageStyle={{ opacity: 0.55 }}
+      >
+        <View style={s.header}>
+          <CircleButton onPress={() => navigation.goBack()} label={t('recommend.back')} />
+          <Text style={s.headerTitle}>{t('recommend.titleToday')}</Text>
+          <CircleButton icon="refresh" onPress={fetchFirstPage} label={t('recommend.refresh')} />
+        </View>
+        <Svg width="100%" height={20} viewBox="0 0 400 20" preserveAspectRatio="none" pointerEvents="none">
+          <Path
+            d="M0,6 Q48,18 100,8 Q152,0 200,10 Q248,18 304,7 Q352,0 400,8 L400,20 L0,20 Z"
+            fill={C.bg}
+          />
+        </Svg>
+      </ImageBackground>
 
       {/* ── Offline banner ── */}
       {error === 'offline' && (
@@ -529,10 +542,17 @@ const RecommendScreen = ({ navigation, route }) => {
           priceBands={priceBands}
           picked={pickedIngredients}
           onEditPicked={editPicked}
+          collapsed={filtersCollapsed}
+          onToggle={() => setFiltersCollapsedAnimated(!filtersCollapsed)}
         />
       )}
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.scroll, { paddingBottom: 40 + insets.bottom }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[s.scroll, { paddingBottom: 40 + insets.bottom }]}
+        onScroll={onListScroll}
+        scrollEventThrottle={32}
+      >
 
         {/* ── Giỏ ít món ── */}
         {basketWarning && (
@@ -600,7 +620,7 @@ const RecommendScreen = ({ navigation, route }) => {
         {hasNextPage && (
           <TouchableOpacity onPress={fetchNextPage} disabled={isLoadingMore} activeOpacity={0.8} style={s.loadMoreBtn}>
             {isLoadingMore
-              ? <ActivityIndicator color={C.woodDark} />
+              ? <ActivityIndicator color={OCEAN.dark} />
               : <Text style={s.loadMoreText}>{t('recommend.loadMore', { page: currentPage + 1, total: totalPages })}</Text>}
           </TouchableOpacity>
         )}
@@ -634,9 +654,9 @@ const RecommendScreen = ({ navigation, route }) => {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
-  headerTitle: { fontSize: 19, fontFamily: 'Lora-Bold', color: C.text },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 6 },
+  skyHeader: { backgroundColor: '#A8CEDF' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 20 },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 24, lineHeight: 32, fontFamily: 'Lora-Bold', color: C.text },
   offlineBanner: { backgroundColor: C.seasonBg, paddingHorizontal: 16, paddingVertical: 8 },
   offlineText: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: 12, color: C.seasonText },
   scroll: { paddingHorizontal: 16, paddingTop: 8 },
@@ -645,22 +665,22 @@ const s = StyleSheet.create({
   // Màn chờ
   waitRoot: { flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 110 },
   waitBubble: {
-    marginTop: 18, backgroundColor: C.parchmentLight, borderWidth: 1.5, borderColor: C.paperStroke,
+    marginTop: 18, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.paperStroke,
     borderRadius: 18, paddingHorizontal: 16, paddingVertical: 10, ...shadow(1),
   },
-  waitBubbleText: { fontFamily: 'Patrick Hand', fontSize: 17, lineHeight: 23, color: '#4A3728', textAlign: 'center' },
+  waitBubbleText: { fontFamily: 'Patrick Hand', fontSize: 17, lineHeight: 23, color: C.text, textAlign: 'center' },
   waitCard: {
     alignSelf: 'stretch', marginTop: 24, padding: 16, gap: 12, borderRadius: 18,
-    backgroundColor: 'rgba(255,248,234,0.85)', borderWidth: 1.5, borderColor: C.border,
+    backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, ...shadow(1),
   },
   waitRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   waitDone: { width: 24, height: 24, borderRadius: 12, backgroundColor: C.inkGreen, alignItems: 'center', justifyContent: 'center' },
-  waitTodo: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#C9B9A8' },
+  waitTodo: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: C.paperStroke },
   waitText: { flex: 1, fontSize: 14, fontFamily: 'BeVietnamPro-Regular', color: C.text },
   waitTextDoing: { fontFamily: 'BeVietnamPro-Bold' },
   waitPicked: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingLeft: 34, marginTop: 8 },
   waitCancel: { marginTop: 'auto', marginBottom: 28, minHeight: 44, justifyContent: 'center', paddingHorizontal: 20 },
-  waitCancelText: { fontSize: 14, fontFamily: 'BeVietnamPro-SemiBold', color: C.textMid, textDecorationLine: 'underline' },
+  waitCancelText: { fontSize: 14, fontFamily: 'BeVietnamPro-SemiBold', color: OCEAN.muted, textDecorationLine: 'underline' },
 
   // Thẻ hợp nhất
   hero: {
@@ -703,29 +723,29 @@ const s = StyleSheet.create({
   // Cảnh báo
   warnCard: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 12, marginBottom: 12, borderRadius: 18,
-    backgroundColor: C.parchmentLight, borderWidth: 1.5, borderColor: C.paperStroke, ...shadow(1),
+    backgroundColor: OCEAN.tint, borderWidth: 1.5, borderColor: OCEAN.border, ...shadow(1), shadowColor: OCEAN.shadow,
   },
-  warnTitle: { fontSize: 15, fontFamily: 'Lora-Bold', color: C.text },
-  warnBody: { fontSize: 12.5, lineHeight: 18, fontFamily: 'BeVietnamPro-Regular', color: C.textMid },
-  warnBtn: { minHeight: 36, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: C.primary, justifyContent: 'center' },
-  warnBtnText: { fontSize: 12.5, fontFamily: 'BeVietnamPro-Bold', color: C.woodDark },
+  warnTitle: { fontSize: 15, fontFamily: 'Lora-Bold', color: OCEAN.ink },
+  warnBody: { fontSize: 12.5, lineHeight: 18, fontFamily: 'BeVietnamPro-Regular', color: OCEAN.muted },
+  warnBtn: { minHeight: 36, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: OCEAN.primary, justifyContent: 'center' },
+  warnBtnText: { fontSize: 12.5, fontFamily: 'BeVietnamPro-Bold', color: OCEAN.dark },
   warnClose: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 4 },
-  warnCloseText: { fontSize: 12.5, fontFamily: 'BeVietnamPro-SemiBold', color: C.textSoft, textDecorationLine: 'underline' },
+  warnCloseText: { fontSize: 12.5, fontFamily: 'BeVietnamPro-SemiBold', color: OCEAN.muted, textDecorationLine: 'underline' },
   relaxed: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  relaxedText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontFamily: 'BeVietnamPro-SemiBold', color: C.woodDark },
+  relaxedText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontFamily: 'BeVietnamPro-SemiBold', color: OCEAN.dark },
 
   loadMoreBtn: {
     marginTop: 16, minHeight: 46, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.woodLight, backgroundColor: 'rgba(255,248,234,0.75)',
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: OCEAN.border, backgroundColor: OCEAN.soft,
   },
-  loadMoreText: { fontSize: 14, fontFamily: 'BeVietnamPro-Bold', color: C.woodDark },
+  loadMoreText: { fontSize: 14, fontFamily: 'BeVietnamPro-Bold', color: OCEAN.dark },
   endWrap: { alignItems: 'center', gap: 8, paddingVertical: 24 },
-  endText: { fontFamily: 'Patrick Hand', fontSize: 16, color: '#4A3728' },
-  emptyMeta: { fontSize: 13, fontFamily: 'BeVietnamPro-Regular', color: C.textSoft },
+  endText: { fontFamily: 'Patrick Hand', fontSize: 16, color: OCEAN.ink },
+  emptyMeta: { fontSize: 13, fontFamily: 'BeVietnamPro-Regular', color: OCEAN.muted },
 
   toast: {
     position: 'absolute', bottom: 32, alignSelf: 'center',
-    backgroundColor: 'rgba(61,43,31,0.88)',
+    backgroundColor: OCEAN.dark,
     borderRadius: 20, paddingHorizontal: 20, paddingVertical: 12,
     maxWidth: '85%',
   },

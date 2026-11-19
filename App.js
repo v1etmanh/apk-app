@@ -25,7 +25,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import { supabase } from './store/supabase';
-import { setSetting, getSetting, migrateExistingProfile, getDeviceId } from './utils/database';
+import { setSetting, getSetting, loadStartupProfiles, getDeviceId } from './utils/database';
 import { useAppStore } from './store/useAppStore';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -46,7 +46,6 @@ import AllergyScreen           from './screens/AllergyScreen';
 import TasteProfileScreen      from './screens/TasteProfileScreen';
 import OnboardingFlow          from './screens/onboarding/OnboardingFlow';
 import TasteOnboardingScreen  from './screens/onboarding/TasteOnboardingScreen';
-import OnboardingTabScreen    from './screens/onboarding/OnboardingTabScreen';
 import ProfileOnboardingScreen from './screens/onboarding/ProfileOnboardingScreen';
 import { needsOnboarding }    from './services/onboardingService';
 import RecommendScreen         from './screens/RecommendScreen';
@@ -55,6 +54,7 @@ import ResetPasswordScreen     from './screens/ResetPasswordScreen';
 import AddEditProfileScreen    from './screens/AddEditProfileScreen';
 import ChosenDishScreen        from './screens/ChosenDishScreen';
 import MealReminderModal       from './components/MealReminderModal';
+import BubbleTabButton         from './components/ui/BubbleTabButton';
 import i18n, { restoreLanguage, changeLanguage } from './i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -93,6 +93,7 @@ const MainTabs = () => {
       tabBarActiveTintColor:   '#60A5FA',
       tabBarInactiveTintColor: '#8B7355',
       tabBarStyle: { backgroundColor: '#F5EDDC', borderTopColor: '#C8A96E', borderTopWidth: 1.5 },
+      tabBarButton: props => <BubbleTabButton {...props} />,
       headerShown: false,
     }}
   >
@@ -107,17 +108,12 @@ const MainTabs = () => {
       options={{ tabBarLabel: t('tabs.profile'),     tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused}/> }}/>
     <Tab.Screen name="Settings"  component={SettingsScreen}
       options={{ tabBarLabel: t('tabs.settings'),   tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused}/> }}/>
-    <Tab.Screen name="Onboarding" component={OnboardingTabScreen}
-      options={{
-        tabBarLabel: t('tabs.onboarding'),
-        tabBarIcon: ({ focused }) => <TabIcon emoji="🍜" focused={focused}/>,
-      }}/>
   </Tab.Navigator>
   );
 };
 
 // ── Splash Screen (Lottie Lazy Cat) ──────────────────────────────────────
-const SplashScreen = ({ onRetry }) => {
+const SplashScreen = ({ onRetry, fontsReady = true }) => {
   const { t } = useTranslation();
   return (
   <View style={sp.root}>
@@ -147,8 +143,18 @@ const SplashScreen = ({ onRetry }) => {
             loop
             style={[sp.lottie, { pointerEvents: 'none' }]}
           />
-          <Text style={sp.title}>Daily Mate</Text>
-          <Text style={sp.sub}>{t(onRetry ? 'splash.profileError' : 'splash.preparing')}</Text>
+          {/* key đổi khi font load xong → remount Text để Android đo lại width,
+              tránh bị cắt chữ ("Daily Ma") do đo bằng font hệ thống trước đó */}
+          <Text
+            key={fontsReady ? 'title-font' : 'title-fallback'}
+            style={[sp.title, !fontsReady && { fontFamily: undefined, fontWeight: '700' }]}
+          >
+            Daily Mate
+          </Text>
+          <Text
+            key={fontsReady ? 'sub-font' : 'sub-fallback'}
+            style={[sp.sub, !fontsReady && { fontFamily: undefined }]}
+          >{t(onRetry ? 'splash.profileError' : 'splash.preparing')}</Text>
 
           {/* Loading dots */}
           {onRetry ? <Button title={t('common.retry')} onPress={onRetry} /> : <View style={sp.dotsRow}>
@@ -161,7 +167,12 @@ const SplashScreen = ({ onRetry }) => {
     </View>
 
     {/* Footer */}
-    <Text style={sp.footer}>{t('splash.companion')}</Text>
+    <Text
+      key={fontsReady ? 'footer-font' : 'footer-fallback'}
+      style={[sp.footer, !fontsReady && { fontFamily: undefined }]}
+    >
+      {t('splash.companion')}
+    </Text>
   </View>
   );
 };
@@ -203,6 +214,8 @@ const sp = StyleSheet.create({
     color: '#3D2B1F',             // Ink Brown
     marginTop: 4,
     marginBottom: 6,
+    paddingHorizontal: 4,         // chừa chỗ cho glyph Lora-Bold, tránh cắt mép chữ
+    textAlign: 'center',
   },
   sub: {
     fontFamily: 'BeVietnamPro-Regular',
@@ -234,9 +247,7 @@ const sp = StyleSheet.create({
 
 // ── Root App ──────────────────────────────────────────────────────────────
 const App = () => {
-  const {
-    initializeIngredients, initializeSettings, loadAllProfilesAction,
-  } = useAppStore();
+  const { initializeIngredients, initializeSettings } = useAppStore();
 
   // navigationRef — dùng để navigate từ notification listener (ngoài navigator context)
   const navigationRef = useRef(null);
@@ -499,15 +510,10 @@ const App = () => {
     await requestDevicePermissions();
   };
 
-  const initializeApp = async (isCurrent) => {
-    const profile = await migrateExistingProfile();
-    if (!isCurrent()) return;
-    useAppStore.getState().setActiveProfileId(profile.profileId);
-    useAppStore.getState().setProfile(profile);
-
-    // Keep the persisted device setting and i18n preference in sync.
-    // First login: use the language already selected by i18n (device locale
-    // when supported, otherwise vi) and persist it for future launches.
+  // Keep the persisted device setting and i18n preference in sync.
+  // First login: use the language already selected by i18n (device locale
+  // when supported, otherwise vi) and persist it for future launches.
+  const syncLanguage = async (isCurrent) => {
     const savedLanguage = await getSetting('language');
     if (!isCurrent()) return;
     const language = savedLanguage === 'vi' || savedLanguage === 'en'
@@ -517,28 +523,41 @@ const App = () => {
     if (isCurrent() && savedLanguage !== language) {
       await setSetting('language', language);
     }
+  };
 
-    if (!isCurrent()) return;
-    await initializeSettings();
-    if (!isCurrent()) return;
-    await Promise.all([
-      loadAllProfilesAction(),
-      initializeIngredients(),
-      useAppStore.getState().loadSavedDishes(),
+  const initializeApp = async (isCurrent) => {
+    const store = useAppStore.getState();
+
+    // Các bước độc lập chạy song song thay vì nối tiếp.
+    // Profile phải hydrate SAU initializeSettings vì hàm đó cũng ghi activeProfileId.
+    const profileTask = Promise.all([loadStartupProfiles(), initializeSettings()])
+      .then(async ([startup]) => {
+        if (isCurrent()) await store.hydrateStartupProfile(startup);
+        return startup.profile;
+      });
+
+    const [profile] = await Promise.all([
+      profileTask,
+      syncLanguage(isCurrent),
+      store.loadSavedDishes(),
+      setupNotificationChannel().catch(error => console.warn('[Push] Notification channel:', error.message)),
     ]);
 
-    if (!isCurrent()) return;
-    await setupNotificationChannel().catch(error => console.warn('[Push] Notification channel:', error.message));
     if (!isCurrent()) return;
     const mustOnboard = needsOnboarding(profile);
     setRoute(mustOnboard ? 'onboarding' : 'main');
     appReadyRef.current = !mustOnboard;
+
+    // Nguyên liệu không chặn splash: có bản lưu thì dùng ngay, API làm mới chạy ngầm.
+    // Các màn cần nguyên liệu tự gọi lại nếu danh sách còn rỗng.
+    initializeIngredients();
+
     if (!mustOnboard) requestDevicePermissions().catch(error => console.warn('[Permissions]', error.message));
   };
 
   // Fonts chưa load hoặc đang khởi tạo → Splash với Lazy Cat
   if (!fontsLoaded || !languageReady || account === undefined || (account && route === 'loading')) {
-    return <SplashScreen />;
+    return <SplashScreen fontsReady={fontsLoaded} />;
   }
 
   // Chưa đăng nhập → LoginScreen
