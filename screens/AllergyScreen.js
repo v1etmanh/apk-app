@@ -146,7 +146,7 @@ const CATEGORY_COLORS = {
 };
 
 // Nhóm dị ứng chuẩn do onboarding lưu (services/onboardingService.js → ALLERGY_OPTIONS)
-const ONBOARDING_ALLERGY_EMOJI = { fish: '🐟', beef: '🐄', legume_nut: '🥜', dairy_egg: '🥚' };
+const ONBOARDING_ALLERGY_EMOJI = { fish: '🐟', beef: '🐄', pork: '🐖', poultry: '🐔', legume_nut: '🥜', dairy_egg: '🥚' };
 
 const getCatColors = (key) => CATEGORY_COLORS[key] || CATEGORY_COLORS._default;
 

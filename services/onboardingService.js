@@ -31,6 +31,7 @@ export const ALLERGY_OPTIONS = [
   { key: 'fish',       emoji: '🐟' },
   { key: 'beef',       emoji: '🐄' },
   { key: 'pork',       emoji: '🐖' },
+  { key: 'poultry',    emoji: '🐔' },
   { key: 'legume_nut', emoji: '🥜' },
   { key: 'dairy_egg',  emoji: '🥚' },
   { key: 'vegetable',  emoji: '🥬' },
@@ -138,12 +139,39 @@ export const allergyKeysForRequest = (draft) => {
   ];
 };
 
-// Fallback offline: nhóm → category nguyên liệu (khớp taxonomy.py ở server)
-const GROUP_CATEGORY_FALLBACK = {
-  seafood: ['Hải sản'], fish: ['Hải sản'], beef: ['Thịt'], pork: ['Thịt'],
-  legume_nut: ['Đậu & Hạt'], dairy_egg: ['Sữa & Trứng'], vegetable: ['Rau củ'], gluten: ['Ngũ cốc & Tinh bột'],
+// Fallback offline: bản rút gọn luật nhóm dị ứng ở server (taxonomy.py → _NAME_RULES).
+// Khớp nguyên từ: tách token theo khoảng trắng/dấu câu rồi so cụm từ.
+const _norm = (s) => ` ${String(s || '').toLowerCase().replace(/[\s,()/-]+/g, ' ').trim()} `;
+const _has = (name, words) => words.some(w => name.includes(` ${w} `));
+const _first = (name) => name.trim().split(' ')[0];
+const MEATY = new Set(['Thịt', 'Đã chế biến', 'Dầu & Mỡ']);
+const SEASONING = new Set(['Hải sản', 'Đã chế biến', 'Gia vị']);
+const SOY = ['đậu nành', 'đậu hũ', 'đậu hủ', 'đậu phụ', 'tàu hũ', 'tàu hủ', 'nước tương', 'xì dầu', 'tương bần', 'tương đen', 'tương hột', 'miso', 'chao', 'tempeh'];
+const NUT = ['đậu phộng', 'lạc', 'hạt điều', 'óc chó', 'hạnh nhân', 'hạt dẻ', 'macca', 'mắc ca', 'hạt bí', 'hạt lanh', 'hạt chia', 'mè', 'vừng'];
+const PORK = ['heo', 'lợn', 'ba chỉ', 'ba rọi', 'bacon', 'xông khói', 'mỡ', 'patê', 'pate', 'xúc xích', 'lạp xưởng', 'thịt nguội', 'giăm bông', 'jambon', 'giò lụa', 'chả lụa', 'xá xíu', 'thịt xay', 'thịt băm', 'cốt lết'];
+const POULTRY = ['gà', 'vịt', 'ngan', 'ngỗng', 'chim cút', 'bồ câu'];
+const GLUTEN = ['bột mì', 'bột mỳ', 'lúa mì', 'lúa mạch', 'mì', 'mỳ', 'bánh mì', 'bột xù', 'bột chiên', 'hoành thánh', 'nui', 'spaghetti', 'pasta', 'yến mạch', 'soba', 'udon', 'ramen', 'bia', 'nước tương', 'xì dầu', 'maggi'];
+const isFish = (n, c) => SEASONING.has(c) && _has(n, ['cá', 'lươn', 'nước mắm', 'mắm cá']);
+const isBeef = (n, c) => MEATY.has(c) && !['cá', 'rau', 'nấm'].includes(_first(n)) && _has(n, ['bò', 'bê', 'bít tết']);
+const isPork = (n, c) => MEATY.has(c) && !['rau', 'nấm'].includes(_first(n)) && _has(n, PORK);
+const isPoultry = (n, c) => MEATY.has(c) && !['rau', 'nấm', 'đậu', 'trứng', 'tỏi'].includes(_first(n)) && _has(n, POULTRY);
+const isSoy = (n) => _has(n, SOY);
+const isNut = (n) => !['cá', 'rau'].includes(_first(n)) && _has(n, NUT);
+const isEgg = (n) => _has(n, ['trứng', 'mayonnaise']) && !_has(n, ['trứng cá']);
+const isDairy = (n, c) => !_has(n, ['sữa đậu nành', 'sữa dừa', 'dầu bơ'])
+  && ((c === 'Sữa & Trứng' && !isEgg(n)) || _has(n, ['sữa', 'phô mai', 'cheese', 'kem whipping', 'sữa chua']));
+const GROUP_RULES = {
+  seafood:    (n, c) => c === 'Hải sản' || isFish(n, c) || (SEASONING.has(c) && _has(n, ['tôm', 'tép', 'cua', 'ghẹ', 'mực', 'ruốc', 'mắm', 'hào'])),
+  fish:       isFish,
+  beef:       isBeef,
+  pork:       isPork,
+  poultry:    isPoultry,
+  meat:       (n, c) => c === 'Thịt' || isBeef(n, c) || isPork(n, c) || isPoultry(n, c),
+  legume_nut: (n, c) => c === 'Đậu & Hạt' || isSoy(n) || isNut(n),
+  dairy_egg:  (n, c) => isEgg(n) || isDairy(n, c),
+  vegetable:  (n, c) => c === 'Rau củ' && !isSoy(n),
+  gluten:     (n, c) => !['Rau củ', 'Trái cây', 'Hải sản', 'Thịt'].includes(c) && _has(n, GLUTEN),
 };
-const GROUP_NAME_FALLBACK = { fish: /^cá\s/i, beef: /(^|\s)bò(\s|$)/i, pork: /(^|\s)(heo|lợn)(\s|$)/i };
 
 /** Nguyên liệu cụ thể trong một nhóm dị ứng (API, lỗi mạng → lọc từ danh sách nguyên liệu local). */
 export async function fetchAllergyIngredients(group) {
@@ -153,12 +181,14 @@ export async function fetchAllergyIngredients(group) {
   } catch (e) {
     if (__DEV__) console.warn('[onboarding] allergy-ingredients fallback:', e?.message);
   }
-  const all = await loadAllIngredients();
-  const cats = new Set(GROUP_CATEGORY_FALLBACK[group] || []);
-  const nameRe = GROUP_NAME_FALLBACK[group];
-  return all
-    .filter(i => cats.has(i.category) && (!nameRe || nameRe.test(`${i.name} `)))
-    .map(i => ({ id: Number(i.id), name: i.name, category: i.category, dish_count: 0 }));
+  // Luôn lọc trên tên tiếng Việt (list tiếng Anh giữ tên gốc ở name_vi)
+  const rule = GROUP_RULES[group];
+  if (!rule) return [];
+  const [vi, localized] = await Promise.all([loadAllIngredients('vi'), loadAllIngredients()]);
+  const nameById = new Map(localized.map(i => [String(i.id), i.name]));
+  return vi
+    .filter(i => rule(_norm(i.name), i.category))
+    .map(i => ({ id: Number(i.id), name: nameById.get(String(i.id)) || i.name, category: i.category, dish_count: 0 }));
 }
 
 // ── API ──────────────────────────────────────────────────────────────────────

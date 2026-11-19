@@ -281,7 +281,7 @@ export default {
   onboarding: {
     stepOf: 'Bước {{step}}/{{total}}',
     next: 'Tiếp tục →',
-    allergies: { seafood: 'Hải sản', fish: 'Cá', beef: 'Thịt bò', pork: 'Thịt heo', legume_nut: 'Đậu & Hạt', dairy_egg: 'Sữa & Trứng', vegetable: 'Rau củ', gluten: 'Gluten (lúa mì)' },
+    allergies: { seafood: 'Hải sản', fish: 'Cá', beef: 'Thịt bò', pork: 'Thịt heo', poultry: 'Gà, vịt (gia cầm)', legume_nut: 'Đậu & Hạt', dairy_egg: 'Sữa & Trứng', vegetable: 'Rau củ', gluten: 'Gluten (lúa mì)' },
     tastes: { sweet: 'Ngọt dịu', sour: 'Chua thanh', salty: 'Đậm đà', bitter: 'Đắng nhẹ', umami: 'Ngọt thịt', spicy: 'Cay', astringent: 'Chát' },
     body: {
       title: 'Chào bạn! Mình làm quen nhé 👋', subtitle: 'Vài chỉ số cơ bản giúp Daily Mate cân đối năng lượng cho từng bữa.',

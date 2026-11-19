@@ -2,7 +2,7 @@
 // Khi user chọn một nhóm dị ứng (vd. Hải sản):
 //   Bước 1 — "Bạn dị ứng hầu hết hải sản hay chỉ một số loại?"
 //   Bước 2 — (chỉ một số loại) danh sách nguyên liệu của nhóm để tick cụ thể.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, ActivityIndicator, Pressable,
 } from 'react-native';
@@ -33,25 +33,38 @@ const AllergyScopeSheet = ({ group, emoji, initialScope, initialIds = [], onSubm
   const [selected, setSelected] = useState(new Map());
 
   const groupLabel = group ? t(`onboarding.allergies.${group}`) : '';
+  // Danh sách đang hiển thị thuộc nhóm nào + mã request mới nhất (bỏ kết quả về muộn của nhóm cũ)
+  const [itemsGroup, setItemsGroup] = useState(null);
+  const reqRef = useRef(0);
 
   useEffect(() => {
+    reqRef.current += 1; // huỷ mọi request đang chạy của nhóm trước
+    // Reset toàn bộ khi đổi/đóng nhóm — không để danh sách nhóm cũ sót lại
+    setItems([]);
+    setItemsGroup(null);
+    setLoading(false);
+    setError(false);
+    setQuery('');
     if (!group) return;
     setStep(initialScope === 'some' ? 'pick' : 'scope');
-    setQuery('');
     setSelected(new Map(initialIds.map(i => [Number(i.id ?? i), i.name ?? ''])));
-    if (initialScope === 'some') load();
+    if (initialScope === 'some') load(group);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group]);
 
-  const load = async () => {
+  const load = async (g = group) => {
+    const req = ++reqRef.current;
     setLoading(true);
     setError(false);
     try {
-      setItems(await fetchAllergyIngredients(group));
+      const list = await fetchAllergyIngredients(g);
+      if (req !== reqRef.current) return;
+      setItems(list);
+      setItemsGroup(g);
     } catch {
-      setError(true);
+      if (req === reqRef.current) setError(true);
     } finally {
-      setLoading(false);
+      if (req === reqRef.current) setLoading(false);
     }
   };
 
@@ -70,7 +83,7 @@ const AllergyScopeSheet = ({ group, emoji, initialScope, initialIds = [], onSubm
 
   const chooseSome = () => {
     setStep('pick');
-    if (!items.length) load();
+    if (itemsGroup !== group || !items.length) load(group);
   };
 
   const submitSome = () => {
@@ -143,7 +156,7 @@ const AllergyScopeSheet = ({ group, emoji, initialScope, initialIds = [], onSubm
             ) : error ? (
               <View style={s.center}>
                 <Text style={s.hint}>{t('onboarding.allergyScope.error')}</Text>
-                <TouchableOpacity onPress={load}><Text style={s.back}>{t('common.retry')}</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => load(group)}><Text style={s.back}>{t('common.retry')}</Text></TouchableOpacity>
               </View>
             ) : (
               <FlatList
