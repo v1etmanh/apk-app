@@ -1,5 +1,17 @@
 export default {
   familyAvatar: {
+    previewTitle: 'Your cat companion',
+    ageThisYear: 'Age {{count}} this year',
+    ageGroupsTitle: 'Your age group',
+    ageGroupsHint: 'Your age group updates from your birth year. Choose a gender to see your cat.',
+    ageGroups: { toddler: 'Ages 0–5', child: 'Ages 6–11', youth: 'Ages 12–24', adult: 'Ages 25–59', senior: 'Ages 60+' },
+    characters: {
+      'boy-toddler-bong': 'Bông', 'girl-toddler-sua': 'Sữa',
+      'boy-child-but-chi': 'Bút Chì', 'girl-child-no': 'Nơ',
+      'boy-youth-beat': 'Beat', 'girl-youth-may': 'Mây',
+      'man-adult-moka': 'Moka', 'woman-adult-la': 'Lá',
+      'man-senior-tra': 'Trà', 'woman-senior-mai': 'Mai',
+    },
     label: 'Avatar for {{name}}', auto: 'Avatar based on birth year and gender',
     birthYear: 'Birth year *', invalidYear: 'Enter a four-digit birth year between {{min}} and {{max}}.',
     missingYear: 'Add your birth year to find your cat',
