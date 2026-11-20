@@ -14,7 +14,12 @@ import { CircleButton, CheckDot } from '../components/ui/Notebook';
 import { withIngredients } from '../utils/searchParams';
 import { useAppStore } from '../store/useAppStore';
 import i18n from '../i18n';
-import { CATEGORY_EN, buildMemberToParentMap } from '../utils/ingredientsData';
+import {
+  CATEGORY_EN,
+  buildMemberToParentMap,
+  getIngredientCategoryEmoji,
+  normalizeIngredientCategory,
+} from '../utils/ingredientsData';
 import IngredientThumb from '../components/ui/IngredientThumb';
 import { useTranslation } from 'react-i18next';
 
@@ -72,9 +77,13 @@ const CAT_META = {
   other:                { display: 'Khác',                emoji: '🫙' },
 };
 const getCatMeta = k => {
-  const fallback = CAT_META[k] || { display: k.replace(/_/g, ' '), emoji: '🥬' };
+  const categoryKey = normalizeIngredientCategory(k);
+  const fallback = CAT_META[categoryKey] || {
+    display: categoryKey.replace(/_/g, ' '),
+    emoji: getIngredientCategoryEmoji(categoryKey),
+  };
   return i18n.language === 'en'
-    ? { ...fallback, display: CATEGORY_EN[k] || fallback.display }
+    ? { ...fallback, display: CATEGORY_EN[categoryKey] || fallback.display }
     : fallback;
 };
 

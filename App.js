@@ -54,7 +54,8 @@ import ResetPasswordScreen     from './screens/ResetPasswordScreen';
 import AddEditProfileScreen    from './screens/AddEditProfileScreen';
 import ChosenDishScreen        from './screens/ChosenDishScreen';
 import MealReminderModal       from './components/MealReminderModal';
-import BubbleTabButton         from './components/ui/BubbleTabButton';
+import BubbleTabButton, { SlidingBubbleTabBar } from './components/ui/BubbleTabButton';
+import AnimatedAppIcon         from './components/ui/AnimatedAppIcon';
 import i18n, { restoreLanguage, changeLanguage } from './i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -80,34 +81,68 @@ const TEX = {
 const LAZY_CAT = require('./assets/animations/Cute cat works.json');
 
 // ── Tab icon helper ───────────────────────────────────────────────────────
-const TabIcon = ({ emoji, focused }) => (
-  <Text style={{ fontSize: 18, opacity: focused ? 1 : 0.5 }}>{emoji}</Text>
+const TabIcon = ({ emoji, focused, lottieName, trigger = 0 }) => (
+  lottieName ? (
+    <AnimatedAppIcon
+      name={lottieName}
+      size={27}
+      active={focused}
+      trigger={trigger}
+      playOnVisible
+      fallback={<Text style={{ fontSize: 18 }}>{emoji}</Text>}
+      style={{ opacity: focused ? 1 : 0.55 }}
+    />
+  ) : (
+    <Text style={{ fontSize: 18, opacity: focused ? 1 : 0.5 }}>{emoji}</Text>
+  )
 );
 
 // ── Main Tabs ─────────────────────────────────────────────────────────────
 const MainTabs = () => {
   const { t } = useTranslation();
+  const [iconTriggers, setIconTriggers] = useState({
+    Home: 0, ChosenDish: 0, History: 0, Profile: 0, Settings: 0,
+  });
+  const replayTabIcon = useCallback((name) => {
+    setIconTriggers(current => ({ ...current, [name]: (current[name] || 0) + 1 }));
+  }, []);
   return (
     <Tab.Navigator
+    tabBar={props => <SlidingBubbleTabBar {...props} />}
     screenOptions={{
       tabBarActiveTintColor:   '#60A5FA',
       tabBarInactiveTintColor: '#8B7355',
-      tabBarStyle: { backgroundColor: '#F5EDDC', borderTopColor: '#C8A96E', borderTopWidth: 1.5 },
+      tabBarStyle: { backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 },
       tabBarButton: props => <BubbleTabButton {...props} />,
       headerShown: false,
     }}
   >
-    <Tab.Screen name="Home"      component={HomeScreen}
-      options={{ tabBarLabel: t('tabs.home'), tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused}/> }}/>
+    <Tab.Screen name="Home" component={HomeScreen}
+      listeners={{ tabPress: () => replayTabIcon('Home') }}
+      options={{ tabBarLabel: t('tabs.home'), tabBarIcon: ({ focused }) => (
+        <TabIcon emoji="🏠" lottieName="nav-home" trigger={iconTriggers.Home} focused={focused}/>
+      ) }}/>
    
     <Tab.Screen name="ChosenDish" component={ChosenDishScreen}
-      options={{ tabBarLabel: t('tabs.today'), tabBarIcon: ({ focused }) => <TabIcon emoji="🍱" focused={focused}/> }}/>
-    <Tab.Screen name="History"   component={HistoryScreen}
-      options={{ tabBarLabel: t('tabs.history'),   tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused}/> }}/>
-    <Tab.Screen name="Profile"   component={ProfileScreen}
-      options={{ tabBarLabel: t('tabs.profile'),     tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused}/> }}/>
-    <Tab.Screen name="Settings"  component={SettingsScreen}
-      options={{ tabBarLabel: t('tabs.settings'),   tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused}/> }}/>
+      listeners={{ tabPress: () => replayTabIcon('ChosenDish') }}
+      options={{ tabBarLabel: t('tabs.today'), tabBarIcon: ({ focused }) => (
+        <TabIcon emoji="🍱" lottieName="nav-today" trigger={iconTriggers.ChosenDish} focused={focused}/>
+      ) }}/>
+    <Tab.Screen name="History" component={HistoryScreen}
+      listeners={{ tabPress: () => replayTabIcon('History') }}
+      options={{ tabBarLabel: t('tabs.history'), tabBarIcon: ({ focused }) => (
+        <TabIcon emoji="📅" lottieName="nav-history" trigger={iconTriggers.History} focused={focused}/>
+      ) }}/>
+    <Tab.Screen name="Profile" component={ProfileScreen}
+      listeners={{ tabPress: () => replayTabIcon('Profile') }}
+      options={{ tabBarLabel: t('tabs.profile'), tabBarIcon: ({ focused }) => (
+        <TabIcon emoji="👤" lottieName="profile-personal" trigger={iconTriggers.Profile} focused={focused}/>
+      ) }}/>
+    <Tab.Screen name="Settings" component={SettingsScreen}
+      listeners={{ tabPress: () => replayTabIcon('Settings') }}
+      options={{ tabBarLabel: t('tabs.settings'), tabBarIcon: ({ focused }) => (
+        <TabIcon emoji="⚙️" lottieName="settings-gear" trigger={iconTriggers.Settings} focused={focused}/>
+      ) }}/>
   </Tab.Navigator>
   );
 };

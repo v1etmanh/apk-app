@@ -5,7 +5,7 @@
 import React, { memo, useState } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { C } from '../../theme';
-import { getIngredientImageUrl, getIngredientById, CATEGORY_EMOJI } from '../../utils/ingredientsData';
+import { getIngredientImageUrl, getIngredientById, getIngredientCategoryEmoji } from '../../utils/ingredientsData';
 
 const IngredientThumb = ({ id, category, size = 44, variant, round = false, dimmed = false, style }) => {
   const [failed, setFailed] = useState(false);
@@ -25,7 +25,7 @@ const IngredientThumb = ({ id, category, size = 44, variant, round = false, dimm
           accessibilityIgnoresInvertColors
         />
       ) : (
-        <Text style={{ fontSize: Math.round(size * 0.5) }}>{CATEGORY_EMOJI[cat] || '🥬'}</Text>
+        <Text style={{ fontSize: Math.round(size * 0.5) }}>{getIngredientCategoryEmoji(cat)}</Text>
       )}
     </View>
   );

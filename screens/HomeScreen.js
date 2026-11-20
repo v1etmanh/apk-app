@@ -10,7 +10,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import LottieView from 'lottie-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
@@ -30,6 +29,7 @@ import WeatherAnimationSprite from '../components/ui/WeatherAnimationSprite';
 import SeasonBubble from '../components/ui/SeasonBubble';
 import ProfileSwitcherSheet from '../components/ProfileSwitcherSheet';
 import ProfileAvatar from '../components/ui/ProfileAvatar';
+import AnimatedAppIcon from '../components/ui/AnimatedAppIcon';
 import MealFilterPanel, { DEFAULT_MEAL_FILTERS, sanitizeMealFilters } from '../components/MealFilterPanel';
 import { buildBaseSearchParams } from '../utils/searchParams';
 import { shouldShowTasteBanner, dismissTasteBanner } from '../services/onboardingService';
@@ -216,6 +216,8 @@ const HomeScreen = ({ navigation }) => {
   const [showLocBanner, setShowLocBanner]   = useState(false); // banner nhắc location
   const [mealFilters, setMealFilters]       = useState(DEFAULT_MEAL_FILTERS); // dụng cụ bếp
   const [searchMode, setSearchMode]         = useState('suggest');            // 'suggest' | 'fridge'
+  const [modeScreenTrigger, setModeScreenTrigger] = useState(0);
+  const [modeIconTriggers, setModeIconTriggers] = useState({ suggest: 0, fridge: 0 });
   const [tasteBannerHidden, setTasteBannerHidden] = useState(false);
   const [showWeatherDetails, setShowWeatherDetails] = useState(false); // độ ẩm/gió/AQI/UV thu gọn mặc định
   const toggleWeatherDetails = () => {
@@ -239,7 +241,12 @@ const HomeScreen = ({ navigation }) => {
       .catch(() => {});
   }, []);
 
+  useFocusEffect(useCallback(() => {
+    setModeScreenTrigger(value => value + 1);
+  }, []));
+
   const chooseMode = (mode) => {
+    setModeIconTriggers(current => ({ ...current, [mode]: current[mode] + 1 }));
     setSearchMode(mode);
     setSetting('search_mode', mode).catch(() => {});
   };
@@ -586,12 +593,11 @@ const HomeScreen = ({ navigation }) => {
         <View style={s.divider} />
 
         {/* ── Chế độ tìm món: Gợi ý cho tôi / Từ tủ lạnh ── */}
-        <Text style={s.filtersEyebrow}>{t('home.modeTitle')}</Text>
         <View style={s.modeRow}>
           {[
-            { k: 'suggest', emoji: '✨', title: t('home.modeSuggest'), sub: t('home.modeSuggestSub') },
-            { k: 'fridge',  emoji: '🧊', title: t('home.modeFridge'),  sub: t('home.modeFridgeSub') },
-          ].map(m => {
+            { k: 'suggest', icon: 'home-suggest', emoji: '✨', title: t('home.modeSuggest') },
+            { k: 'fridge',  icon: 'home-fridge', emoji: '🧊', title: t('home.modeFridge') },
+          ].map((m, index) => {
             const on = searchMode === m.k;
             return (
               <TouchableOpacity
@@ -602,9 +608,16 @@ const HomeScreen = ({ navigation }) => {
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on }}
               >
-                <Text style={s.modeEmoji}>{m.emoji}</Text>
+                <AnimatedAppIcon
+                  name={m.icon}
+                  size={40}
+                  trigger={`${modeScreenTrigger}:${modeIconTriggers[m.k]}`}
+                  playOnVisible
+                  delay={index * 80}
+                  fallback={<Text style={s.modeEmoji}>{m.emoji}</Text>}
+                  style={s.modeIcon}
+                />
                 <Text style={[s.modeTitle, on && s.modeTitleOn]}>{m.title}</Text>
-                <Text style={s.modeSub}>{m.sub}</Text>
                 {m.k === 'fridge' && basketBadge > 0 && (
                   <View style={s.modeBadge}><Text style={s.badgeText}>{basketBadge}</Text></View>
                 )}
@@ -1099,10 +1112,10 @@ const s = StyleSheet.create({
     borderWidth: 1.5, borderColor: C.borderLight,
   },
   modeCardOn: { borderColor: C.primary, backgroundColor: '#FFF8EA' },
+  modeIcon: { marginBottom: 4 },
   modeEmoji: { fontSize: 26, marginBottom: 6 },
   modeTitle: { fontFamily: 'BeVietnamPro-Bold', fontSize: 15, color: C.textMid },
   modeTitleOn: { color: C.woodDark },
-  modeSub: { fontFamily: 'BeVietnamPro-Regular', fontSize: 12, color: C.textLight, marginTop: 3, lineHeight: 17 },
   modeBadge: {
     position: 'absolute', top: 10, right: 10, minWidth: 22, height: 22, borderRadius: 11,
     backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,

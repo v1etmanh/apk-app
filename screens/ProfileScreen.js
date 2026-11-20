@@ -22,6 +22,7 @@ import { getProfileAge, MAX_FAMILY_MEMBERS } from '../utils/profileIdentity';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import SkyHeader from '../components/ui/SkyHeader';
 import SegmentTabs, { TabPanel } from '../components/ui/SegmentTabs';
+import AnimatedAppIcon from '../components/ui/AnimatedAppIcon';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const P = {
@@ -67,10 +68,17 @@ const Metric = ({ label, value, unit }) => (
 );
 
 // ── Food row ─────────────────────────────────────────────────────────────────
-const FoodRow = ({ icon, iconBg, iconColor, label, isLast, children }) => (
+const FoodRow = ({ icon, iconName, iconBg, iconColor, iconTrigger, iconDelay = 0, label, isLast, children }) => (
   <View style={[fr.row, !isLast && fr.rowBorder]}>
     <View style={[fr.icon, { backgroundColor: iconBg }]}>
-      <Ionicons name={icon} size={18} color={iconColor} />
+      <AnimatedAppIcon
+        name={iconName}
+        size={31}
+        trigger={iconTrigger}
+        playOnVisible
+        delay={iconDelay}
+        fallback={<Ionicons name={icon} size={18} color={iconColor} />}
+      />
     </View>
     <View style={{ flex: 1, gap: 4 }}>
       <Text style={fr.label}>{label}</Text>
@@ -130,18 +138,32 @@ const MemberRow = ({ p, tone, isActive, canDelete, onPress, onEdit, onDelete }) 
 };
 
 // ── MenuItem ─────────────────────────────────────────────────────────────────
-const MenuItem = ({ icon, iconBg, iconColor, label, sub, onPress, isLast }) => (
-  <TouchableOpacity style={[mi.row, !isLast && mi.rowBorder]} onPress={onPress} activeOpacity={0.72}>
-    <View style={[mi.iconBox, { backgroundColor: iconBg }]}>
-      <Ionicons name={icon} size={19} color={iconColor} />
-    </View>
-    <View style={mi.textWrap}>
-      <Text style={mi.label} numberOfLines={1}>{label}</Text>
-      {sub ? <Text style={mi.sub} numberOfLines={1}>{sub}</Text> : null}
-    </View>
-    <Ionicons name="chevron-forward" size={16} color={P.muted} />
-  </TouchableOpacity>
-);
+const MenuItem = ({ icon, iconName, iconBg, iconColor, iconTrigger, iconDelay = 0, label, sub, onPress, isLast }) => {
+  const [pressTrigger, setPressTrigger] = useState(0);
+  return (
+    <TouchableOpacity
+      style={[mi.row, !isLast && mi.rowBorder]}
+      onPress={() => { setPressTrigger(value => value + 1); onPress?.(); }}
+      activeOpacity={0.72}
+    >
+      <View style={[mi.iconBox, { backgroundColor: iconBg }]}>
+        <AnimatedAppIcon
+          name={iconName}
+          size={34}
+          trigger={`${iconTrigger}:${pressTrigger}`}
+          playOnVisible
+          delay={iconDelay}
+          fallback={<Ionicons name={icon} size={19} color={iconColor} />}
+        />
+      </View>
+      <View style={mi.textWrap}>
+        <Text style={mi.label} numberOfLines={1}>{label}</Text>
+        {sub ? <Text style={mi.sub} numberOfLines={1}>{sub}</Text> : null}
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={P.muted} />
+    </TouchableOpacity>
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 const ProfileScreen = ({ navigation }) => {
@@ -150,10 +172,15 @@ const ProfileScreen = ({ navigation }) => {
   const { profile, latestMetrics, profiles, activeProfileId, switchProfile, loadAllProfilesAction, tasteProfile } = useAppStore();
   const [allergyRows, setAllergyRows] = useState([]);
   const [tab, setTab] = useState(0); // 0 ăn uống · 1 gia đình · 2 thiết lập
+  const [screenIconTrigger, setScreenIconTrigger] = useState(0);
+  const [tabIconTrigger, setTabIconTrigger] = useState(0);
   const year = useProfileYear();
   const atCapacity = profiles.length >= MAX_FAMILY_MEMBERS;
 
   useFocusEffect(useCallback(() => { loadAllProfilesAction(); }, []));
+  useFocusEffect(useCallback(() => {
+    setScreenIconTrigger(value => value + 1);
+  }, []));
 
   // Dị ứng của hồ sơ đang chọn (cần display_name cho nguyên liệu cụ thể)
   useFocusEffect(useCallback(() => {
@@ -220,16 +247,16 @@ const ProfileScreen = ({ navigation }) => {
 
   const personalSub = [genderText, regionText, dietText].filter(Boolean).join(' · ');
   const menuItems = [
-    { icon: 'person-outline', iconBg: '#F0D9B8', iconColor: '#7A4E24', label: t('profileScreen.personalInfo'),
+    { icon: 'person-outline', iconName: 'profile-personal', iconBg: '#F0D9B8', iconColor: '#7A4E24', label: t('profileScreen.personalInfo'),
       sub: personalSub || t('profileScreen.notSet'),
       onPress: () => goStack('EditPersonal') },
-    { icon: 'barbell-outline', iconBg: '#DCE8C8', iconColor: '#3F5A2B', label: t('profileScreen.bodyMetrics'),
+    { icon: 'barbell-outline', iconName: 'profile-metrics', iconBg: '#DCE8C8', iconColor: '#3F5A2B', label: t('profileScreen.bodyMetrics'),
       sub: latestMetrics ? t('profileScreen.kgBmi', { weight: latestMetrics.weight_kg, bmi: bmi || '–' }) : t('profileScreen.notSet'),
       onPress: () => goStack('BodyMetrics') },
-    { icon: 'warning-outline', iconBg: '#F5D9CC', iconColor: '#8A3B1F', label: t('profileScreen.allergies'),
+    { icon: 'warning-outline', iconName: 'profile-allergy-menu', iconBg: '#F5D9CC', iconColor: '#8A3B1F', label: t('profileScreen.allergies'),
       sub: t('profileScreen.allergiesSub'),
       onPress: () => goStack('Allergy') },
-    { icon: 'flame-outline', iconBg: '#F3D6D0', iconColor: '#8A2F2F', label: t('profileScreen.taste'),
+    { icon: 'flame-outline', iconName: 'profile-taste-menu', iconBg: '#F3D6D0', iconColor: '#8A2F2F', label: t('profileScreen.taste'),
       sub: t('profileScreen.tasteSub'),
       onPress: () => goStack('TasteProfile') },
   ];
@@ -294,7 +321,10 @@ const ProfileScreen = ({ navigation }) => {
           <View style={{ gap: 12 }}>
           <SegmentTabs
             value={tab}
-            onChange={setTab}
+            onChange={(nextTab) => {
+              setTab(nextTab);
+              setTabIconTrigger(value => value + 1);
+            }}
             items={[
               { key: 'food',   label: t('profileScreen.tabFood'),   icon: (c) => <Ionicons name="restaurant-outline" size={15} color={c} /> },
               { key: 'family', label: t('profileScreen.tabFamily'), icon: (c) => <Ionicons name="people-outline" size={15} color={c} /> },
@@ -307,13 +337,13 @@ const ProfileScreen = ({ navigation }) => {
           <View style={s.section}>
             <Text style={st.hint}>{t('profileScreen.foodHint')}</Text>
             <View style={[s.card, nativeShadow(), { paddingHorizontal: 16, paddingVertical: 4 }]}>
-              <FoodRow icon="location-outline" iconBg="#F0D9B8" iconColor="#7A4E24" label={t('profileScreen.regionLabel')}>
+              <FoodRow icon="location-outline" iconName="profile-region" iconTrigger={`${screenIconTrigger}:${tabIconTrigger}`} iconDelay={0} iconBg="#F0D9B8" iconColor="#7A4E24" label={t('profileScreen.regionLabel')}>
                 <Text style={fr.value}>{regionText}</Text>
               </FoodRow>
-              <FoodRow icon="restaurant-outline" iconBg="#DCE8C8" iconColor="#3F5A2B" label={t('profileScreen.dietLabel')}>
+              <FoodRow icon="restaurant-outline" iconName="profile-diet" iconTrigger={`${screenIconTrigger}:${tabIconTrigger}`} iconDelay={70} iconBg="#DCE8C8" iconColor="#3F5A2B" label={t('profileScreen.dietLabel')}>
                 <Text style={fr.value}>{dietText}</Text>
               </FoodRow>
-              <FoodRow icon="warning-outline" iconBg="#F5D9CC" iconColor="#8A3B1F" label={t('profileScreen.allergyLabel')}>
+              <FoodRow icon="warning-outline" iconName="profile-allergy-food" iconTrigger={`${screenIconTrigger}:${tabIconTrigger}`} iconDelay={140} iconBg="#F5D9CC" iconColor="#8A3B1F" label={t('profileScreen.allergyLabel')}>
                 {allergyList.length > 0 ? (
                   <View style={fr.chips}>
                     {allergyList.map((a, i) => (
@@ -326,7 +356,7 @@ const ProfileScreen = ({ navigation }) => {
                   <Text style={fr.value}>{t('profileScreen.noAllergy')}</Text>
                 )}
               </FoodRow>
-              <FoodRow icon="flame-outline" iconBg="#F3D6D0" iconColor="#8A2F2F" label={t('profileScreen.tasteLabel')} isLast>
+              <FoodRow icon="flame-outline" iconName="profile-taste-food" iconTrigger={`${screenIconTrigger}:${tabIconTrigger}`} iconDelay={210} iconBg="#F3D6D0" iconColor="#8A2F2F" label={t('profileScreen.tasteLabel')} isLast>
                 {tasteTop.length > 0 ? (
                   <View style={{ gap: 10, marginTop: 4 }}>
                     {tasteTop.map(x => (
@@ -386,7 +416,13 @@ const ProfileScreen = ({ navigation }) => {
           <View style={s.section}>
             <View style={[s.card, nativeShadow(), { paddingHorizontal: 16 }]}>
               {menuItems.map((item, i) => (
-                <MenuItem key={item.label} {...item} isLast={i === menuItems.length - 1} />
+                <MenuItem
+                  key={item.label}
+                  {...item}
+                  iconTrigger={`${screenIconTrigger}:${tabIconTrigger}`}
+                  iconDelay={i * 70}
+                  isLast={i === menuItems.length - 1}
+                />
               ))}
             </View>
           </View>
