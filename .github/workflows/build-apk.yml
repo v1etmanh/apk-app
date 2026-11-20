@@ -34,7 +34,7 @@ jobs:
       - name: Assemble release APK for internal testing
         working-directory: android
         env:
-          EXPO_PUBLIC_API_BASE_URL: 'https://daily-mate-server.onrender.com'
+          EXPO_PUBLIC_API_BASE_URL: 'https://dailymateserverv2.vercel.app'
           EXPO_PUBLIC_SUPABASE_URL: "https://cluqexxdclgtybmryati.supabase.co"
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
