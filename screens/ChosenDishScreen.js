@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../store/useAppStore';
 import ProfileAvatar from '../components/ui/ProfileAvatar';
 import { useTranslation } from 'react-i18next';
+import { WeatherImageBackground } from '../components/ui/WeatherSkyBackground';
 import {
   getMealPlan, removeDishFromMealPlan, resetTodayMealPlan,
   getTodayDateStr, formatDisplayDate,
@@ -37,9 +38,8 @@ const P = {
   sky: '#A8CEDF', paper: '#F5EDD6',
 };
 
-// 2 ảnh như History: 1 hero (trời màu nước) + 1 nền (giấy kem)
+// Nền giấy kem; hero trời dùng WeatherImageBackground (texture theo thời tiết)
 const TEX = {
-  sky:   require('../assets/textures/sky_watercolor.png'),
   paper: require('../assets/textures/paper_cream.png'),
 };
 const CAT = require('../assets/animations/Dance cat.json');
@@ -353,11 +353,9 @@ const ChosenDishScreen = ({ navigation }) => {
       <StatusBar barStyle="dark-content" />
 
       {/* ── Header (hero trời + mép gợn sóng) ── */}
-      <ImageBackground
-        source={TEX.sky}
+      <WeatherImageBackground
         style={s.hero}
-        resizeMode="cover"
-        imageStyle={{ opacity: 0.55 }}
+        imageOpacity={0.55}
       >
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         <View style={s.headerRow}>
@@ -390,7 +388,7 @@ const ChosenDishScreen = ({ navigation }) => {
         )}
       </View>
         <MovingWave />
-      </ImageBackground>
+      </WeatherImageBackground>
 
       {/* ── Body ── */}
       {loading ? (

@@ -1,17 +1,23 @@
 /**
  * SkyHeader — dải trời màu nước ở đầu màn, đáy cắt theo đường sóng.
- * Dùng chung ảnh sky_watercolor.png; mỗi màn (variant trong theme.BG) chỉ khác
- * đoạn cắt ảnh, chiều lật, màu nhấn nhẹ và hình sóng (seed cố định).
+ * Ảnh trời lấy theo thời tiết hiện tại (assets/textures/weather/sky-<type>.webp,
+ * chưa có thời tiết → sky_watercolor.png); đổi thời tiết thì ảnh mới kéo từ trên
+ * xuống. Mỗi màn (variant trong theme.BG) chỉ khác đoạn cắt ảnh, chiều lật,
+ * màu nhấn nhẹ và hình sóng (seed cố định).
  *
  * Ảnh trời được CẮT theo sóng (ClipPath) thay vì vẽ một dải màu kem đè lên,
  * nên giấy nền bên dưới hiện ra liền mạch, không bị gợn ở chỗ nối.
  */
 import React, { useMemo, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Animated } from 'react-native';
 import Svg, { Defs, ClipPath, Path, G, Image as SvgImage, Rect } from 'react-native-svg';
 import { BG } from '../../theme';
+import {
+  WEATHER_TEXTURES, VEIL_OPACITY, VEIL_RANGE, SOLID_RANGE,
+  useCurrentWeatherType, useWeatherWipe,
+} from './WeatherSkyBackground';
 
-const SKY = require('../../assets/textures/sky_watercolor.png');
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
 const SKY_RATIO = 1520 / 704; // cao / rộng của ảnh gốc
 const WAVE_AMP = 9;           // biên độ sóng (px)
 export const SKY_WAVE_SPACE = 18; // khoảng đệm đáy để sóng không đè nội dung
@@ -33,8 +39,11 @@ function wavePath(seed, w, h, amp) {
   return `${d} Z`;
 }
 
-export default function SkyHeader({ variant = 'home', opacity = 0.55, style, children }) {
+export default function SkyHeader({ variant = 'home', opacity = 0.55, style, children, weatherType }) {
   const cfg = BG[variant] || BG.home;
+  const current = useCurrentWeatherType();
+  // Prop SVG không chạy native driver → dùng JS driver cho bản SVG
+  const { base, incoming, progress } = useWeatherWipe(weatherType !== undefined ? weatherType : current, false);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const clipId = `sky-${variant}`;
 
@@ -45,6 +54,21 @@ export default function SkyHeader({ variant = 'home', opacity = 0.55, style, chi
 
   const imgH = size.w * SKY_RATIO;
   const imgY = -Math.max(0, imgH - size.h) * cfg.offset;
+
+  const veilH  = progress.interpolate({ inputRange: VEIL_RANGE,  outputRange: [0, size.h], extrapolate: 'clamp' });
+  const solidH = progress.interpolate({ inputRange: SOLID_RANGE, outputRange: [0, size.h], extrapolate: 'clamp' });
+
+  const renderSky = (src) => (
+    <SvgImage
+      href={src}
+      x={0}
+      y={imgY}
+      width={size.w}
+      height={imgH}
+      opacity={opacity}
+      preserveAspectRatio="xMidYMid slice"
+    />
+  );
 
   return (
     <View
@@ -62,18 +86,31 @@ export default function SkyHeader({ variant = 'home', opacity = 0.55, style, chi
             <ClipPath id={clipId}>
               <Path d={d} />
             </ClipPath>
+            {incoming ? (
+              <>
+                <ClipPath id={`${clipId}-veil`}>
+                  <AnimatedRect x={0} y={0} width={size.w} height={veilH} />
+                </ClipPath>
+                <ClipPath id={`${clipId}-solid`}>
+                  <AnimatedRect x={0} y={0} width={size.w} height={solidH} />
+                </ClipPath>
+              </>
+            ) : null}
           </Defs>
           <G clipPath={`url(#${clipId})`}>
             <G transform={cfg.flip ? `translate(${size.w},0) scale(-1,1)` : undefined}>
-              <SvgImage
-                href={SKY}
-                x={0}
-                y={imgY}
-                width={size.w}
-                height={imgH}
-                opacity={opacity}
-                preserveAspectRatio="xMidYMid slice"
-              />
+              {renderSky(WEATHER_TEXTURES[base])}
+              {incoming ? (
+                <>
+                  {/* Lớp mỏng đi trước + lớp đặc theo sau → mép chuyển mềm */}
+                  <G clipPath={`url(#${clipId}-veil)`} opacity={VEIL_OPACITY}>
+                    {renderSky(WEATHER_TEXTURES[incoming])}
+                  </G>
+                  <G clipPath={`url(#${clipId}-solid)`}>
+                    {renderSky(WEATHER_TEXTURES[incoming])}
+                  </G>
+                </>
+              ) : null}
             </G>
             {cfg.tint ? (
               <Rect x={0} y={0} width={size.w} height={size.h} fill={cfg.tint} opacity={cfg.tintOpacity} />

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ImageBackground, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '../../theme';
+import WeatherSkyBackground from './WeatherSkyBackground';
 
 // Ensure you have these textures in your assets or map them properly
 const ASSETS = {
@@ -17,6 +18,9 @@ export default function ScreenBackground({
   useTexture = true,
   texture = 'sky',
   statusBarStyle = "dark-content",
+  // Truyền weatherType (kể cả null) để dùng nền texture theo thời tiết,
+  // chuyển cảnh kéo từ trên xuống khi thời tiết đổi.
+  weatherType,
 }) {
   const insets = useSafeAreaInsets();
   
@@ -34,6 +38,15 @@ export default function ScreenBackground({
       </View>
     </>
   );
+
+  if (useTexture && weatherType !== undefined) {
+    return (
+      <View style={styles.background}>
+        <WeatherSkyBackground weatherType={weatherType} />
+        {innerContent}
+      </View>
+    );
+  }
 
   if (useTexture && ASSETS[texture]) {
     return (

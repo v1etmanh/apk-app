@@ -26,6 +26,7 @@ import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard from '../components/ui/PaperCard';
 import WoodButton from '../components/ui/ClassicWoodButton';
 import WeatherAnimationSprite from '../components/ui/WeatherAnimationSprite';
+import { weatherIcon, weatherTypeFromData } from '../utils/weatherText';
 import SeasonBubble from '../components/ui/SeasonBubble';
 import ProfileSwitcherSheet from '../components/ProfileSwitcherSheet';
 import ProfileAvatar from '../components/ui/ProfileAvatar';
@@ -86,16 +87,6 @@ const getSeasonInfo = (seasonStr = '') => {
   return { icon: 'calendar-outline', color: C.primary, bgColor: 'rgba(0,0,0,0.05)' };
 };
 
-const weatherIcon = (cond = '', temp = 30) => {
-  const c = cond.toLowerCase();
-  if (c.includes('rain') || c.includes('mưa'))  return '🌧️';
-  if (c.includes('storm') || c.includes('bão')) return '⛈️';
-  if (c.includes('cloud') || c.includes('mây')) return '⛅';
-  if (c.includes('fog')  || c.includes('sương'))return '🌫️';
-  if (temp > 33) return '☀️';
-  if (temp > 28) return '🌤️';
-  return '🌥️';
-};
 
 // ── UV dots bar ───────────────────────────────────────────────────────────────
 const UVBar = ({ value }) => {
@@ -410,7 +401,10 @@ const HomeScreen = ({ navigation }) => {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <ScreenBackground texture="sky">
+    <ScreenBackground
+      texture="sky"
+      weatherType={weatherTypeFromData(weatherData)}
+    >
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={s.scrollContent}

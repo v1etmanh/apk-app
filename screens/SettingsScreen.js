@@ -41,6 +41,7 @@ import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard        from '../components/ui/PaperCard';
 import SectionHeader    from '../components/ui/SectionHeader';
 import AnimatedAppIcon from '../components/ui/AnimatedAppIcon';
+import { WeatherImageBackground } from '../components/ui/WeatherSkyBackground';
 
 const { width: SW } = Dimensions.get('window');
 const CARD_W = SW - 32;
@@ -371,11 +372,9 @@ const SettingsScreen = () => {
         contentContainerStyle={st.scroll}
       >
         {/* ── Header ── */}
-        <ImageBackground
-          source={require('../assets/textures/sky_watercolor.png')}
+        <WeatherImageBackground
           style={[st.header, { paddingTop: insets.top + 12 }]}
-          resizeMode="cover"
-          imageStyle={{ opacity: 0.45 }}
+          imageOpacity={0.45}
         >
           {/* Mèo Cattr phía trên bánh răng */}
           <LottieView
@@ -403,7 +402,7 @@ const SettingsScreen = () => {
               fill={C.bg}
             />
           </Svg>
-        </ImageBackground>
+        </WeatherImageBackground>
 
         {/* ── Section: Thông báo ── */}
         <SectionHeader title={t('settings.notifications')} />

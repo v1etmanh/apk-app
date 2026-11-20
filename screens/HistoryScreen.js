@@ -10,6 +10,7 @@ import LottieView from 'lottie-react-native';
 import { loadSessions, removeSavedDish } from '../utils/database';
 import { useAppStore } from '../store/useAppStore';
 import { useTranslation } from 'react-i18next';
+import { WeatherImageBackground } from '../components/ui/WeatherSkyBackground';
 
 // ─── Design Tokens ────────────────────────────────────────────────
 const C = {
@@ -330,11 +331,9 @@ const HistoryScreen = ({ navigation }) => {
   // ── List Header ──────────────────────────────────────────────────
   const ListHeader = () => (
     <View>
-      <ImageBackground
-        source={require('../assets/textures/sky_watercolor.png')}
+      <WeatherImageBackground
         style={st.topBar}
-        resizeMode="cover"
-        imageStyle={{ opacity: 0.55 }}
+        imageOpacity={0.55}
       >
         <View style={st.topBarContent}>
           <View style={st.titleBlock}>
@@ -359,7 +358,7 @@ const HistoryScreen = ({ navigation }) => {
             fill={C.paper}
           />
         </Svg>
-      </ImageBackground>
+      </WeatherImageBackground>
 
       <View
         style={st.statsCard}

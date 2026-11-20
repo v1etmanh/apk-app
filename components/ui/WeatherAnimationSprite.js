@@ -3,24 +3,12 @@ import { View, Text, StyleSheet, Animated, Easing, Platform } from 'react-native
 import LottieView from 'lottie-react-native';
 import { useTranslation } from 'react-i18next';
 import { C } from '../../theme';
-import { translateWeatherCondition } from '../../utils/weatherText';
+import { translateWeatherCondition, getWeatherType } from '../../utils/weatherText';
 
 const LAZY_CAT = require('../../assets/animations/Lazy cat.json');
 
 // On web, useNativeDriver causes silent failures → always false on web
 const ND = Platform.OS !== 'web';
-
-// ─── Weather type detector ────────────────────────────────────────────────────
-const getWeatherType = (condition = '', icon = '') => {
-  const s = (condition + icon).toLowerCase();
-  if (s.includes('thunder') || s.includes('storm') || s.includes('giông') || s.includes('⛈')) return 'stormy';
-  if (s.includes('snow') || s.includes('tuyết') || s.includes('❄') || s.includes('🌨')) return 'snowy';
-  if (s.includes('fog') || s.includes('mist') || s.includes('sương') || s.includes('🌫')) return 'foggy';
-  if (s.includes('rain') || s.includes('drizzle') || s.includes('mưa') || s.includes('🌧') || s.includes('🌦')) return 'rainy';
-  if (s.includes('cloud') || s.includes('mây') || s.includes('⛅') || s.includes('🌥') || s.includes('☁')) return 'cloudy';
-  if (s.includes('sun') || s.includes('clear') || s.includes('nắng') || s.includes('☀') || s.includes('🌤')) return 'sunny';
-  return 'sunny';
-};
 
 // ─── Particle emitters per type ───────────────────────────────────────────────
 const PARTICLE_COUNT = { rainy: 22, stormy: 30, snowy: 20 };
