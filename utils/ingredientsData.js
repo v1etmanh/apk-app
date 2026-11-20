@@ -26,6 +26,30 @@ const CATEGORY_EN = {
   'Đồ uống': 'Beverages',
 };
 
+const CATEGORY_ALIASES = {
+  ...Object.fromEntries(Object.entries(CATEGORY_EN).map(([vi, en]) => [en, vi])),
+  vegetable: 'Rau củ',
+  leafy_greens: 'Rau củ',
+  protein: 'Thịt',
+  grain: 'Ngũ cốc & Tinh bột',
+  fat: 'Dầu & Mỡ',
+  condiment: 'Gia vị',
+  egg: 'Sữa & Trứng',
+  dairy_poultry: 'Sữa & Trứng',
+  nut_seed: 'Đậu & Hạt',
+  processed_meat: 'Đã chế biến',
+  marine_invertebrates: 'Hải sản',
+};
+const CATEGORY_ALIASES_LOWER = Object.fromEntries(
+  Object.entries(CATEGORY_ALIASES).map(([key, value]) => [key.toLowerCase(), value])
+);
+
+/** Chuẩn hóa category API (Việt, Anh hoặc key legacy) về key tiếng Việt ổn định. */
+export function normalizeIngredientCategory(category) {
+  const raw = String(category || '').trim();
+  return CATEGORY_ALIASES[raw] || CATEGORY_ALIASES_LOWER[raw.toLowerCase()] || raw;
+}
+
 /** Toàn bộ danh sách ingredients, đã sort theo tên tiếng Việt */
 const _membersByParent = new Map();
 for (const ing of ingredientsRaw.data) {
@@ -137,6 +161,10 @@ export const CATEGORY_EMOJI = {
   'Đậu & Hạt': '🥜',
   'Đồ uống': '🥤',
 };
+
+export function getIngredientCategoryEmoji(category) {
+  return CATEGORY_EMOJI[normalizeIngredientCategory(category)] || '🥬';
+}
 
 export { CATEGORY_EN };
 

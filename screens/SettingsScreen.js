@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, Animated, Dimensions, ImageBackground, Switch, Linking,
+  Alert, Dimensions, ImageBackground, Switch, Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
@@ -40,6 +40,8 @@ import { C }           from '../theme';
 import ScreenBackground from '../components/ui/ScreenBackground';
 import PaperCard        from '../components/ui/PaperCard';
 import SectionHeader    from '../components/ui/SectionHeader';
+import AnimatedAppIcon from '../components/ui/AnimatedAppIcon';
+import { WeatherImageBackground } from '../components/ui/WeatherSkyBackground';
 
 const { width: SW } = Dimensions.get('window');
 const CARD_W = SW - 32;
@@ -68,11 +70,18 @@ const WobblyBorder = ({ width, height, color = C.dashed, sw = 1.8, dash = '5,4' 
 };
 
 // ─── SettingsRow ─────────────────────────────────────────────────────────────
-const SettingsRow = ({ IconComponent, iconBg, label, control, danger, isLast, onPress }) => {
+const SettingsRow = ({ IconComponent, lottieName, iconTrigger, iconDelay = 0, iconBg, label, control, danger, isLast, onPress }) => {
   const inner = (
     <>
       <View style={[st.settingsIconBox, { backgroundColor: danger ? 'rgba(231,76,60,0.2)' : iconBg }]}>
-        <PhosphorIcon IconComponent={IconComponent} danger={danger} />
+        <AnimatedAppIcon
+          name={lottieName}
+          size={34}
+          trigger={iconTrigger}
+          playOnVisible
+          delay={iconDelay}
+          fallback={<PhosphorIcon IconComponent={IconComponent} danger={danger} />}
+        />
       </View>
       <Text style={[st.settingsRowLabel, danger && { color: C.accentRed }]}>{label}</Text>
       <View style={st.settingsControl}>
@@ -98,9 +107,12 @@ const SettingsRow = ({ IconComponent, iconBg, label, control, danger, isLast, on
 };
 
 // ─── ActionRow ───────────────────────────────────────────────────────────────
-const ActionRow = ({ IconComponent, iconBg, label, actionLabel, onPress, danger, isLast }) => (
+const ActionRow = ({ IconComponent, lottieName, iconTrigger, iconDelay, iconBg, label, actionLabel, onPress, danger, isLast }) => (
   <SettingsRow
     IconComponent={IconComponent}
+    lottieName={lottieName}
+    iconTrigger={iconTrigger}
+    iconDelay={iconDelay}
     iconBg={iconBg}
     label={label}
     danger={danger}
@@ -156,18 +168,25 @@ const SettingsScreen = () => {
   const [unitSystem,        setUnitSystem]           = useState('metric');
   const [reminderEnabled,   setReminderEnabled]      = useState(false);
   const [reminderTimes,     setReminderTimes]        = useState(DEFAULT_REMINDER_TIMES);
+  const [screenIconTrigger, setScreenIconTrigger]    = useState(0);
+  const [rowIconTriggers, setRowIconTriggers] = useState({
+    reminder: 0, budget: 0, timer: 0, language: 0, logout: 0,
+  });
 
   const { location, setLocation, setCostPreference: setStoreCostPref } = useAppStore();
   const insets = useSafeAreaInsets();
 
-  const gearRot = useRef(new Animated.Value(0)).current;
+  const pulseIcon = useCallback((name) => {
+    setRowIconTriggers(current => ({ ...current, [name]: current[name] + 1 }));
+  }, []);
 
   useEffect(() => {
     loadSettings();
-    Animated.loop(
-      Animated.timing(gearRot, { toValue: 1, duration: 12000, useNativeDriver: true })
-    ).start();
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    setScreenIconTrigger(value => value + 1);
+  }, []));
 
   // [FIX NOTIF-SYNC] Đồng bộ switch với system permission mỗi khi màn hình được focus.
   // User có thể vào System Settings tắt notification ngoài app → switch phải phản ánh đúng.
@@ -218,6 +237,7 @@ const SettingsScreen = () => {
   };
 
   const handleReminderToggle = async (value) => {
+    pulseIcon('reminder');
     try {
       if (value) {
         // Kiểm tra permission hiện tại trước
@@ -280,8 +300,13 @@ const SettingsScreen = () => {
     catch { Alert.alert(t('common.error'), t('settings.notificationError')); }
   };
 
-  const handleCookTimeChange = async v => { setMaxCookTime(v);         await save('max_cook_time',  v); };
+  const handleCookTimeChange = async v => {
+    pulseIcon('timer');
+    setMaxCookTime(v);
+    await save('max_cook_time', v);
+  };
   const handleLanguageChange = async v => {
+    pulseIcon('language');
     setLanguage(v);
     await save('language', v);
     await changeAppLanguage(v);
@@ -292,6 +317,7 @@ const SettingsScreen = () => {
   };
   const handleUnitChange     = async v => { setUnitSystem(v);          await save('unit_system',     v); };
   const handleCostChange     = async v => {
+    pulseIcon('budget');
     setCostPreferenceLocal(v);
     setStoreCostPref(Number(v));
     await save('cost_preference', v);
@@ -321,6 +347,7 @@ const SettingsScreen = () => {
   const exportData = () => Alert.alert(t('settings.export'), t('settings.exportSoon'));
 
   const handleLogout = () => {
+    pulseIcon('logout');
     Alert.alert(
       t('settings.logout'),
       t('settings.logoutConfirm'),
@@ -338,8 +365,6 @@ const SettingsScreen = () => {
     );
   };
 
-  const gearDeg = gearRot.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-
   return (
     <ScreenBackground texture="paper" edges={[]}>
       <ScrollView
@@ -347,11 +372,9 @@ const SettingsScreen = () => {
         contentContainerStyle={st.scroll}
       >
         {/* ── Header ── */}
-        <ImageBackground
-          source={require('../assets/textures/sky_watercolor.png')}
+        <WeatherImageBackground
           style={[st.header, { paddingTop: insets.top + 12 }]}
-          resizeMode="cover"
-          imageStyle={{ opacity: 0.45 }}
+          imageOpacity={0.45}
         >
           {/* Mèo Cattr phía trên bánh răng */}
           <LottieView
@@ -361,10 +384,15 @@ const SettingsScreen = () => {
             style={[st.cattrLottie, { pointerEvents: 'none' }]}
           />
 
-          {/* Bánh răng xoay */}
-          <Animated.View style={{ transform: [{ rotate: gearDeg }], marginBottom: 6 }}>
-            <GearSix weight="duotone" size={44} color={C.textMid} />
-          </Animated.View>
+          {/* Bánh răng vẽ tay — phát một lượt khi màn hình được focus */}
+          <AnimatedAppIcon
+            name="settings-gear"
+            size={58}
+            trigger={screenIconTrigger}
+            playOnVisible
+            fallback={<GearSix weight="duotone" size={44} color={C.textMid} />}
+            style={{ marginBottom: 6 }}
+          />
 
           <Text style={st.headerTitle}>{t('settings.title')}</Text>
           <Text style={st.headerSub}>{t('settings.subtitle')}</Text>
@@ -374,13 +402,16 @@ const SettingsScreen = () => {
               fill={C.bg}
             />
           </Svg>
-        </ImageBackground>
+        </WeatherImageBackground>
 
         {/* ── Section: Thông báo ── */}
         <SectionHeader title={t('settings.notifications')} />
         <PaperCard containerStyle={st.cardWrapper}>
           <SettingsRow
             IconComponent={Bell}
+            lottieName="settings-reminder"
+            iconTrigger={`${screenIconTrigger}:${rowIconTriggers.reminder}`}
+            iconDelay={0}
             iconBg="rgba(251,191,36,0.2)"
             label={t('settings.mealReminder')}
             isLast={true}
@@ -400,6 +431,9 @@ const SettingsScreen = () => {
         <PaperCard containerStyle={st.cardWrapper}>
           <SettingsRow
             IconComponent={CurrencyDollar}
+            lottieName="settings-budget"
+            iconTrigger={`${screenIconTrigger}:${rowIconTriggers.budget}`}
+            iconDelay={70}
             iconBg="rgba(56,176,122,0.2)"
             label={t('settings.cost')}
             control={
@@ -416,6 +450,9 @@ const SettingsScreen = () => {
           />
           <SettingsRow
             IconComponent={Timer}
+            lottieName="settings-timer"
+            iconTrigger={`${screenIconTrigger}:${rowIconTriggers.timer}`}
+            iconDelay={140}
             iconBg="rgba(52,152,219,0.2)"
             label={t('settings.maxCookTime')}
             control={
@@ -428,6 +465,9 @@ const SettingsScreen = () => {
           />
           <SettingsRow
             IconComponent={Globe}
+            lottieName="settings-language"
+            iconTrigger={`${screenIconTrigger}:${rowIconTriggers.language}`}
+            iconDelay={210}
             iconBg="rgba(96,165,250,0.18)"
             label={t('language.label')}
             control={
@@ -451,6 +491,9 @@ const SettingsScreen = () => {
         <PaperCard containerStyle={st.cardWrapper}>
           <ActionRow
             IconComponent={SignOut}
+            lottieName="settings-logout"
+            iconTrigger={`${screenIconTrigger}:${rowIconTriggers.logout}`}
+            iconDelay={280}
             iconBg="rgba(231,76,60,0.2)"
             label={t('settings.logout')}
             actionLabel={t('settings.logoutAction')}

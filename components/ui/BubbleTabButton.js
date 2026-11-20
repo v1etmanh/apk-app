@@ -1,24 +1,18 @@
 /**
- * BubbleTabButton — nút tab cho bottom tab mặc định (dùng qua `tabBarButton`).
- * Giữ nguyên icon/nhãn/màu của tab bar, chỉ thêm:
- * - Tab đang chọn: 1 bong bóng trong mờ bọc quanh, "nảy" lên khi được chọn.
- * - Nhấn: co nhẹ rồi nảy về · Hover (web): phóng nhẹ.
+ * Bottom navigation motion:
+ * - BubbleTabButton tạo phản hồi co/nảy khi nhấn.
+ * - SlidingBubbleTabBar giữ một vòng trắng dùng chung và trượt giữa các tab.
  */
 import React, { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet } from 'react-native';
+import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { BottomTabBar } from '@react-navigation/bottom-tabs';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const POP = { useNativeDriver: true, friction: 6, tension: 140 };
 
 export default function BubbleTabButton({ children, style, accessibilityState, onPress, onLongPress, ...rest }) {
-  const focused = !!accessibilityState?.selected;
-  const bubble = useRef(new Animated.Value(focused ? 1 : 0)).current;
   const touch = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    Animated.spring(bubble, { toValue: focused ? 1 : 0, ...POP }).start();
-  }, [focused, bubble]);
 
   const to = (v) => Animated.spring(touch, { toValue: v, ...POP }).start();
 
@@ -34,32 +28,64 @@ export default function BubbleTabButton({ children, style, accessibilityState, o
       onHoverOut={() => to(1)}
       style={[style, { transform: [{ scale: touch }] }]}
     >
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          s.bubble,
-          {
-            opacity: bubble,
-            transform: [{ scale: bubble.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
-          },
-        ]}
-      />
       {children}
     </AnimatedPressable>
   );
 }
 
+export function SlidingBubbleTabBar(props) {
+  const { width } = useWindowDimensions();
+  const { state } = props;
+  const position = useRef(new Animated.Value(state.index)).current;
+  const itemWidth = width / state.routes.length;
+
+  useEffect(() => {
+    Animated.spring(position, {
+      toValue: state.index,
+      useNativeDriver: true,
+      friction: 10,
+      tension: 58,
+    }).start();
+  }, [position, state.index]);
+
+  return (
+    <View style={s.barShell}>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          s.bubble,
+          {
+            left: itemWidth / 2 - 30,
+            transform: [{ translateX: Animated.multiply(position, itemWidth) }],
+          },
+        ]}
+      />
+      <BottomTabBar {...props} />
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
-  // Cùng tông với tabBarActiveTintColor (#60A5FA), rất nhạt — có mà như không
   bubble: {
-    ...StyleSheet.absoluteFillObject,
-    top: 4,
-    bottom: 4,
-    left: 6,
-    right: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(96, 165, 250, 0.18)',
+    position: 'absolute',
+    zIndex: 0,
+    top: 1,
+    width: 60,
+    height: 53,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
     borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.35)',
+    borderColor: 'rgba(255, 255, 255, 0.82)',
+    shadowColor: '#8B7355',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  barShell: {
+    position: 'relative',
+    backgroundColor: '#F5EDDC',
+    borderTopColor: '#C8A96E',
+    borderTopWidth: 1.5,
   },
 });

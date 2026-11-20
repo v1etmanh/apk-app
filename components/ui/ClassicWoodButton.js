@@ -49,8 +49,8 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(160,120,74,0.5)',
-    ...shadow(3),
+    borderColor: 'rgba(123,93,71,0.38)',
+    ...shadow(2),
     minHeight: 44, // 44px min touch target compliant
   },
   disabled: {
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 14,
     paddingHorizontal: 20,
-    backgroundColor: 'rgba(92,58,30,0.72)', // Tinting to match the theme's brown overlay
+    backgroundColor: 'rgba(111,82,60,0.56)',
     gap: 8,
   },
   iconWrapper: {
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 16,
-    color: '#FFF',
+    color: '#FFF9ED',
     fontFamily: 'Nunito-Bold',
     letterSpacing: 0.3,
   },

@@ -3,6 +3,7 @@
 // thanh lọc trên danh sách kết quả (RecommendScreen → ResultFilterBar).
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { C, R, F } from '../theme';
 
@@ -23,6 +24,15 @@ export const Pill = ({ label, active, onPress, style }) => (
     accessibilityState={{ selected: !!active }}
     style={[s.pill, active && s.pillOn, style]}
   >
+    {active && (
+      <LinearGradient
+        pointerEvents="none"
+        colors={['#D9D18A', '#BBB263']}
+        start={{ x: 0.15, y: 0 }}
+        end={{ x: 0.85, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+    )}
     <Text style={[s.pillText, active && s.pillTextOn]}>{label}</Text>
   </TouchableOpacity>
 );
@@ -57,10 +67,14 @@ const s = StyleSheet.create({
   pill: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: R.pill,
     backgroundColor: 'rgba(255,255,255,0.7)', borderWidth: 1, borderColor: C.border,
+    overflow: 'hidden',
   },
-  pillOn: { backgroundColor: C.primary, borderColor: C.woodDark },
+  pillOn: {
+    backgroundColor: '#D9D18A',
+    borderColor: '#938B45',
+  },
   pillText: { fontFamily: 'BeVietnamPro-SemiBold', fontSize: F.sm, color: C.textMid },
-  pillTextOn: { color: '#fff' },
+  pillTextOn: { color: '#3F3A1F' },
 });
 
 export default MealFilterPanel;
