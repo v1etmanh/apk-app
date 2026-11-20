@@ -48,7 +48,8 @@ const OnboardingFlow = ({ mode = 'full', onFinish, onCancel, profileMeta }) => {
   useEffect(() => {
     (async () => {
       if (mode === 'newProfile') {
-        setDraft({ ...DEFAULT_DRAFT, birth_year: profileMeta?.birth_year ?? null });
+        setDraft({ ...DEFAULT_DRAFT, birth_year: profileMeta?.birth_year ?? null,
+          gender: ['male', 'female'].includes(profileMeta?.gender) ? profileMeta.gender : null });
         return;
       }
       const { profile, latestMetrics } = useAppStore.getState();
@@ -72,8 +73,8 @@ const OnboardingFlow = ({ mode = 'full', onFinish, onCancel, profileMeta }) => {
         ...DEFAULT_DRAFT,
         birth_year: profile?.birth_year ?? null,
         gender:        hasRealData ? (profile?.gender === 'female' ? 'female' : profile?.gender === 'male' ? 'male' : null) : null,
-        height:        height >= 120 && height <= 220 ? Math.round(height) : DEFAULT_DRAFT.height,
-        weight:        weight >= 30 && weight <= 150 ? Math.round(weight * 2) / 2 : DEFAULT_DRAFT.weight,
+        height:        height >= 30 && height <= 220 ? Math.round(height) : DEFAULT_DRAFT.height,
+        weight:        weight >= 1 && weight <= 150 ? Math.round(weight * 2) / 2 : DEFAULT_DRAFT.weight,
         nation:        profile?.nation === 'other' ? 'other' : 'vietnam',
         home_region:   profile?.home_region ?? null,
         diet_type:     profile?.diet_type ?? 'omnivore',

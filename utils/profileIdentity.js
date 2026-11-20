@@ -1,5 +1,14 @@
 export const MAX_FAMILY_MEMBERS = 5;
 
+// Shared by onboarding and every profile avatar. Age is derived, never stored as a group.
+export const PROFILE_AGE_GROUPS = [
+  { key: 'toddler', min: 0, max: 5, male: 'boy-toddler-bong', female: 'girl-toddler-sua' },
+  { key: 'child', min: 6, max: 11, male: 'boy-child-but-chi', female: 'girl-child-no' },
+  { key: 'youth', min: 12, max: 24, male: 'boy-youth-beat', female: 'girl-youth-may' },
+  { key: 'adult', min: 25, max: 59, male: 'man-adult-moka', female: 'woman-adult-la' },
+  { key: 'senior', min: 60, max: 120, male: 'man-senior-tra', female: 'woman-senior-mai' },
+];
+
 export function getProfileAge(profile, currentYear = new Date().getFullYear()) {
   const raw = profile?.birth_year;
   if (!/^[0-9]{4}$/.test(String(raw ?? ''))) return null;
@@ -7,15 +16,17 @@ export function getProfileAge(profile, currentYear = new Date().getFullYear()) {
   return Number.isInteger(age) && age >= 0 && age <= 120 ? age : null;
 }
 
+export function getProfileAgeGroup(profile, currentYear = new Date().getFullYear()) {
+  const age = getProfileAge(profile, currentYear);
+  return age === null ? null : PROFILE_AGE_GROUPS.find(group => age >= group.min && age <= group.max);
+}
+
 export function resolveProfileAvatar(profile, currentYear = new Date().getFullYear()) {
   const age = getProfileAge(profile, currentYear);
   const female = profile?.gender === 'female';
   if (!female && profile?.gender !== 'male') return { key: null, age, reason: 'missing-gender' };
   if (age !== null) {
-    const key = age < 12 ? (female ? 'tabby-girl' : 'kitten')
-      : age < 25 ? (female ? 'sister' : 'brother')
-        : age < 60 ? (female ? 'mother' : 'father')
-          : (female ? 'grandma' : 'grandpa');
+    const key = getProfileAgeGroup(profile, currentYear)[profile.gender];
     return { key, age, reason: 'birth-year' };
   }
   const pairs = { child: ['kitten', 'tabby-girl'], sibling: ['brother', 'sister'], parent: ['father', 'mother'], spouse: ['father', 'mother'] };

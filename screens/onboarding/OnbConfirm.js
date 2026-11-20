@@ -12,11 +12,16 @@ import { tasteSummary } from '../../utils/tasteMath';
 import { useOnboarding } from './OnboardingFlow';
 import { C, F } from '../../theme';
 import { useAppStore } from '../../store/useAppStore';
+import ProfileAvatar, { useProfileYear } from '../../components/ui/ProfileAvatar';
+import { getProfileAge, resolveProfileAvatar } from '../../utils/profileIdentity';
 
 const OnbConfirm = ({ navigation }) => {
   const { t } = useTranslation();
   const ctx = useOnboarding();
   const { draft, update, mode } = ctx;
+  const year = useProfileYear();
+  const age = getProfileAge(draft, year);
+  const avatar = resolveProfileAvatar(draft, year);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -64,7 +69,9 @@ const OnbConfirm = ({ navigation }) => {
       ctaLoading={saving}
       onCta={onStart}
       mascot={false}
-      hero={<MascotCat slot="celebrate" size={140} style={s.cat} />}
+      hero={avatar.key
+        ? <ProfileAvatar profile={draft} size={140} animated style={s.cat} />
+        : <MascotCat slot="celebrate" size={140} style={s.cat} />}
     >
       <Text style={s.mascotLine}>{mascotLine}</Text>
       <Text style={s.source}>
@@ -85,6 +92,7 @@ const OnbConfirm = ({ navigation }) => {
       </TouchableOpacity>
 
       <View style={s.summary}>
+        {age !== null && <Pill label={t('familyAvatar.ageThisYear', { count: age })} />}
         {draft.nation === 'vietnam' && regionOpt && draft.home_region !== 'national' && (
           <Pill label={`${regionOpt.emoji} ${t(`onboarding.region.regions.${regionOpt.key}.label`)}`} />
         )}

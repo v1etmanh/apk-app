@@ -1,4 +1,4 @@
-// Màn 1 — Thông tin cơ thể: giới tính, chiều cao, cân nặng
+// Màn 1 — Năm sinh, giới tính, mèo theo nhóm tuổi và chỉ số cơ thể.
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +8,8 @@ import { ChoiceCard, SectionLabel } from '../../components/onboarding/ChoiceCard
 import { useOnboarding, useResumeOnboarding, goNext } from './OnboardingFlow';
 import { C, F, R } from '../../theme';
 import BirthYearField from '../../components/BirthYearField';
-import ProfileAvatar from '../../components/ui/ProfileAvatar';
+import { useProfileYear } from '../../components/ui/ProfileAvatar';
+import ProfileAgePreview from '../../components/onboarding/ProfileAgePreview';
 import { getProfileAge } from '../../utils/profileIdentity';
 
 const bmiOf = (h, w) => (h > 0 ? w / ((h / 100) ** 2) : 0);
@@ -18,6 +19,8 @@ const OnbBody = ({ navigation }) => {
   const { t } = useTranslation();
   const ctx = useOnboarding();
   const { draft, update } = ctx;
+  const year = useProfileYear();
+  const age = getProfileAge(draft, year);
   useResumeOnboarding(navigation);
 
   const bmi = bmiOf(draft.height, draft.weight);
@@ -31,7 +34,7 @@ const OnbBody = ({ navigation }) => {
       onBack={ctx.onCancel}
       backLabel={t('common.back')}
       ctaLabel={t('onboarding.next')}
-      ctaDisabled={!draft.gender || getProfileAge(draft) === null}
+      ctaDisabled={!['male', 'female'].includes(draft.gender) || age === null}
       onCta={() => goNext(ctx, navigation, 'OnbBody')}
     >
       <SectionLabel>{t('onboarding.body.gender')}</SectionLabel>
@@ -42,26 +45,25 @@ const OnbBody = ({ navigation }) => {
           selected={draft.gender === 'female'} onPress={() => update({ gender: 'female' })} />
       </View>
 
-      <ProfileAvatar profile={draft} size={104} animated style={{ alignSelf: 'center' }} />
-      <Text style={{ textAlign: 'center', color: C.textMid }}>{t('familyAvatar.auto')}</Text>
       <BirthYearField value={draft.birth_year} onChange={birth_year => update({ birth_year })} />
+      <ProfileAgePreview profile={draft} year={year} />
 
       <SectionLabel>{t('onboarding.body.height')}</SectionLabel>
-      <RulerPicker min={120} max={220} step={1} majorEvery={10} unit="cm"
+      <RulerPicker min={30} max={220} step={1} majorEvery={10} unit="cm"
         value={draft.height} onChange={(v) => update({ height: v })} />
 
       <SectionLabel>{t('onboarding.body.weight')}</SectionLabel>
-      <RulerPicker min={30} max={150} step={0.5} majorEvery={5} decimals={1} unit="kg"
+      <RulerPicker min={1} max={150} step={0.5} majorEvery={5} decimals={1} unit="kg"
         value={draft.weight} onChange={(v) => update({ weight: v })} />
 
-      <View style={s.bmiRow}>
+      {age !== null && age >= 18 && <View style={s.bmiRow}>
         <View style={[s.bmiPill, bmiKey(bmi) !== 'normal' && { backgroundColor: C.chipBg }]}>
           <Text style={[s.bmiText, bmiKey(bmi) !== 'normal' && { color: C.textMid }]}>
             {t('onboarding.body.bmi', { value: bmi.toFixed(1) })} · {t(`onboarding.body.bmiLevel.${bmiKey(bmi)}`)}
           </Text>
         </View>
         <Text style={s.bmiHint}>{t('onboarding.body.bmiHint')}</Text>
-      </View>
+      </View>}
     </OnbLayout>
   );
 };

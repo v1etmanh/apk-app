@@ -1,5 +1,17 @@
 export default {
   familyAvatar: {
+    previewTitle: 'Mèo đại diện của bạn',
+    ageThisYear: '{{count}} tuổi trong năm nay',
+    ageGroupsTitle: 'Nhóm tuổi của bạn',
+    ageGroupsHint: 'Nhóm tuổi tự cập nhật từ năm sinh. Chọn giới tính để xem mèo tương ứng.',
+    ageGroups: { toddler: '0–5 tuổi', child: '6–11 tuổi', youth: '12–24 tuổi', adult: '25–59 tuổi', senior: '60+ tuổi' },
+    characters: {
+      'boy-toddler-bong': 'Bông', 'girl-toddler-sua': 'Sữa',
+      'boy-child-but-chi': 'Bút Chì', 'girl-child-no': 'Nơ',
+      'boy-youth-beat': 'Beat', 'girl-youth-may': 'Mây',
+      'man-adult-moka': 'Moka', 'woman-adult-la': 'Lá',
+      'man-senior-tra': 'Trà', 'woman-senior-mai': 'Mai',
+    },
     label: 'Avatar của {{name}}', auto: 'Avatar theo năm sinh và giới tính',
     birthYear: 'Năm sinh *', invalidYear: 'Nhập năm sinh gồm 4 chữ số, từ {{min}} đến {{max}}.',
     missingYear: 'Bổ sung năm sinh để chọn mèo phù hợp',

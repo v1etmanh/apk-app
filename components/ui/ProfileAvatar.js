@@ -6,6 +6,16 @@ import LottieView from 'lottie-react-native';
 import { resolveProfileAvatar } from '../../utils/profileIdentity';
 
 const SOURCES = {
+  'boy-toddler-bong': require('../../assets/animations/plan/boy-toddler-bong.json'),
+  'girl-toddler-sua': require('../../assets/animations/plan/girl-toddler-sua.json'),
+  'boy-child-but-chi': require('../../assets/animations/plan/boy-child-but-chi.json'),
+  'girl-child-no': require('../../assets/animations/plan/girl-child-no.json'),
+  'boy-youth-beat': require('../../assets/animations/plan/boy-youth-beat.json'),
+  'girl-youth-may': require('../../assets/animations/plan/girl-youth-may.json'),
+  'man-adult-moka': require('../../assets/animations/plan/man-adult-moka.json'),
+  'woman-adult-la': require('../../assets/animations/plan/woman-adult-la.json'),
+  'man-senior-tra': require('../../assets/animations/plan/man-senior-tra.json'),
+  'woman-senior-mai': require('../../assets/animations/plan/woman-senior-mai.json'),
   father: require('../../assets/animations/plan/father.json'),
   mother: require('../../assets/animations/plan/mother.json'),
   brother: require('../../assets/animations/plan/brother.json'),
@@ -55,7 +65,7 @@ export default function ProfileAvatar({ profile, size = 48, animated = false, vi
   return (
     <View style={[{ width: size, height: size }, style]} pointerEvents="none" accessible
       accessibilityLabel={t('familyAvatar.label', { name: profile?.displayName || t('profiles.unnamed') })}>
-      {key && failedKey !== key ? (
+      {SOURCES[key] && failedKey !== key ? (
         <LottieView key={key} ref={ref} source={SOURCES[key]} autoPlay={playing} loop resizeMode="contain"
           onAnimationLoaded={syncPlayback} onAnimationFailure={() => setFailedKey(key)}
           style={{ width: '100%', height: '100%' }} />
