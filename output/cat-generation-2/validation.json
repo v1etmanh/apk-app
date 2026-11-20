@@ -1,0 +1,81 @@
+{
+  "passed": true,
+  "dimensions": "512x512",
+  "fps": 30,
+  "durationSeconds": 3,
+  "vectorOnly": true,
+  "externalDependencies": false,
+  "loopEndpointsMatch": true,
+  "characters": [
+    {
+      "key": "boy-toddler-bong",
+      "bytes": 33093,
+      "animatedTracks": 7,
+      "bezierPaths": 26,
+      "sha256": "78c3f8a75eeb98816459b0dc8b9782bfb3acd1b08b7adb6c7833d607b0848990"
+    },
+    {
+      "key": "girl-toddler-sua",
+      "bytes": 34668,
+      "animatedTracks": 12,
+      "bezierPaths": 33,
+      "sha256": "c2c036ee23ca3dd7581b01b61bab06b0744c97c7e24cca774d5be77f6b411a28"
+    },
+    {
+      "key": "boy-child-but-chi",
+      "bytes": 37658,
+      "animatedTracks": 15,
+      "bezierPaths": 37,
+      "sha256": "6f51cdd6b60cb9858711e433f09d0727e9b63ec42fec2baa855e36eae0aa2256"
+    },
+    {
+      "key": "girl-child-no",
+      "bytes": 37094,
+      "animatedTracks": 6,
+      "bezierPaths": 36,
+      "sha256": "6daa370738371638ae14603a44d02ff9de2450aa040aeaa9d041d56a52a66bca"
+    },
+    {
+      "key": "boy-youth-beat",
+      "bytes": 28814,
+      "animatedTracks": 8,
+      "bezierPaths": 31,
+      "sha256": "e617046bf539f0257e5d25c9d04e98aefb85ff84a8f6595c95c52a7d70634900"
+    },
+    {
+      "key": "girl-youth-may",
+      "bytes": 35791,
+      "animatedTracks": 10,
+      "bezierPaths": 32,
+      "sha256": "99aa98e7f5b1907fb8fa97cfd4dfbcd80f075fe70b01fe45ca44dc1cf0e65bd6"
+    },
+    {
+      "key": "man-adult-moka",
+      "bytes": 34560,
+      "animatedTracks": 10,
+      "bezierPaths": 35,
+      "sha256": "09dbea11a9fd58f6af38433375a88e0afac779fc4320d341f04916d8413e4e68"
+    },
+    {
+      "key": "woman-adult-la",
+      "bytes": 40235,
+      "animatedTracks": 11,
+      "bezierPaths": 35,
+      "sha256": "7ad1dbc8ff6182b4bec779428822c2f54b7dac3e0e54bf29c452ee4201dc1faf"
+    },
+    {
+      "key": "man-senior-tra",
+      "bytes": 37563,
+      "animatedTracks": 9,
+      "bezierPaths": 34,
+      "sha256": "5169d2d572f0f8f2f806c1541836b7589e8a00de48386d3f2c855dd891dd7261"
+    },
+    {
+      "key": "woman-senior-mai",
+      "bytes": 27829,
+      "animatedTracks": 7,
+      "bezierPaths": 32,
+      "sha256": "07b0ff48a04424716efe8571c2a5d9fabf0782ff7d5fbe87d7efffb94ae4e375"
+    }
+  ]
+}

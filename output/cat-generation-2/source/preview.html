@@ -1,0 +1,36 @@
+<!doctype html><meta charset="utf-8"><title>Cat family generation 2 · render QA</title>
+<style>body{margin:20px;background:#f4eee7;color:#543727;font:16px Arial}canvas{display:block}#stage{position:fixed;left:-1000px}</style>
+<h1>10 nhân vật mèo · Bộ 2</h1><p id="status">Đang kiểm tra Lottie…</p><canvas id="gallery" width="1400" height="660"></canvas><div id="stage"></div>
+<script type="module">
+import {DotLottie} from '/node_modules/@lottiefiles/dotlottie-web/dist/index.js';
+DotLottie.setWasmUrl('/node_modules/@lottiefiles/dotlottie-web/dist/dotlottie-player.wasm');
+const base='/output/cat-generation-2/';
+const manifest=await (await fetch(base+'source/manifest.json')).json();
+const gallery=document.querySelector('#gallery'),ctx=gallery.getContext('2d');
+ctx.fillStyle='#F4EEE7';ctx.fillRect(0,0,1400,660);
+const contact=document.createElement('canvas');contact.width=1536;contact.height=2800;const cc=contact.getContext('2d');cc.fillStyle='#F4EEE7';cc.fillRect(0,0,1536,2800);
+const report=[];
+const save=async(name,data)=>{const r=await fetch('/qa-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,data})});if(!r.ok)throw Error(await r.text());};
+function metrics(c){const{data}=c.getContext('2d').getImageData(0,0,c.width,c.height);let minX=c.width,minY=c.height,maxX=-1,maxY=-1,count=0;for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(data[(y*c.width+x)*4+3]>20){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);count++;}return{minX,minY,maxX,maxY,pixels:count,cornerAlpha:data[3]};}
+try{
+for(let i=0;i<manifest.characters.length;i++){
+ const s=manifest.characters[i],canvas=document.createElement('canvas');canvas.width=256;canvas.height=256;canvas.style.width='256px';canvas.style.height='256px';document.querySelector('#stage').append(canvas);
+ const data=await (await fetch(base+'lottie/'+s.key+'.json')).json();
+ const player=new DotLottie({canvas,data,autoplay:false,loop:true,renderConfig:{devicePixelRatio:1,autoResize:false,freezeOnOffscreen:false}});
+ await new Promise((resolve,reject)=>{player.addEventListener('load',resolve);player.addEventListener('loadError',reject);setTimeout(()=>reject(Error('load timeout '+s.key)),15000);});
+ const frames=[0,15,34.5,45,70.8,89],checks=[];
+ for(let j=0;j<frames.length;j++){
+  player.setFrame(frames[j]);await new Promise(r=>setTimeout(r,70));
+  const m=metrics(canvas);checks.push({frame:frames[j],...m});if(m.pixels<500||m.cornerAlpha!==0||m.minX<5||m.minY<5||m.maxX>250||m.maxY>250)throw Error('framing/alpha '+s.key+JSON.stringify(m));
+  cc.drawImage(canvas,j*256,i*280);cc.fillStyle='#543727';cc.font='13px Arial';cc.fillText(s.name+' · f'+frames[j],j*256+12,i*280+270);
+  if(j===2){ctx.drawImage(canvas,(i%5)*280+12,Math.floor(i/5)*330);ctx.fillStyle='#543727';ctx.textAlign='center';ctx.font='bold 19px Arial';ctx.fillText(s.name,(i%5)*280+140,Math.floor(i/5)*330+280);ctx.font='14px Arial';ctx.fillText((s.gender==='male'?'Nam':'Nữ')+' · '+s.age+' tuổi',(i%5)*280+140,Math.floor(i/5)*330+305);await save(s.key+'-256.png',canvas.toDataURL());}
+ }
+ player.setFrame(34.5);await new Promise(r=>setTimeout(r,70));
+ for(const size of[48,104]){const small=document.createElement('canvas');small.width=size;small.height=size;small.getContext('2d').drawImage(canvas,0,0,size,size);await save(s.key+'-'+size+'.png',small.toDataURL());}
+ report.push({key:s.key,frames:checks,totalFrames:player.totalFrames});player.destroy();canvas.remove();
+ document.querySelector('#status').textContent='Đã kiểm tra '+(i+1)+'/10';
+}
+await save('gallery.png',gallery.toDataURL());await save('motion-contact-sheet.png',contact.toDataURL());await save('render-report.json',JSON.stringify({renderer:'@lottiefiles/dotlottie-web installed in workspace',passed:true,characters:report}));
+document.querySelector('#status').textContent='PASS: 10 Lotties · 60 frames · 48 / 104 / 256 px';document.body.dataset.result='pass';
+}catch(e){document.querySelector('#status').textContent='FAIL '+String(e);document.body.dataset.result='fail';await save('render-error.json',JSON.stringify({error:String(e),stack:e.stack}));}
+</script>
